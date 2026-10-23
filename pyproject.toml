@@ -1,0 +1,6 @@
+[project]
+name = "cliphaven"
+version = "1.0.0"
+description = "Local Windows video downloader for YouTube and Facebook"
+requires-python = ">=3.10"
+dependencies = ["yt-dlp>=2025.1.15"]

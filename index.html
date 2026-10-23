@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>ClipHaven</title>
+    <link rel="stylesheet" href="style.css" />
+    <script>
+      (function () {
+        const t =
+          localStorage.getItem("theme") ||
+          (matchMedia("(prefers-color-scheme: light)").matches
+            ? "light"
+            : "dark");
+        document.documentElement.setAttribute("data-theme", t);
+      })();
+    </script>
+  </head>
+
+  <body>
+    <main>
+      <button class="theme-btn" id="theme" type="button">🌙 Dark</button>
+      <div class="head">
+        <div class="logo">⬇</div>
+        <div>
+          <h1>ClipHaven</h1>
+          <p class="sub">ClipHaven — Catch, keep, and enjoy your clips.</p>
+        </div>
+      </div>
+      <form id="form">
+        <label for="url">YouTube or Facebook video URL</label>
+        <input
+          id="url"
+          type="url"
+          placeholder="https://www.youtube.com/watch?v=… or Facebook video link"
+          required
+        />
+        <p class="hint">
+          Only download videos you own or are authorized to save.
+        </p>
+        <label for="folder">Save folder</label>
+        <div class="row">
+          <input id="folder" value="D:\Videos\Downloads" required />
+          <button class="btn secondary" id="pick" type="button">
+            Choose folder…
+          </button>
+        </div>
+        <p class="hint">Default folder is D:\Videos\Downloads.</p>
+        <label for="format">Output format</label>
+        <select id="format">
+          <option value="mp4" selected>MP4 (video)</option>
+          <option value="mkv">MKV (video)</option>
+          <option value="webm">WEBM (video)</option>
+          <option value="mp3">MP3 (audio)</option>
+          <option value="m4a">M4A (audio)</option>
+          <option value="wav">WAV (audio)</option>
+        </select>
+        <label for="quality">Video quality</label>
+        <select id="quality">
+          <option value="best" selected>Best available</option>
+          <option value="1080">Up to 1080p</option>
+          <option value="720">Up to 720p</option>
+          <option value="480">Up to 480p</option>
+        </select>
+        <div class="actions">
+          <button class="btn primary" id="start" type="submit">
+            Start download
+          </button>
+          <button
+            class="btn ghost"
+            id="cancel"
+            type="button"
+            style="display: none"
+          >
+            Cancel
+          </button>
+        </div>
+      </form>
+      <section class="status" id="status" aria-live="polite">
+        <div class="statusline">
+          <span class="status-title" id="title">Ready</span>
+          <span class="pill" id="pill">Idle</span>
+        </div>
+        <progress id="progress" max="100" value="0"></progress>
+        <div class="detail" id="detail">Paste a video link to begin.</div>
+      </section>
+      <div class="notice">
+        <strong>Important:</strong> Runs locally at 127.0.0.1. No DRM, paywall,
+        or access-control bypass. FFmpeg recommended for merging high-quality
+        streams.
+      </div>
+      <footer>Keep the backend terminal open while using this page.</footer>
+    </main>
+    <script src="app.js" defer></script>
+  </body>
+</html>
