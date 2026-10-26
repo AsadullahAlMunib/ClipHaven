@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>ClipHaven</title>
+    <title>ClipHaven — Video &amp; Audio Downloader</title>
     <link rel="stylesheet" href="style.css" />
     <script>
       (function () {
@@ -19,77 +19,220 @@
 
   <body>
     <main>
-      <button class="theme-btn" id="theme" type="button">🌙 Dark</button>
+      <button class="theme-btn" id="theme" type="button" title="Switch theme">
+        🌙 Dark
+      </button>
+
       <div class="head">
-        <div class="logo">⬇</div>
+        <div class="logo" aria-hidden="true">⬇</div>
         <div>
-          <h1>ClipHaven</h1>
-          <p class="sub">ClipHaven — Catch, keep, and enjoy your clips.</p>
+          <div class="title-row">
+            <h1>ClipHaven</h1>
+            <span class="version-pill">v2.0.0</span>
+          </div>
+          <p class="sub">Paste a link, pick a format, and save your clip in seconds.</p>
         </div>
       </div>
+
+      <!-- Auto-shown only if FFmpeg is missing -->
+      <div class="warning-banner" id="ffmpeg-warning" style="display: none">
+        <strong>⚠️ FFmpeg not detected:</strong> High-quality video (1080p+), MP3 conversion, and clip cutting require FFmpeg. Run <code>setup-and-run.bat</code> or install FFmpeg for full support.
+      </div>
+
       <form id="form">
-        <label for="url">YouTube or Facebook video URL</label>
-        <input
-          id="url"
-          type="url"
-          placeholder="https://www.youtube.com/watch?v=… or Facebook video link"
-          required
-        />
-        <p class="hint">
-          Only download videos you own or are authorized to save.
-        </p>
-        <label for="folder">Save folder</label>
-        <div class="row">
-          <input id="folder" value="D:\Videos\Downloads" required />
-          <button class="btn secondary" id="pick" type="button">
-            Choose folder…
+        <label for="url">1. Video Link (YouTube, Facebook, Instagram, TikTok, X)</label>
+        <div class="row url-row">
+          <div class="input-wrap">
+            <input
+              id="url"
+              type="text"
+              inputmode="url"
+              autocomplete="off"
+              placeholder="Paste video link here (e.g. https://www.youtube.com/watch?v=…)"
+              required
+            />
+            <button
+              class="clear-input-btn"
+              id="clear-url-btn"
+              type="button"
+              title="Clear link"
+              style="display: none"
+              aria-label="Clear link"
+            >
+              ✕
+            </button>
+          </div>
+          <button class="btn secondary" id="paste-btn" type="button" title="Paste link from clipboard">
+            📋 Paste
           </button>
         </div>
-        <p class="hint">Default folder is D:\Videos\Downloads.</p>
-        <label for="format">Output format</label>
-        <select id="format">
-          <option value="mp4" selected>MP4 (video)</option>
-          <option value="mkv">MKV (video)</option>
-          <option value="webm">WEBM (video)</option>
-          <option value="mp3">MP3 (audio)</option>
-          <option value="m4a">M4A (audio)</option>
-          <option value="wav">WAV (audio)</option>
-        </select>
-        <label for="quality">Video quality</label>
-        <select id="quality">
-          <option value="best" selected>Best available</option>
-          <option value="1080">Up to 1080p</option>
-          <option value="720">Up to 720p</option>
-          <option value="480">Up to 480p</option>
-        </select>
+
+        <!-- Auto Video Preview Card -->
+        <div class="preview-card" id="preview-card" style="display: none">
+          <img id="preview-thumb" class="preview-thumb" alt="Video thumbnail" />
+          <div class="preview-info">
+            <div class="preview-title" id="preview-title">Loading video info…</div>
+            <div class="preview-meta">
+              <span id="preview-uploader"></span>
+              <span class="meta-dot" id="preview-dot" style="display: none">•</span>
+              <span id="preview-duration" class="badge-subtle"></span>
+              <button
+                type="button"
+                id="preview-playlist"
+                class="badge-accent clickable-badge"
+                style="display: none"
+                title="Click to toggle full playlist download"
+              >
+                Playlist
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div>
+            <label for="format">2. Format</label>
+            <select id="format">
+              <option value="mp4" selected>🎬 MP4 Video (Recommended)</option>
+              <option value="mkv">🎬 MKV Video</option>
+              <option value="webm">🎬 WEBM Video</option>
+              <option value="mp3">🎵 MP3 Audio Only</option>
+              <option value="m4a">🎵 M4A Audio Only</option>
+              <option value="wav">🎵 WAV Audio Only</option>
+            </select>
+          </div>
+          <div>
+            <label for="quality">3. Video Quality</label>
+            <select id="quality">
+              <option value="best" selected>✨ Best Available</option>
+              <option value="2160">4K (Up to 2160p)</option>
+              <option value="1440">2K (Up to 1440p)</option>
+              <option value="1080">Full HD (1080p)</option>
+              <option value="720">HD (720p)</option>
+              <option value="480">Standard (480p)</option>
+              <option value="360">Data Saver (360p)</option>
+            </select>
+          </div>
+        </div>
+
+        <label for="folder">4. Save Folder</label>
+        <div class="row">
+          <input id="folder" placeholder="Loading default save folder…" required />
+          <button class="btn secondary" id="pick" type="button">
+            📁 Browse…
+          </button>
+        </div>
+        <p class="hint" id="folder-hint">
+          Your chosen folder is remembered automatically for next time.
+        </p>
+
+        <!-- Progressive Disclosure: Optional Tools tucked away neatly -->
+        <details class="extra-options" id="extra-options">
+          <summary>
+            <span>⚙️ Cut Clip / Extra Options <small>(Optional)</small></span>
+            <span class="summary-badge" id="active-options-badge" style="display: none">Active</span>
+          </summary>
+          <div class="extra-body">
+            <div class="extra-group">
+              <div class="extra-label">✂️ Cut Specific Part of Video (Leave blank for full video)</div>
+              <div class="grid-2 compact">
+                <div>
+                  <label for="start-time" class="sub-label">Start Time</label>
+                  <input id="start-time" type="text" placeholder="00:00 (e.g. 01:15)" />
+                </div>
+                <div>
+                  <label for="end-time" class="sub-label">End Time</label>
+                  <input id="end-time" type="text" placeholder="End (e.g. 02:30)" />
+                </div>
+              </div>
+            </div>
+
+            <div class="extra-group">
+              <div class="extra-label">➕ Additional Preferences</div>
+              <div class="checks-grid">
+                <label class="check-item">
+                  <input type="checkbox" id="subtitles" />
+                  <span>Include Subtitles (CC)</span>
+                </label>
+                <label class="check-item">
+                  <input type="checkbox" id="embed-thumbnail" />
+                  <span>Embed Cover Art / Thumbnail</span>
+                </label>
+                <label class="check-item">
+                  <input type="checkbox" id="allow-playlist" />
+                  <span>Download Entire Playlist</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="extra-group">
+              <label for="cookies-browser" class="sub-label">
+                🔐 Private / Age-Restricted Video? Use Browser Login:
+              </label>
+              <select id="cookies-browser">
+                <option value="none" selected>None (Public Video)</option>
+                <option value="chrome">Google Chrome</option>
+                <option value="edge">Microsoft Edge</option>
+                <option value="firefox">Mozilla Firefox</option>
+                <option value="brave">Brave Browser</option>
+                <option value="opera">Opera Browser</option>
+              </select>
+            </div>
+          </div>
+        </details>
+
         <div class="actions">
           <button class="btn primary" id="start" type="submit">
-            Start download
+            ⬇ Download Now
           </button>
           <button
-            class="btn ghost"
+            class="btn danger-ghost"
             id="cancel"
             type="button"
             style="display: none"
           >
-            Cancel
+            ✕ Cancel
           </button>
         </div>
       </form>
+
+      <!-- Live Download Status Panel -->
       <section class="status" id="status" aria-live="polite">
         <div class="statusline">
           <span class="status-title" id="title">Ready</span>
-          <span class="pill" id="pill">Idle</span>
+          <div class="status-badges">
+            <span class="metric-pill" id="speed-pill" style="display: none"></span>
+            <span class="metric-pill" id="eta-pill" style="display: none"></span>
+            <span class="pill" id="pill">Idle</span>
+          </div>
         </div>
         <progress id="progress" max="100" value="0"></progress>
-        <div class="detail" id="detail">Paste a video link to begin.</div>
+        <div class="status-footer">
+          <div class="detail" id="detail">Paste a video link to begin.</div>
+          <button
+            class="btn secondary small-btn"
+            id="open-folder-btn"
+            type="button"
+            style="display: none"
+          >
+            📂 Open Folder
+          </button>
+        </div>
       </section>
+
+      <!-- Recent Downloads History -->
+      <section class="history-section" id="history-section" style="display: none">
+        <div class="history-head">
+          <h2>Recent Downloads</h2>
+          <button class="link-btn" id="clear-history" type="button">Clear list</button>
+        </div>
+        <div class="history-list" id="history-list"></div>
+      </section>
+
       <div class="notice">
-        <strong>Important:</strong> Runs locally at 127.0.0.1. No DRM, paywall,
-        or access-control bypass. FFmpeg recommended for merging high-quality
-        streams.
+        <strong>Privacy &amp; Safety:</strong> Runs 100% locally on your computer (<code>127.0.0.1</code>). Only download videos you own or have permission to save.
       </div>
-      <footer>Keep the backend terminal open while using this page.</footer>
+      <footer>Keep the terminal window open while downloading.</footer>
     </main>
     <script src="app.js" defer></script>
   </body>

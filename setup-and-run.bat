@@ -5,19 +5,22 @@ cd /d "%~dp0"
 :: Python check
 where py >nul 2>nul
 if errorlevel 1 (
-  echo Python 3.10+ was not found.
-  echo Install it from https://www.python.org/downloads/ and enable "Add Python to PATH".
-  start "" "https://www.python.org/downloads/"
-  pause
-  exit /b 1
+  where python >nul 2>nul
+  if errorlevel 1 (
+    echo Python 3.10+ was not found.
+    echo Install it from https://www.python.org/downloads/ and enable "Add Python to PATH".
+    start "" "https://www.python.org/downloads/"
+    pause
+    exit /b 1
+  )
 )
 
-set "PYEXE="
+set "USE_VENV=0"
 
 :: Try to create/use venv
 if not exist ".venv\Scripts\python.exe" (
   echo Creating virtual environment...
-  py -3 -m venv .venv
+  py -3 -m venv .venv >nul 2>&1 || python -m venv .venv
   if errorlevel 1 (
     echo Failed to create virtual environment. Will use system Python.
     goto :use_system
@@ -33,7 +36,7 @@ if errorlevel 1 (
   if errorlevel 1 (
     echo Could not repair venv. Deleting and recreating...
     rmdir /s /q .venv >nul 2>&1
-    py -3 -m venv .venv
+    py -3 -m venv .venv >nul 2>&1 || python -m venv .venv
     if errorlevel 1 (
       echo Failed to recreate venv. Will use system Python.
       goto :use_system
@@ -47,41 +50,53 @@ if errorlevel 1 (
   )
 )
 
-set "PYEXE=.venv\Scripts\python.exe"
+set "USE_VENV=1"
 goto :install
 
 :use_system
-echo Using system Python (py -3) instead of venv.
-set "PYEXE=py -3"
+echo Using system Python instead of venv.
+set "USE_VENV=0"
 
 :install
-echo Using: %PYEXE%
-"%PYEXE%" -m pip install --upgrade pip
-if errorlevel 1 (
-  echo Failed to upgrade pip.
-  pause
-  exit /b 1
-)
-
-"%PYEXE%" -m pip install -r requirements.txt
-if errorlevel 1 (
-  echo Dependency install failed.
-  pause
-  exit /b 1
+if "%USE_VENV%"=="1" (
+  echo Using virtual environment: .venv\Scripts\python.exe
+  ".venv\Scripts\python.exe" -m pip install --upgrade pip
+  if errorlevel 1 (
+    echo Failed to upgrade pip.
+    pause
+    exit /b 1
+  )
+  ".venv\Scripts\python.exe" -m pip install --upgrade -r requirements.txt
+  if errorlevel 1 (
+    echo Dependency install failed.
+    pause
+    exit /b 1
+  )
+) else (
+  echo Using system Python
+  py -3 -m pip install --upgrade pip || python -m pip install --upgrade pip
+  py -3 -m pip install --upgrade -r requirements.txt || python -m pip install --upgrade -r requirements.txt
+  if errorlevel 1 (
+    echo Dependency install failed.
+    pause
+    exit /b 1
+  )
 )
 
 :: FFmpeg check/install
 where ffmpeg >nul 2>&1
 if errorlevel 1 (
-  echo FFmpeg not found. Trying winget install...
+  echo FFmpeg not found on PATH. Trying winget install...
   winget install --id Gyan.FFmpeg -e --accept-source-agreements --accept-package-agreements
+  :: Refresh user/system PATH in current session
+  for /f "tokens=2*" %%A in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do set "SYS_PATH=%%B"
+  for /f "tokens=2*" %%A in ('reg query "HKCU\Environment" /v Path 2^>nul') do set "USR_PATH=%%B"
+  set "PATH=%SYS_PATH%;%USR_PATH%;%PATH%"
   where ffmpeg >nul 2>&1
   if errorlevel 1 (
-    echo FFmpeg could not be installed automatically.
-    echo Please install FFmpeg manually and add it to PATH for best results.
-    echo See: https://ffmpeg.org/download.html
+    echo Note: FFmpeg will be detected automatically by ClipHaven if installed via Winget, or restart this window after installing FFmpeg.
   ) else (
-    echo FFmpeg installed successfully.
+    echo FFmpeg installed and ready.
   )
 ) else (
   echo FFmpeg already available.
@@ -89,5 +104,9 @@ if errorlevel 1 (
 
 :: Launch
 echo Starting ClipHaven...
-"%PYEXE%" server.py
+if "%USE_VENV%"=="1" (
+  ".venv\Scripts\python.exe" server.py
+) else (
+  py -3 server.py || python server.py
+)
 pause

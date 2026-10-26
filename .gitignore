@@ -1,0 +1,29 @@
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Python cache & PyInstaller build artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.spec
+.pytest_cache/
+
+# Application logs & local downloads
+app.log
+*.log
+downloads/
+*.part
+*.part-*
+*.ytdl
+*.temp
+
+# OS & Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
