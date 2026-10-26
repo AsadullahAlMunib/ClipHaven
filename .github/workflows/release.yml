@@ -72,7 +72,7 @@ jobs:
 
       - name: Publish GitHub Release (on tag push or manual tag input)
         if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.tag_name != '')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.event.inputs.tag_name || github.ref_name }}
           generate_release_notes: true
