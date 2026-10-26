@@ -1,0 +1,82 @@
+name: Build & Release (.exe + .bat ZIP)
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Release tag (e.g. v2.0.0) - leave blank if just testing build"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    name: Build Windows Standalone .exe & Source Packages
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install Dependencies & PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller pytest
+
+      - name: Run Unit Tests Before Building
+        run: pytest -v
+
+      - name: Build Standalone ClipHaven.exe
+        run: |
+          pyinstaller --noconfirm --clean --onefile --name ClipHaven ^
+            --add-data "index.html;." ^
+            --add-data "style.css;." ^
+            --add-data "app.js;." ^
+            --collect-all yt_dlp ^
+            server.py
+
+      - name: Package Release Archives (.exe Hybrid Bundle & Source .bat Bundle)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release_out | Out-Null
+
+          # 1. Hybrid Bundle: Contains ClipHaven.exe AND setup-and-run.bat + source files
+          New-Item -ItemType Directory -Force -Path staging_exe/ClipHaven | Out-Null
+          Copy-Item dist/ClipHaven.exe staging_exe/ClipHaven/
+          Copy-Item setup-and-run.bat, build-exe.bat, server.py, index.html, style.css, app.js, requirements.txt, pyproject.toml, README.md, CHANGELOG.md, LICENSE staging_exe/ClipHaven/
+          Compress-Archive -Path staging_exe/ClipHaven -DestinationPath release_out/ClipHaven-Windows-EXE-and-Bat.zip -Force
+
+          # 2. Lightweight Source + .bat Bundle
+          New-Item -ItemType Directory -Force -Path staging_src/ClipHaven | Out-Null
+          Copy-Item setup-and-run.bat, build-exe.bat, server.py, index.html, style.css, app.js, requirements.txt, pyproject.toml, README.md, CHANGELOG.md, LICENSE staging_src/ClipHaven/
+          Compress-Archive -Path staging_src/ClipHaven -DestinationPath release_out/ClipHaven-Source-Bat-Only.zip -Force
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ClipHaven-Windows-Packages
+          path: |
+            release_out/ClipHaven-Windows-EXE-and-Bat.zip
+            release_out/ClipHaven-Source-Bat-Only.zip
+            dist/ClipHaven.exe
+
+      - name: Publish GitHub Release (on tag push or manual tag input)
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.tag_name != '')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag_name || github.ref_name }}
+          generate_release_notes: true
+          files: |
+            release_out/ClipHaven-Windows-EXE-and-Bat.zip
+            release_out/ClipHaven-Source-Bat-Only.zip
+            dist/ClipHaven.exe
