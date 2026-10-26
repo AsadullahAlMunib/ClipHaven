@@ -37,6 +37,7 @@ jobs:
         run: pytest -v
 
       - name: Build Standalone ClipHaven.exe
+        shell: cmd
         run: |
           pyinstaller --noconfirm --clean --onefile --name ClipHaven ^
             --add-data "index.html;." ^
