@@ -2,6 +2,7 @@ import sys
 import json
 import threading
 import urllib.request
+import urllib.error
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
@@ -43,7 +44,7 @@ def test_config_and_validation_endpoints(tmp_path):
     t = threading.Thread(target=httpd.serve_forever, daemon=True)
     t.start()
     try:
-        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/config") as resp:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/config", timeout=5) as resp:
             assert resp.status == 200
             data = json.loads(resp.read().decode("utf-8"))
             assert data["ok"] is True
@@ -65,7 +66,7 @@ def test_config_and_validation_endpoints(tmp_path):
             method="POST",
         )
         try:
-            urllib.request.urlopen(req)
+            urllib.request.urlopen(req, timeout=5)
             assert False, "Should have returned 400"
         except urllib.error.HTTPError as e:
             assert e.code == 400
