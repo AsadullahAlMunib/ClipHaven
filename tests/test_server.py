@@ -38,7 +38,7 @@ def test_parse_timestamp():
     assert server.parse_timestamp("") is None
 
 
-def test_config_and_validation_endpoints(tmp_path):
+def test_config_logo_and_validation_endpoints(tmp_path):
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), server.Handler)
     port = httpd.server_address[1]
     t = threading.Thread(target=httpd.serve_forever, daemon=True)
@@ -50,6 +50,11 @@ def test_config_and_validation_endpoints(tmp_path):
             assert data["ok"] is True
             assert "default_folder" in data
             assert "ffmpeg" in data
+
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/logo.svg", timeout=5) as resp:
+            assert resp.status == 200
+            svg_text = resp.read().decode("utf-8")
+            assert "<svg" in svg_text
 
         # Test invalid time range rejection on /api/download
         req = urllib.request.Request(
