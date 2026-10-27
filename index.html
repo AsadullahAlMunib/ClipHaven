@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>ClipHaven — Video &amp; Audio Downloader</title>
+    <link rel="icon" type="image/svg+xml" href="logo.svg" />
     <link rel="stylesheet" href="style.css" />
     <script>
       (function () {
@@ -24,11 +25,11 @@
       </button>
 
       <div class="head">
-        <div class="logo" aria-hidden="true">⬇</div>
+        <img src="logo.svg" class="logo" alt="ClipHaven logo" width="60" height="60" />
         <div>
           <div class="title-row">
             <h1>ClipHaven</h1>
-            <span class="version-pill">v2.0.0</span>
+            <span class="version-pill">v2.1.0</span>
           </div>
           <p class="sub">Paste a link, pick a format, and save your clip in seconds.</p>
         </div>
@@ -36,7 +37,7 @@
 
       <!-- Auto-shown only if FFmpeg is missing -->
       <div class="warning-banner" id="ffmpeg-warning" style="display: none">
-        <strong>⚠️ FFmpeg not detected:</strong> High-quality video (1080p+), MP3 conversion, and clip cutting require FFmpeg. Run <code>setup-and-run.bat</code> or install FFmpeg for full support.
+        <strong>⚠️ FFmpeg not detected:</strong> High-quality video (1080p+), MP3 conversion, and clip cutting require FFmpeg. Run <code>setup-and-run.bat</code> to install dependencies automatically.
       </div>
 
       <form id="form">
@@ -118,12 +119,9 @@
         <label for="folder">4. Save Folder</label>
         <div class="row">
           <input id="folder" placeholder="Loading default save folder…" required />
-          <button class="btn secondary" id="pick" type="button">
-            📁 Browse…
-          </button>
         </div>
         <p class="hint" id="folder-hint">
-          Your chosen folder is remembered automatically for next time.
+          Your chosen folder path is remembered automatically for next time.
         </p>
 
         <!-- Progressive Disclosure: Optional Tools tucked away neatly -->
@@ -163,20 +161,6 @@
                   <span>Download Entire Playlist</span>
                 </label>
               </div>
-            </div>
-
-            <div class="extra-group">
-              <label for="cookies-browser" class="sub-label">
-                🔐 Private / Age-Restricted Video? Use Browser Login:
-              </label>
-              <select id="cookies-browser">
-                <option value="none" selected>None (Public Video)</option>
-                <option value="chrome">Google Chrome</option>
-                <option value="edge">Microsoft Edge</option>
-                <option value="firefox">Mozilla Firefox</option>
-                <option value="brave">Brave Browser</option>
-                <option value="opera">Opera Browser</option>
-              </select>
             </div>
           </div>
         </details>

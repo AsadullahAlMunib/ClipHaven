@@ -79,12 +79,9 @@ main {
   height: 60px;
   width: 60px;
   flex: none;
-  border-radius: 18px;
-  display: grid;
-  place-items: center;
-  background: var(--accent);
-  font-size: 28px;
-  color: #fff;
+  border-radius: 16px;
+  display: block;
+  object-fit: contain;
   box-shadow: 0 10px 30px color-mix(in srgb, var(--blue) 35%, transparent);
 }
 .title-row {

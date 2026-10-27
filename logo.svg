@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" fill="none">
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="128" y2="128" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ff5555" />
+      <stop offset="50%" stop-color="#a855f7" />
+      <stop offset="100%" stop-color="#3b82f6" />
+    </linearGradient>
+    <linearGradient id="glowGrad" x1="24" y1="20" x2="104" y2="108" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.98" />
+      <stop offset="100%" stop-color="#e0eaff" stop-opacity="0.9" />
+    </linearGradient>
+  </defs>
+  <!-- Rounded App Icon Base -->
+  <rect x="6" y="6" width="116" height="116" rx="30" fill="url(#bgGrad)" />
+  <rect x="8" y="8" width="112" height="112" rx="28" stroke="#ffffff" stroke-opacity="0.22" stroke-width="2" />
+
+  <!-- Subtle Clapperboard / Video Frame Top Accents -->
+  <path d="M36 26h14l-6 10H30l6-10zm26 0h14l-6 10H56l6-10zm26 0h12a6 6 0 0 1 6 6v4H82l6-10z" fill="#ffffff" fill-opacity="0.22" />
+
+  <!-- Play Triangle Merged with Download Arrow -->
+  <path d="M44 37.5c0-3.2 3.5-5.2 6.3-3.5l26.4 15.8c2.7 1.6 2.7 5.4 0 7L50.3 72.6c-2.8 1.7-6.3-.3-6.3-3.5V37.5z" fill="#ffffff" fill-opacity="0.28" />
+
+  <!-- Bold Download Arrow -->
+  <path d="M64 34a6 6 0 0 1 6 6v31.5l11.8-11.8a6 6 0 1 1 8.5 8.5l-22 22a6 6 0 0 1-8.6 0l-22-22a6 6 0 1 1 8.5-8.5L58 71.5V40a6 6 0 0 1 6-6z" fill="url(#glowGrad)" />
+
+  <!-- Tray / Haven Base Line -->
+  <path d="M36 98a6 6 0 0 1 6-6h44a6 6 0 1 1 0 12H42a6 6 0 0 1-6-6z" fill="#ffffff" />
+</svg>

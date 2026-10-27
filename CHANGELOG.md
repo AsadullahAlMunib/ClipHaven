@@ -2,7 +2,23 @@
 
 All notable changes to **ClipHaven** are documented in this file.
 
-## [2.0.0] - 2026-10-26
+## [[2.1.0](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v2.1.0)] - 2026-10-27
+
+### Added
+- **Custom SVG Brand Logo (`logo.svg`)**: Added vector logo and browser favicon, plus automated multi-resolution Windows `.ico` generation in GitHub Actions.
+- **Automatic FFmpeg Bundling (`imageio-ffmpeg`)**: Included `imageio-ffmpeg` in `requirements.txt` and passed `--ffmpeg-location` automatically in `server.py`, eliminating missing FFmpeg errors for 1080p/4K merging, MP3/WAV conversion, and clip cutting.
+- **Antivirus-Friendly GitHub Actions Release (`release.yml`)**:
+  - Switched Windows `.exe` build from `--onefile` to `--onedir` with pre-bundled `ffmpeg.exe` (`ClipHaven-Windows-EXE.zip`) to eliminate PyInstaller temp-unpacking false positives in Windows Defender and Chrome Safe Browsing.
+  - Separated `ClipHaven-Windows-EXE.zip` and `ClipHaven-Source-Bat.zip` so `.exe` and `.bat` files are never mixed in the same archive.
+
+### Changed & Fixed
+- **Streamlined `server.py` Codebase**: Reduced `server.py` from 945 lines to ~460 lines while keeping all core download, preview, clip trimming, subtitle, and thumbnail features intact.
+- **Clean `setup-and-run.bat`**: Removed Windows Registry queries (`reg query HKLM\SYSTEM...`) and silent `winget` installs that triggered antivirus heuristic warnings and batch variable expansion bugs.
+- **Removed Unnecessary Bloat**: Removed local `build-exe.bat`, Tkinter folder picker (`--exclude-module tkinter`), and browser cookie extraction to improve security and eliminate false-positive malware flags.
+
+
+
+## [[2.0.0](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v2.0.0)] - 2026-10-26
 
 ### Added
 - **Dual Launch Architecture (`.exe` + `setup-and-run.bat`)**:
@@ -35,7 +51,9 @@ All notable changes to **ClipHaven** are documented in this file.
 - **Session & Folder Persistence**: Remembers the user's chosen save folder in `localStorage` and automatically resumes progress tracking if the browser tab is refreshed mid-download.
 - **Automatic Port Fallback**: Automatically binds to the next available port (`8765`–`8775`) if port `8765` is already in use.
 
-## [1.0.0] - Initial Release
+
+
+## [[1.0.0](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v1.0.0)] - Initial Release
 - Local browser UI at `http://127.0.0.1:8765/` for YouTube and Facebook downloads.
 - Basic format (`MP4`, `MKV`, `WEBM`, `MP3`, `M4A`, `WAV`) and quality (`best`, `1080p`, `720p`, `480p`) selection.
 - Dark/light theme toggle and `setup-and-run.bat` launcher.

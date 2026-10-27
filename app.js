@@ -101,9 +101,8 @@ function updateExtraOptionsBadge() {
     $("subtitles").checked ||
     $("embed-thumbnail").checked ||
     $("allow-playlist").checked;
-  const hasCookies = $("cookies-browser").value !== "none";
   $("active-options-badge").style.display =
-    hasTrim || hasChecks || hasCookies ? "inline-block" : "none";
+    hasTrim || hasChecks ? "inline-block" : "none";
 }
 [
   "start-time",
@@ -111,16 +110,9 @@ function updateExtraOptionsBadge() {
   "subtitles",
   "embed-thumbnail",
   "allow-playlist",
-  "cookies-browser",
 ].forEach((id) => {
   $(id).addEventListener("input", updateExtraOptionsBadge);
   $(id).addEventListener("change", updateExtraOptionsBadge);
-});
-
-// Re-fetch preview when browser cookies selector changes
-$("cookies-browser").addEventListener("change", () => {
-  lastPreviewUrl = "";
-  if ($("url").value.trim()) triggerPreview();
 });
 
 // Interactive playlist badge toggles full playlist download
@@ -171,9 +163,8 @@ async function fetchPreview(rawUrl) {
     hidePreview();
     return;
   }
-  const cacheKey = clean + "|" + $("cookies-browser").value;
-  if (cacheKey === lastPreviewUrl) return;
-  lastPreviewUrl = cacheKey;
+  if (clean === lastPreviewUrl) return;
+  lastPreviewUrl = clean;
 
   const seq = ++previewSeq;
   $("preview-card").style.display = "flex";
@@ -187,10 +178,7 @@ async function fetchPreview(rawUrl) {
   try {
     const d = await api("/api/info", {
       method: "POST",
-      body: JSON.stringify({
-        url: clean,
-        cookies_browser: $("cookies-browser").value,
-      }),
+      body: JSON.stringify({ url: clean }),
     });
     if (seq !== previewSeq) return;
     const info = d.info || {};
@@ -228,26 +216,6 @@ function triggerPreview() {
 
 $("url").addEventListener("input", triggerPreview);
 $("url").addEventListener("paste", () => setTimeout(triggerPreview, 80));
-
-// Browse folder button
-$("pick").onclick = async () => {
-  const b = $("pick");
-  b.disabled = true;
-  try {
-    const d = await api("/api/choose-folder", {
-      method: "POST",
-      body: "{}",
-    });
-    if (d.folder) {
-      $("folder").value = d.folder;
-      localStorage.setItem("cliphaven_folder", d.folder);
-    }
-  } catch (e) {
-    status("Folder picker failed", e.message, 0, "Error", "error");
-  } finally {
-    b.disabled = false;
-  }
-};
 
 // Open folder button
 async function openFolder(pathOrJobId = {}) {
@@ -441,7 +409,6 @@ $("form").onsubmit = async (e) => {
         subtitles: $("subtitles").checked,
         embed_thumbnail: $("embed-thumbnail").checked,
         allow_playlist: $("allow-playlist").checked,
-        cookies_browser: $("cookies-browser").value,
         title_hint: currentTitleHint,
       }),
     });
@@ -470,7 +437,6 @@ $("form").onsubmit = async (e) => {
     if (cfg.ffmpeg === false) {
       $("ffmpeg-warning").style.display = "block";
     }
-    // Resume active job if page was refreshed mid-download
     const savedJob = localStorage.getItem("cliphaven_active_job");
     if (savedJob) {
       const match = (cfg.jobs || []).find((j) => j.id === savedJob);
