@@ -158,7 +158,7 @@ function hidePreview() {
 }
 
 async function fetchPreview(rawUrl) {
-  const clean = rawUrl.trim();
+  const clean = rawUrl.trim().replace(/^http:\/\//i, "https://");
   if (!clean || !clean.includes("http")) {
     hidePreview();
     return;
@@ -325,6 +325,7 @@ $("cancel").onclick = async () => {
 function startPolling(jobId) {
   if (timer) clearInterval(timer);
   currentJobId = jobId;
+  let errCount = 0;
   localStorage.setItem("cliphaven_active_job", jobId);
   const b = $("start");
   const cb = $("cancel");
@@ -335,6 +336,7 @@ function startPolling(jobId) {
   timer = setInterval(async () => {
     try {
       const s = await api("/api/status?id=" + encodeURIComponent(jobId));
+      errCount = 0;
       const isDone = s.state === "Complete";
       const isErr = s.state === "Error" || s.state === "Cancelled";
       if (s.file_path || s.folder) {
@@ -363,6 +365,7 @@ function startPolling(jobId) {
         }
       }
     } catch (err) {
+      if (++errCount < 4) return;
       clearInterval(timer);
       timer = null;
       status("Status error", err.message, 0, "Error", "error");
@@ -400,7 +403,7 @@ $("form").onsubmit = async (e) => {
     const d = await api("/api/download", {
       method: "POST",
       body: JSON.stringify({
-        url: $("url").value.trim(),
+        url: $("url").value.trim().replace(/^http:\/\//i, "https://"),
         folder: chosenFolder,
         quality: $("quality").value,
         format: $("format").value,

@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Local-only backend for ClipHaven Video & Audio Downloader (v2.1.0)."""
+"""Local-only backend for ClipHaven Video & Audio Downloader (v2.1.1)."""
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
+from functools import lru_cache
 from pathlib import Path
 import threading
 import subprocess
+import signal
 import shutil
 import sys
 import os
@@ -15,7 +17,7 @@ import time
 import webbrowser
 import logging
 
-VERSION = "2.1.0"
+VERSION = "2.1.1"
 IS_FROZEN = getattr(sys, "frozen", False)
 BUNDLE_DIR = Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent)) if IS_FROZEN else Path(__file__).resolve().parent
 APP_DIR = Path(sys.executable).resolve().parent if IS_FROZEN else Path(__file__).resolve().parent
@@ -26,10 +28,12 @@ logging.basicConfig(filename=str(APP_DIR / "app.log"), level=logging.INFO, forma
 
 ALLOWED = {
     "youtube.com", "youtu.be", "youtube-nocookie.com", "facebook.com", "fb.watch", "fb.com", "fb.gg",
-    "instagram.com", "tiktok.com", "twitter.com", "x.com", "reddit.com", "redd.it", "vimeo.com", "dailymotion.com", "dai.ly", "twitch.tv",
+    "instagram.com", "instagr.am", "tiktok.com", "twitter.com", "x.com", "reddit.com", "redd.it",
+    "vimeo.com", "dailymotion.com", "dai.ly", "twitch.tv",
 }
 VALID_FORMATS = {"mp4", "mkv", "webm", "mp3", "m4a", "wav"}
 VALID_QUALITIES = {"best", "2160", "1440", "1080", "720", "480", "360"}
+MAX_JOBS = 40
 
 lock = threading.Lock()
 jobs = {}
@@ -40,8 +44,9 @@ def get_ytdlp_cmd() -> list[str]:
     return [sys.executable, "--run-ytdlp"] if IS_FROZEN else [sys.executable, "-m", "yt_dlp"]
 
 
+@lru_cache(maxsize=1)
 def get_ffmpeg_path() -> str | None:
-    """Locate ffmpeg binary from app folder, system PATH, imageio-ffmpeg package, or WinGet."""
+    """Locate and cache ffmpeg binary path once per session."""
     exe_name = "ffmpeg.exe" if os.name == "nt" else "ffmpeg"
     for base in (APP_DIR, BUNDLE_DIR):
         candidate = base / exe_name
@@ -54,7 +59,16 @@ def get_ffmpeg_path() -> str | None:
         import imageio_ffmpeg
         pkg_ff = imageio_ffmpeg.get_ffmpeg_exe()
         if pkg_ff and Path(pkg_ff).is_file():
-            return str(pkg_ff)
+            local_target = APP_DIR / exe_name
+            if not local_target.exists():
+                try:
+                    shutil.copyfile(pkg_ff, local_target)
+                    if os.name != "nt":
+                        local_target.chmod(0o755)
+                    return str(local_target)
+                except Exception:
+                    return str(pkg_ff)
+            return str(local_target)
     except Exception:
         pass
     if os.name == "nt":
@@ -130,7 +144,14 @@ def terminate_process(proc: subprocess.Popen):
     if not proc:
         return
     try:
-        proc.terminate()
+        if os.name == "nt":
+            try:
+                proc.send_signal(signal.CTRL_BREAK_EVENT)
+            except Exception:
+                pass
+            proc.terminate()
+        else:
+            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
         proc.wait(timeout=3)
     except Exception:
         try:
@@ -140,11 +161,15 @@ def terminate_process(proc: subprocess.Popen):
 
 
 def cleanup_partial_files(folder: Path, started_at: float):
+    time.sleep(0.25)
     try:
         for pattern in ("*.part*", "*.ytdl", "*.temp*"):
             for f in folder.glob(pattern):
-                if f.stat().st_mtime >= started_at - 5:
-                    f.unlink(missing_ok=True)
+                try:
+                    if f.stat().st_mtime >= started_at - 5:
+                        f.unlink(missing_ok=True)
+                except Exception:
+                    pass
     except Exception:
         pass
 
@@ -155,11 +180,20 @@ def update(jid: str, **kwargs):
             jobs[jid].update(kwargs, updated_at=time.time())
 
 
+def prune_jobs():
+    with lock:
+        if len(jobs) <= MAX_JOBS:
+            return
+        done = [k for k, v in jobs.items() if v.get("state") in {"Complete", "Error", "Cancelled"}]
+        for k in done[: max(0, len(jobs) - MAX_JOBS)]:
+            jobs.pop(k, None)
+
+
 def fetch_video_info(url: str) -> dict:
     clean_url = extract_url(url)
     if not valid_url(clean_url):
         raise ValueError("Enter a valid HTTPS video URL (YouTube, Facebook, Instagram, TikTok, etc.).")
-    cmd = get_ytdlp_cmd() + ["--dump-single-json", "--flat-playlist", "--no-warnings", "--", clean_url]
+    cmd = get_ytdlp_cmd() + ["--dump-single-json", "--flat-playlist", "--playlist-end", "50", "--no-warnings", "--", clean_url]
     res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", timeout=25, cwd=str(APP_DIR))
     if res.returncode != 0 or not res.stdout.strip():
         err_lines = [line.strip() for line in res.stderr.splitlines() if line.strip()]
@@ -182,7 +216,7 @@ def fetch_video_info(url: str) -> dict:
         "duration_seconds": int(dur) if isinstance(dur, (int, float)) else 0,
         "thumbnail": thumb,
         "is_playlist": is_playlist,
-        "playlist_count": len(entries) if is_playlist else 1,
+        "playlist_count": data.get("playlist_count") or (len(entries) if is_playlist else 1),
         "webpage_url": data.get("webpage_url") or clean_url,
     }
 
@@ -211,6 +245,7 @@ def download(jid: str, url: str, folder: str, quality: str, fmt_choice: str, sta
         else:
             cmd.extend(["--format", "b" if quality == "best" else f"b[height<={quality}]/b"])
 
+        clip_suffix = ""
         if start_time or end_time:
             if not has_ffmpeg:
                 raise RuntimeError("FFmpeg is required for cutting/trimming video clips.")
@@ -219,6 +254,7 @@ def download(jid: str, url: str, folder: str, quality: str, fmt_choice: str, sta
             if s_sec is None or (end_time and e_sec is None) or (e_sec is not None and e_sec <= s_sec):
                 raise ValueError("Invalid clip time range. Use MM:SS or HH:MM:SS.")
             cmd.extend(["--download-sections", f"*{s_sec}-{e_sec if e_sec is not None else 'inf'}", "--force-keyframes-at-cuts"])
+            clip_suffix = f" [clip {(start_time or '0').replace(':', '-')}_to_{(end_time or 'end').replace(':', '-')}]"
 
         if subtitles:
             cmd.extend(["--write-subs", "--write-auto-subs", "--sub-langs", "en.*,bn.*"])
@@ -228,10 +264,16 @@ def download(jid: str, url: str, folder: str, quality: str, fmt_choice: str, sta
         if embed_thumbnail and has_ffmpeg:
             cmd.append("--embed-thumbnail")
 
-        cmd.extend(["--output", str(out / "%(title).180B [%(id)s].%(ext)s"), "--", clean_url])
+        cmd.extend(["--output", str(out / f"%(title).160B [%(id)s]{clip_suffix}.%(ext)s"), "--", clean_url])
         update(jid, state="Downloading", title="Starting download", detail="Connecting to video stream…", percent=0, speed="", eta="", stage="Preparing")
 
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", cwd=str(APP_DIR), bufsize=1)
+        popen_kwargs = dict(stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", cwd=str(APP_DIR), bufsize=1)
+        if os.name == "nt":
+            popen_kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+        else:
+            popen_kwargs["start_new_session"] = True
+
+        proc = subprocess.Popen(cmd, **popen_kwargs)
         with lock:
             procs[jid] = proc
 
@@ -279,7 +321,7 @@ def download(jid: str, url: str, folder: str, quality: str, fmt_choice: str, sta
         elif rc == 0:
             final_name = Path(saved_file).name if saved_file else ""
             if final_name and not jobs.get(jid, {}).get("video_title_locked"):
-                clean_title = re.sub(r"\s*\[[A-Za-z0-9_-]{6,}\]\.[A-Za-z0-9]+$", "", final_name)
+                clean_title = re.sub(r"\s*\[[A-Za-z0-9_-]{6,}\](?:\s*\[clip [^\]]+\])?\.[A-Za-z0-9]+$", "", final_name)
                 if clean_title:
                     update(jid, video_title=clean_title)
             update(jid, state="Complete", title="Download complete!", detail=f"Saved: {final_name}" if final_name else f"Saved to: {out}", percent=100, speed="", eta="", stage="Complete", folder=str(out), file_path=saved_file or str(out))
@@ -290,6 +332,8 @@ def download(jid: str, url: str, folder: str, quality: str, fmt_choice: str, sta
         with lock:
             procs.pop(jid, None)
         update(jid, state="Error", title="Download failed", detail=str(e)[:600], percent=0, speed="", eta="", stage="Error")
+    finally:
+        prune_jobs()
 
 
 def open_in_explorer(target_path: str) -> bool:

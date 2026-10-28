@@ -1,6 +1,23 @@
 # Changelog
 
-All notable changes to **ClipHaven** are documented in this file.
+All notable changes to **ClipHaven** are documented in this file. 
+
+## [[2.1.1](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v2.1.1)] - 2026-10-28
+
+### Added & Improved
+- **Three Release Assets in GitHub Actions (`release.yml`)**:
+  - `ClipHaven-Windows-EXE.zip` (**Recommended**): Full Windows `--onedir` app bundle with all dependencies and `ffmpeg.exe` pre-included for instant startup and minimal antivirus false positives.
+  - `ClipHaven.exe`: Standalone single-file executable with embedded `ffmpeg.exe`.
+  - `ClipHaven-Source-Bat.zip`: Lightweight source code bundle with `setup-and-run.bat`.
+- **Cached FFmpeg Resolution (`@lru_cache`)**: Cached `get_ffmpeg_path()` in memory and auto-provisioned a standard `ffmpeg.exe` binary from `imageio-ffmpeg` on first run so `yt-dlp` never fails on non-standard binary names or repeated disk scans.
+- **Clip Trimmer Filename Collision Fix**: Appended `[clip <start>_to_<end>]` to output filenames when `Start Time` or `End Time` is used, preventing `yt-dlp` from skipping clipped downloads when the full video already exists in the folder.
+- **Fast Playlist Previews (`--playlist-end 50`)**: Capped playlist metadata scanning during link preview so large playlists load in 1–2 seconds instead of timing out.
+- **Clean Child Process Termination & Memory Bounds**: Used process groups (`CREATE_NEW_PROCESS_GROUP` / `CTRL_BREAK_EVENT`) so cancelling a job cleanly terminates child `ffmpeg` processes and unlocks `.part` files, and re-added bounded job pruning (`MAX_JOBS = 40`).
+- **Frontend Polling Retry Tolerance & HTTP-to-HTTPS Upgrade**: Added retry tolerance (up to 4 consecutive retries) in `app.js` status polling so brief hiccups do not abort progress tracking, and automatically upgraded `http://` links pasted in the UI to `https://`.
+- **CI Linter Safety (`E402`)**: Updated `.github/workflows/ci.yml` to ignore
+`E402` alongside `E501` for test path imports.
+
+
 
 ## [[2.1.0](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v2.1.0)] - 2026-10-27
 

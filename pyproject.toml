@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cliphaven"
-version = "2.1.0"
+version = "2.1.1"
 description = "Clean, local-only video and audio downloader for YouTube, Facebook, Instagram, TikTok, X, and more"
 readme = "README.md"
 license = { text = "MIT" }

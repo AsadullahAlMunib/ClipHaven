@@ -3,7 +3,7 @@
 **Catch, keep, and enjoy your clips — locally, safely, and effortlessly.**
 
 ![CI Status](https://img.shields.io/badge/CI-passing-brightgreen)
-[![Release](https://img.shields.io/badge/version-v2.1.0-blue)](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v2.1.0)
+[![Release](https://img.shields.io/badge/version-v2.1.1-blue)](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v2.1.1)
 ![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -16,15 +16,17 @@ ClipHaven is a modern, high-speed, 100% local video and audio downloader powered
 
 | Package | Recommended For | Direct Link |
 | ----- | ----- | ----- |
-| **🚀 Windows Standalone App (`.exe`)** | Direct launch with **no Python or FFmpeg setup required** | [⬇️ Download `ClipHaven-Windows-EXE.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/latest/download/ClipHaven-Windows-EXE.zip) |
-| **⚡ Source + Launcher (`.bat`)** | Auto-updating `yt-dlp` & script usage on Windows | [⬇️ Download `ClipHaven-Source-Bat.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/latest/download/ClipHaven-Source-Bat.zip) |
+| **🚀 Windows Full App Bundle (`.zip`)** ⭐ **(Recommended)** | Complete Windows app with **all dependencies & `FFmpeg` included** (Antivirus-friendly, no Python required) | [⬇️ Download `ClipHaven-Windows-EXE.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/latest/download/ClipHaven-Windows-EXE.zip) |
+| **📦 Standalone Windows App `.exe`** | Single portable executable (`ClipHaven.exe`) with embedded `FFmpeg` & zero setup | [⬇️ Download `ClipHaven.exe`](https://github.com/AsadullahAlMunib/ClipHaven/releases/latest/download/ClipHaven.exe) |
+| **⚡ Source + Launcher (`.bat`)** | Auto-updating `yt-dlp` & script usage on Windows (`setup-and-run.bat`) | [⬇️ Download `ClipHaven-Source-Bat.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/latest/download/ClipHaven-Source-Bat.zip) |
 | **🌐 Cross-Platform Source** | Linux, macOS, or custom developer environments | [📦 View All Releases & Source Code](https://github.com/AsadullahAlMunib/ClipHaven/releases/latest) |
 
 ## ✨ Key Features
 
-### 💻 Dual Launch Modes
-* **Option A — Standalone Windows App (`ClipHaven.exe`):** Built automatically via GitHub Actions with `ffmpeg.exe` pre-bundled. Extract and double-click `ClipHaven.exe` to run immediately without installing Python.
-* **Option B — One-Click `setup-and-run.bat`:** Automatically creates an isolated `.venv`, installs/updates `yt-dlp` and `imageio-ffmpeg`, and opens your default browser.
+### 💻 Three Flexible Launch Modes
+* **Option A — Windows Full App Bundle (`ClipHaven-Windows-EXE.zip` — ⭐ Recommended):** Pre-packaged `--onedir` build containing `ClipHaven.exe`, `ffmpeg.exe`, and all runtime dependencies. Launches instantly without temporary unpacking or antivirus false positives.
+* **Option B — Standalone Single Executable (`ClipHaven.exe`):** A single self-contained `.exe` file you can drop anywhere and double-click to run.
+* **Option C — One-Click `setup-and-run.bat` (`ClipHaven-Source-Bat.zip`):** Automatically creates an isolated `.venv`, installs/updates `yt-dlp` and `imageio-ffmpeg`, and opens your default browser.
 
 ### 🌐 Wide Multi-Platform Extraction
 Cleanly extracts video and audio from popular media platforms:
@@ -46,21 +48,25 @@ Cleanly extracts video and audio from popular media platforms:
 
 ## 🚀 Getting Started
 
-### Method 1: Portable Windows App (`ClipHaven.exe`)
+### Method 1: Windows Full App Bundle (⭐ Recommended)
 1. Download [`ClipHaven-Windows-EXE.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/latest/download/ClipHaven-Windows-EXE.zip) from [Releases](https://github.com/AsadullahAlMunib/ClipHaven/releases/latest).
 2. Extract the archive into any folder.
 3. Open the `ClipHaven` folder and double-click **`ClipHaven.exe`**. Your default browser will immediately open `http://127.0.0.1:8765/`.
 
-### Method 2: One-Click Script (`setup-and-run.bat`)
+### Method 2: Standalone Windows App (`ClipHaven.exe`)
+1. Download [`ClipHaven.exe`](https://github.com/AsadullahAlMunib/ClipHaven/releases/latest/download/ClipHaven.exe) directly from [Releases](https://github.com/AsadullahAlMunib/ClipHaven/releases/latest).
+2. Double-click **`ClipHaven.exe`** to launch the web dashboard at `http://127.0.0.1:8765/`.
+
+### Method 3: One-Click Script (`setup-and-run.bat`)
 1. Verify that **Python 3.10+** is installed with the **"Add Python to PATH"** checkbox selected during setup.
-2. Clone or download [`ClipHaven-Source-Bat.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/latest/download/ClipHaven-Source-Bat.zip):
+2. Download and extract [`ClipHaven-Source-Bat.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/latest/download/ClipHaven-Source-Bat.zip) (or clone the repository):
    ```bash
    git clone https://github.com/AsadullahAlMunib/ClipHaven.git
    cd ClipHaven
    ```
 3. Double-click **`setup-and-run.bat`**. The script manages virtual environment creation, installs `yt-dlp` and portable `FFmpeg` (`imageio-ffmpeg`), and opens the dashboard automatically.
 
-### Method 3: Cross-Platform & Developer Setup (macOS / Linux / Windows)
+### Method 4: Cross-Platform & Developer Setup (macOS / Linux / Windows)
 ```bash
 # 1. Create and activate a virtual environment
 python3 -m venv .venv
@@ -96,7 +102,7 @@ ClipHaven/
 │   ├── dependabot.yml            # Dependency updater configuration
 │   └── workflows/
 │       ├── ci.yml                # Multi-platform CI testing pipeline
-│       └── release.yml           # Automated GitHub Releases builder (.exe + .bat ZIP)
+│       └── release.yml           # Automated GitHub Releases builder (Full ZIP, Standalone .exe & Source ZIP)
 ├── tests/
 │   └── test_server.py            # Unit and API integration test suite
 ├── logo.svg                      # Vector application logo and favicon
