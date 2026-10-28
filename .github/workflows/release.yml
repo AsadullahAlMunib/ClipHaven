@@ -1,4 +1,4 @@
-name: Build & Release (Windows App + Source ZIP)
+name: Build & Release (Windows Full Bundle, Standalone .exe & Source ZIP)
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: "Release tag (e.g. v2.1.0) - leave blank if just testing build"
+        description: "Release tag (e.g. v2.1.1) - leave blank if just testing build"
         required: false
         default: ""
 
@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   build-windows:
-    name: Build Windows App (.exe) & Source Packages
+    name: Build Windows App Bundles (.zip + .exe + Source)
     runs-on: windows-latest
     steps:
       - name: Checkout Repository
@@ -53,10 +53,11 @@ jobs:
           print('Prepared logo.ico and ffmpeg.exe from', ff)
           "
 
-      - name: Build Windows App (PyInstaller --onedir to avoid Antivirus False Positives)
+      - name: Build 1 — Recommended Full Windows App Folder (--onedir + bundled ffmpeg.exe)
         shell: cmd
         run: |
           pyinstaller --noconfirm --clean --onedir --name ClipHaven ^
+            --distpath dist_dir --workpath build_dir ^
             --icon logo.ico ^
             --exclude-module tkinter ^
             --add-data "index.html;." ^
@@ -66,17 +67,35 @@ jobs:
             --collect-all yt_dlp ^
             server.py
 
-      - name: Package Release Archives (ClipHaven-Windows-EXE.zip & ClipHaven-Source-Bat.zip)
+      - name: Build 2 — Standalone Single-File Executable (ClipHaven.exe)
+        shell: cmd
+        run: |
+          pyinstaller --noconfirm --clean --onefile --name ClipHaven ^
+            --distpath dist_single --workpath build_single ^
+            --icon logo.ico ^
+            --exclude-module tkinter ^
+            --add-data "index.html;." ^
+            --add-data "style.css;." ^
+            --add-data "app.js;." ^
+            --add-data "logo.svg;." ^
+            --add-binary "ffmpeg.exe;." ^
+            --collect-all yt_dlp ^
+            server.py
+
+      - name: Package All 3 Release Assets
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path release_out | Out-Null
 
-          # 1. Standalone Windows App Bundle (--onedir + bundled ffmpeg.exe, no .bat files inside to prevent AV flags)
-          Copy-Item ffmpeg.exe dist/ClipHaven/ffmpeg.exe -Force
-          Copy-Item README.md, LICENSE dist/ClipHaven/ -Force
-          Compress-Archive -Path dist/ClipHaven -DestinationPath release_out/ClipHaven-Windows-EXE.zip -Force
+          # Asset 1 (Recommended): Full Windows Dependency Bundle (--onedir + ffmpeg.exe)
+          Copy-Item ffmpeg.exe dist_dir/ClipHaven/ffmpeg.exe -Force
+          Copy-Item README.md, LICENSE dist_dir/ClipHaven/ -Force
+          Compress-Archive -Path dist_dir/ClipHaven -DestinationPath release_out/ClipHaven-Windows-EXE.zip -Force
 
-          # 2. Lightweight Source + setup-and-run.bat Bundle
+          # Asset 2: Standalone Single-File .exe (ClipHaven.exe)
+          Copy-Item dist_single/ClipHaven.exe release_out/ClipHaven.exe -Force
+
+          # Asset 3: Lightweight Source + setup-and-run.bat Bundle
           New-Item -ItemType Directory -Force -Path staging_src/ClipHaven | Out-Null
           Copy-Item setup-and-run.bat, server.py, index.html, style.css, app.js, logo.svg, requirements.txt, pyproject.toml, README.md, CHANGELOG.md, LICENSE staging_src/ClipHaven/
           Compress-Archive -Path staging_src/ClipHaven -DestinationPath release_out/ClipHaven-Source-Bat.zip -Force
@@ -87,6 +106,7 @@ jobs:
           name: ClipHaven-Windows-Packages
           path: |
             release_out/ClipHaven-Windows-EXE.zip
+            release_out/ClipHaven.exe
             release_out/ClipHaven-Source-Bat.zip
 
       - name: Publish GitHub Release (on tag push or manual tag input)
@@ -97,4 +117,5 @@ jobs:
           generate_release_notes: true
           files: |
             release_out/ClipHaven-Windows-EXE.zip
+            release_out/ClipHaven.exe
             release_out/ClipHaven-Source-Bat.zip

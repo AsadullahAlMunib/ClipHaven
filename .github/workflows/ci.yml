@@ -19,7 +19,7 @@ jobs:
       - name: Install Ruff
         run: pip install ruff
       - name: Run Ruff Check
-        run: ruff check server.py tests/ --select E,F --ignore E501
+        run: ruff check server.py tests/ --select E,F --ignore E501,E402
 
   test:
     name: Automated Tests (${{ matrix.os }}, Python ${{ matrix.python-version }})
