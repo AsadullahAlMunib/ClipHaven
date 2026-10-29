@@ -26,9 +26,9 @@ android {
             val ksFile = file(System.getenv("CLIPHAVEN_KEYSTORE_FILE") ?: "cliphaven-release.jks")
             if (ksFile.exists()) {
                 storeFile = ksFile
-                storePassword = System.getenv("CLIPHAVEN_KEYSTORE_PASSWORD") ?: "ClipHaven2026"
+                storePassword = System.getenv("CLIPHAVEN_KEYSTORE_PASSWORD") ?: "cliphaven2026"
                 keyAlias = System.getenv("CLIPHAVEN_KEY_ALIAS") ?: "cliphaven"
-                keyPassword = System.getenv("CLIPHAVEN_KEY_PASSWORD") ?: "ClipHaven2026"
+                keyPassword = System.getenv("CLIPHAVEN_KEY_PASSWORD") ?: "cliphaven2026"
                 enableV1Signing = true
                 enableV2Signing = true
             }
