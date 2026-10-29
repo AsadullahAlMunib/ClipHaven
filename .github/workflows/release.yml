@@ -1,4 +1,4 @@
-name: Build & Release (Windows, macOS, Linux x64/ARM64, Android APK & Source)
+name: Build & Release (Windows, macOS, Linux x64/ARM64, Android 64-bit/32-bit APKs & Source)
 
 on:
   push:
@@ -285,7 +285,7 @@ jobs:
             release_out/ClipHaven-Linux-ARM64
 
   build-android:
-    name: Build Android APK (ClipHaven-Android.apk)
+    name: Build Android APKs (ClipHaven-Android-64bit.apk & ClipHaven-Android-32bit.apk)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -310,20 +310,23 @@ jobs:
         with:
           gradle-version: "8.5"
 
-      - name: Build Signed Release APK
+      - name: Build Signed Release APKs (64-bit arm64-v8a & 32-bit armeabi-v7a)
         run: |
           gradle -p android assembleRelease
           mkdir -p release_out
-          cp android/app/build/outputs/apk/release/app-release.apk release_out/ClipHaven-Android.apk
+          cp android/app/build/outputs/apk/release/app-arm64-v8a-release.apk release_out/ClipHaven-Android-64bit.apk
+          cp android/app/build/outputs/apk/release/app-armeabi-v7a-release.apk release_out/ClipHaven-Android-32bit.apk
 
-      - name: Upload Android Artifact
+      - name: Upload Android Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: pkg-android
-          path: release_out/ClipHaven-Android.apk
+          path: |
+            release_out/ClipHaven-Android-64bit.apk
+            release_out/ClipHaven-Android-32bit.apk
 
   publish-release:
-    name: Publish All 10 Release Assets
+    name: Publish All 11 Release Assets
     needs: [build-windows, build-macos, build-linux-x64, build-linux-arm64, build-android]
     runs-on: ubuntu-latest
     steps:
@@ -359,5 +362,6 @@ jobs:
             release_assets/ClipHaven-Linux-x64
             release_assets/ClipHaven-Linux-ARM64-All.zip
             release_assets/ClipHaven-Linux-ARM64
-            release_assets/ClipHaven-Android.apk
+            release_assets/ClipHaven-Android-64bit.apk
+            release_assets/ClipHaven-Android-32bit.apk
             release_assets/ClipHaven-Source-Bat.zip
