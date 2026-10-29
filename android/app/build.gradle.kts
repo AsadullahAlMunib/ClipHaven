@@ -13,11 +13,14 @@ android {
         targetSdk = 34
         versionCode = 310
         versionName = "3.1.0"
+    }
 
-		ndk {
-            // Target all real Android devices (both 64-bit and 32-bit ARM), 
-            // excluding PC emulators (x86, x86_64) to keep APK around ~60 MB.
-            abiFilters.addAll(listOf("arm64-v8a", "armeabi-v7a"))
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a")
+            isUniversalApk = false
         }
     }
 
@@ -35,16 +38,12 @@ android {
         }
     }
 
-
-
     buildTypes {
         release {
-            isMinifyEnabled = true
-            isShrinkResources = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
+            // Keep R8 minification & resource shrinking disabled so youtubedl-android's
+            // embedded Python/FFmpeg archives, Apache Commons Compress, and WebView JNI bridge are never stripped.
+            isMinifyEnabled = false
+            isShrinkResources = false
             val relConfig = signingConfigs.findByName("releaseKey")
             signingConfig = if (relConfig?.storeFile?.exists() == true) {
                 relConfig
