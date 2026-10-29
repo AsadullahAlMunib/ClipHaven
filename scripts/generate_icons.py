@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Generate pixel-faithful Windows .ico and Android PNG icons from logo.svg."""
+"""Generate Windows .ico and Android PNG icons directly from logo.svg (with Pillow fallback)."""
+from io import BytesIO
 from pathlib import Path
 import math
 from PIL import Image, ImageDraw
@@ -44,8 +45,31 @@ def _draw_capsule(draw: ImageDraw.ImageDraw, p1: tuple[float, float], p2: tuple[
     draw.ellipse([x2 - r, y2 - r, x2 + r, y2 + r], fill=fill)
 
 
+def _render_from_svg_file(size: int = 1024) -> Image.Image | None:
+    """Directly rasterize logo.svg if an SVG rendering engine (resvg-py or cairosvg) is installed."""
+    if not SVG_FILE.is_file():
+        return None
+    try:
+        import resvg_py
+        png_bytes = resvg_py.svg_to_bytes(svg_path=str(SVG_FILE), width=size, height=size)
+        return Image.open(BytesIO(png_bytes)).convert("RGBA")
+    except Exception:
+        pass
+    try:
+        import cairosvg
+        png_bytes = cairosvg.svg2png(url=str(SVG_FILE), output_width=size, output_height=size)
+        return Image.open(BytesIO(png_bytes)).convert("RGBA")
+    except Exception:
+        pass
+    return None
+
+
 def render_logo_master(size: int = 1024) -> Image.Image:
-    """Render logo.svg at high resolution (1024x1024) and return an RGBA Image."""
+    """Render logo.svg directly from file (or via pixel-accurate Pillow fallback)."""
+    direct_svg = _render_from_svg_file(size)
+    if direct_svg is not None:
+        return direct_svg
+
     scale = size / 128.0
     s = lambda v: v * scale
 
@@ -170,4 +194,4 @@ def generate_all(ico_out: Path | None = None, png_out: Path | None = None):
 
 if __name__ == "__main__":
     out_ico = generate_all(ico_out=ROOT / "logo.ico")
-    print(f"Generated {out_ico}")
+    print(f"Generated {out_ico} from {SVG_FILE.name}")
