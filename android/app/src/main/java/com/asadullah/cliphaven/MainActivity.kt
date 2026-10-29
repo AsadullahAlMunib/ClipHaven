@@ -56,9 +56,9 @@ class MainActivity : AppCompatActivity() {
         private val SUB_OR_THUMB_EXTS = setOf("vtt", "srt", "ass", "ssa", "ttml", "srv1", "srv2", "srv3", "json3", "webp", "jpg", "jpeg", "png", "part", "ytdl", "temp")
     }
 
-    private lateinit var webView: WebView
+    private var webView: WebView? = null
     private val jobsLock = Any()
-    private val jobs = LinkedHashMap<String, MutableMap<String, Any?>>()
+    private val jobs = LinkedHashMap<String, JSONObject>()
 
     private val initLatch = CountDownLatch(1)
     @Volatile
@@ -72,26 +72,33 @@ class MainActivity : AppCompatActivity() {
     private var folderTreeResult: String? = null
 
     private val downloadsRootDir: File
-        get() = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        get() = try {
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                ?: getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+                ?: filesDir
+        } catch (_: Throwable) {
+            filesDir
+        }
 
     private val defaultDownloadDir: File
-        get() = File(downloadsRootDir, "ClipHaven").apply { mkdirs() }
+        get() = try {
+            val dir = File(downloadsRootDir, "ClipHaven")
+            dir.mkdirs()
+            dir
+        } catch (_: Throwable) {
+            filesDir
+        }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        requestLegacyStoragePermissionIfNeeded()
+        // 1. Initialize WebView and set content view FIRST so the UI is always attached immediately
+        val wv = WebView(this)
+        webView = wv
+        setContentView(wv)
 
-        thread {
-            initEngines()
-            initLatch.countDown()
-        }
-
-        webView = WebView(this)
-        setContentView(webView)
-
-        webView.settings.apply {
+        wv.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
             allowFileAccess = true
@@ -99,7 +106,7 @@ class MainActivity : AppCompatActivity() {
             allowUniversalAccessFromFileURLs = true
             mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
         }
-        webView.webViewClient = object : WebViewClient() {
+        wv.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
                 handleIncomingShareIntent(intent)
@@ -110,16 +117,31 @@ class MainActivity : AppCompatActivity() {
                 if (u.scheme == "http" || u.scheme == "https") {
                     try {
                         startActivity(Intent(Intent.ACTION_VIEW, u))
-                    } catch (_: Exception) {
+                    } catch (_: Throwable) {
                     }
                     return true
                 }
                 return false
             }
         }
-        webView.webChromeClient = WebChromeClient()
-        webView.addJavascriptInterface(ClipHavenBridge(), "ClipHavenAndroid")
-        webView.loadUrl("file:///android_asset/index.html")
+        wv.webChromeClient = WebChromeClient()
+        wv.addJavascriptInterface(ClipHavenBridge(), "ClipHavenAndroid")
+        wv.loadUrl("file:///android_asset/index.html")
+
+        // 2. Unpack embedded Python/yt-dlp & FFmpeg in background catching Throwable (so Error never kills the process)
+        thread {
+            try {
+                initEngines()
+            } catch (_: Throwable) {
+            } finally {
+                initLatch.countDown()
+            }
+        }
+
+        // 3. Request legacy storage permission after UI is mounted
+        wv.post {
+            requestLegacyStoragePermissionIfNeeded()
+        }
     }
 
     @Synchronized
@@ -131,15 +153,18 @@ class MainActivity : AppCompatActivity() {
             isEngineReady = true
             initErrorMsg = null
             true
-        } catch (e: Exception) {
-            initErrorMsg = e.message ?: "Failed to initialize embedded downloader engine."
+        } catch (t: Throwable) {
+            initErrorMsg = t.message ?: "Failed to initialize embedded downloader engine."
             false
         }
     }
 
     private fun ensureEnginesInitialized() {
         if (!isEngineReady) {
-            initLatch.await(45, TimeUnit.SECONDS)
+            try {
+                initLatch.await(45, TimeUnit.SECONDS)
+            } catch (_: Throwable) {
+            }
             if (!isEngineReady && !initEngines()) {
                 throw IllegalStateException(initErrorMsg ?: "Downloader engine is still initializing. Please try again in a moment.")
             }
@@ -147,17 +172,20 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun requestLegacyStoragePermissionIfNeeded() {
-        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q) {
-            val needed = mutableListOf<String>()
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-                needed.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        try {
+            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q) {
+                val needed = mutableListOf<String>()
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                    needed.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                }
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                    needed.add(Manifest.permission.READ_EXTERNAL_STORAGE)
+                }
+                if (needed.isNotEmpty()) {
+                    ActivityCompat.requestPermissions(this, needed.toTypedArray(), REQ_STORAGE_PERMISSION)
+                }
             }
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-                needed.add(Manifest.permission.READ_EXTERNAL_STORAGE)
-            }
-            if (needed.isNotEmpty()) {
-                ActivityCompat.requestPermissions(this, needed.toTypedArray(), REQ_STORAGE_PERMISSION)
-            }
+        } catch (_: Throwable) {
         }
     }
 
@@ -177,7 +205,7 @@ class MainActivity : AppCompatActivity() {
                 if (resultCode == Activity.RESULT_OK && data?.data != null) {
                     folderTreeResult = resolveTreeUriToPath(data.data!!)
                 }
-            } catch (_: Exception) {
+            } catch (_: Throwable) {
             } finally {
                 folderTreeLatch?.countDown()
             }
@@ -199,23 +227,27 @@ class MainActivity : AppCompatActivity() {
                 rel.isNotEmpty() -> File(downloadsRootDir, rel).absolutePath
                 else -> defaultDownloadDir.absolutePath
             }
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
             defaultDownloadDir.absolutePath
         }
     }
 
     private fun handleIncomingShareIntent(intent: Intent?) {
-        if (intent?.action == Intent.ACTION_SEND && intent.type == "text/plain") {
-            val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return
-            val cleanUrl = extractUrl(sharedText)
-            if (cleanUrl.isEmpty()) return
-            val escaped = JSONObject.quote(cleanUrl)
-            webView.post {
-                webView.evaluateJavascript(
-                    "if(document.getElementById('url')){document.getElementById('url').value=$escaped;if(typeof syncClearBtn==='function')syncClearBtn();triggerPreview();}",
-                    null
-                )
+        try {
+            if (intent?.action == Intent.ACTION_SEND && intent.type == "text/plain") {
+                val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return
+                val cleanUrl = extractUrl(sharedText)
+                if (cleanUrl.isEmpty()) return
+                val escaped = JSONObject.quote(cleanUrl)
+                val wv = webView ?: return
+                wv.post {
+                    wv.evaluateJavascript(
+                        "if(document.getElementById('url')){document.getElementById('url').value=$escaped;if(typeof syncClearBtn==='function')syncClearBtn();triggerPreview();}",
+                        null
+                    )
+                }
             }
+        } catch (_: Throwable) {
         }
     }
 
@@ -249,32 +281,36 @@ class MainActivity : AppCompatActivity() {
         return try {
             val u = Uri.parse(url)
             u.scheme?.lowercase() == "https" && isAllowedHost(u.host)
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
             false
         }
     }
 
     private fun normalizeAndroidFolder(rawFolder: String?): File {
-        val raw = (rawFolder ?: "").trim()
-        if (raw.isEmpty() || raw.equals("Downloads", ignoreCase = true)) {
-            return defaultDownloadDir
-        }
-        val candidate = if (raw.startsWith("/")) {
-            val f = File(raw)
-            val extRoot = Environment.getExternalStorageDirectory().absolutePath
-            if (f.absolutePath.startsWith(extRoot) || f.absolutePath.startsWith( applicationContext.filesDir.parent ?: "/data" )) {
-                f
-            } else {
-                // User typed "/MyFolder" thinking it's relative to Downloads
-                File(downloadsRootDir, raw.trimStart('/'))
+        return try {
+            val raw = (rawFolder ?: "").trim()
+            if (raw.isEmpty() || raw.equals("Downloads", ignoreCase = true)) {
+                return defaultDownloadDir
             }
-        } else {
-            File(downloadsRootDir, raw)
+            val candidate = if (raw.startsWith("/")) {
+                val f = File(raw)
+                val extRoot = Environment.getExternalStorageDirectory().absolutePath
+                val appRoot = applicationContext.filesDir.parent ?: "/data"
+                if (f.absolutePath.startsWith(extRoot) || f.absolutePath.startsWith(appRoot)) {
+                    f
+                } else {
+                    File(downloadsRootDir, raw.trimStart('/'))
+                }
+            } else {
+                File(downloadsRootDir, raw)
+            }
+            if (!candidate.exists()) {
+                candidate.mkdirs()
+            }
+            if (candidate.exists() && candidate.isDirectory) candidate else defaultDownloadDir
+        } catch (_: Throwable) {
+            defaultDownloadDir
         }
-        if (!candidate.exists()) {
-            candidate.mkdirs()
-        }
-        return if (candidate.exists() && candidate.isDirectory) candidate else defaultDownloadDir
     }
 
     private fun parseTimestamp(ts: String): Int? {
@@ -300,19 +336,19 @@ class MainActivity : AppCompatActivity() {
     private fun updateJob(jid: String, updates: Map<String, Any?>) {
         synchronized(jobsLock) {
             val job = jobs[jid] ?: return
-            if (job["state"] == "Cancelled" && updates["state"] != "Cancelled") {
+            if (job.optString("state") == "Cancelled" && updates["state"] != "Cancelled") {
                 return
             }
             for ((k, v) in updates) {
-                job[k] = v
+                job.put(k, v)
             }
         }
     }
 
-    private fun getJobJson(jid: String): JSONObject? {
+    private fun getJobSnapshot(jid: String): JSONObject? {
         synchronized(jobsLock) {
             val job = jobs[jid] ?: return null
-            return JSONObject(job)
+            return JSONObject(job.toString())
         }
     }
 
@@ -320,7 +356,7 @@ class MainActivity : AppCompatActivity() {
         synchronized(jobsLock) {
             if (jobs.size <= MAX_JOBS) return
             val doneKeys = jobs.entries
-                .filter { it.value["state"] in setOf("Complete", "Error", "Cancelled") }
+                .filter { it.value.optString("state") in setOf("Complete", "Error", "Cancelled") }
                 .map { it.key }
             val toRemove = (jobs.size - MAX_JOBS).coerceAtLeast(0)
             doneKeys.take(toRemove).forEach { jobs.remove(it) }
@@ -366,11 +402,15 @@ class MainActivity : AppCompatActivity() {
                                     @Suppress("DEPRECATION")
                                     startActivityForResult(intent, REQ_OPEN_DOCUMENT_TREE)
                                     thread {
-                                        treeLatch.await(120, TimeUnit.SECONDS)
-                                        selectedPath = folderTreeResult
-                                        latch.countDown()
+                                        try {
+                                            treeLatch.await(120, TimeUnit.SECONDS)
+                                            selectedPath = folderTreeResult
+                                        } catch (_: Throwable) {
+                                        } finally {
+                                            latch.countDown()
+                                        }
                                     }
-                                } catch (_: Exception) {
+                                } catch (_: Throwable) {
                                     latch.countDown()
                                 }
                             }
@@ -404,11 +444,14 @@ class MainActivity : AppCompatActivity() {
                     .setNegativeButton("Cancel") { _, _ -> latch.countDown() }
                     .setOnCancelListener { latch.countDown() }
                     .show()
-            } catch (_: Exception) {
+            } catch (_: Throwable) {
                 latch.countDown()
             }
         }
-        latch.await(120, TimeUnit.SECONDS)
+        try {
+            latch.await(120, TimeUnit.SECONDS)
+        } catch (_: Throwable) {
+        }
         return selectedPath
     }
 
@@ -418,7 +461,11 @@ class MainActivity : AppCompatActivity() {
             f.isFile && f.length() > 0 && f.extension.lowercase() !in SUB_OR_THUMB_EXTS && !f.name.contains(".part")
         } ?: emptyList()
 
-        outDir.mkdirs()
+        try {
+            outDir.mkdirs()
+        } catch (_: Throwable) {
+        }
+
         for (src in candidates) {
             val destFile = File(outDir, src.name)
             var copiedDirect = false
@@ -429,7 +476,7 @@ class MainActivity : AppCompatActivity() {
                     exported.add(destFile)
                     copiedDirect = true
                 }
-            } catch (_: Exception) {
+            } catch (_: Throwable) {
             }
 
             if (!copiedDirect && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -453,7 +500,7 @@ class MainActivity : AppCompatActivity() {
                         contentResolver.update(uri, values, null, null)
                         exported.add(destFile)
                     }
-                } catch (_: Exception) {
+                } catch (_: Throwable) {
                 }
             }
         }
@@ -464,13 +511,17 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun requestAsync(reqId: String, path: String, method: String, bodyRaw: String) {
             thread {
-                val resJson = request(path, method, bodyRaw)
-                val qId = JSONObject.quote(reqId)
-                webView.post {
-                    webView.evaluateJavascript(
-                        "window.__onAndroidApiResult && window.__onAndroidApiResult($qId, $resJson);",
-                        null
-                    )
+                try {
+                    val resJson = request(path, method, bodyRaw)
+                    val qId = JSONObject.quote(reqId)
+                    val wv = webView ?: return@thread
+                    wv.post {
+                        wv.evaluateJavascript(
+                            "window.__onAndroidApiResult && window.__onAndroidApiResult($qId, $resJson);",
+                            null
+                        )
+                    }
+                } catch (_: Throwable) {
                 }
             }
         }
@@ -482,7 +533,7 @@ class MainActivity : AppCompatActivity() {
                 val cleanPath = uri.path ?: path
                 val body = try {
                     JSONObject(if (bodyRaw.isBlank()) "{}" else bodyRaw)
-                } catch (_: Exception) {
+                } catch (_: Throwable) {
                     JSONObject()
                 }
 
@@ -490,7 +541,7 @@ class MainActivity : AppCompatActivity() {
                     "/api/config" -> {
                         val arr = JSONArray()
                         synchronized(jobsLock) {
-                            jobs.values.toList().takeLast(10).forEach { arr.put(JSONObject(it)) }
+                            jobs.values.toList().takeLast(10).forEach { arr.put(JSONObject(it.toString())) }
                         }
                         JSONObject()
                             .put("ok", true)
@@ -505,7 +556,7 @@ class MainActivity : AppCompatActivity() {
                     "/api/ffmpeg" -> JSONObject().put("ok", true).put("available", true).toString()
                     "/api/status" -> {
                         val id = uri.getQueryParameter("id") ?: ""
-                        val j = getJobJson(id)
+                        val j = getJobSnapshot(id)
                         if (j != null) {
                             j.put("ok", true).toString()
                         } else {
@@ -585,7 +636,7 @@ class MainActivity : AppCompatActivity() {
                         )
                         try {
                             YoutubeDL.getInstance().destroyProcessById(id)
-                        } catch (_: Exception) {
+                        } catch (_: Throwable) {
                         }
                         JSONObject().put("ok", true).toString()
                     }
@@ -594,13 +645,13 @@ class MainActivity : AppCompatActivity() {
                         val jid = body.optString("id", "").trim()
                         val resolvedTarget = when {
                             reqPath.isNotEmpty() -> reqPath
-                            jid.isNotEmpty() -> getJobJson(jid)?.optString("file_path") ?: defaultDownloadDir.absolutePath
+                            jid.isNotEmpty() -> getJobSnapshot(jid)?.optString("file_path") ?: defaultDownloadDir.absolutePath
                             else -> defaultDownloadDir.absolutePath
                         }
                         runOnUiThread {
                             try {
                                 startActivity(Intent(DownloadManager.ACTION_VIEW_DOWNLOADS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                            } catch (_: Exception) {
+                            } catch (_: Throwable) {
                             }
                             Toast.makeText(this@MainActivity, "Saved in: $resolvedTarget", Toast.LENGTH_LONG).show()
                         }
@@ -618,8 +669,8 @@ class MainActivity : AppCompatActivity() {
                     }
                     else -> JSONObject().put("ok", false).put("error", "Not found.").toString()
                 }
-            } catch (e: Exception) {
-                JSONObject().put("ok", false).put("error", e.message ?: "Request failed").toString()
+            } catch (t: Throwable) {
+                JSONObject().put("ok", false).put("error", t.message ?: "Request failed").toString()
             }
         }
 
@@ -663,33 +714,32 @@ class MainActivity : AppCompatActivity() {
 
             val outDir = normalizeAndroidFolder(folderRaw)
             val jid = UUID.randomUUID().toString().replace("-", "")
+            val initialJob = JSONObject()
+                .put("id", jid)
+                .put("state", "Downloading")
+                .put("title", if (isClipJob) "Preparing clip cutter…" else "Starting download")
+                .put("video_title", if (titleHint.isNotEmpty()) titleHint else "ClipHaven download")
+                .put("video_title_locked", titleHint.isNotEmpty())
+                .put("format", fmt.uppercase())
+                .put("quality", if (fmt in setOf("mp3", "m4a", "wav")) "Audio" else if (quality == "best") "Best" else "${quality}p")
+                .put("detail", "Connecting to media stream…")
+                .put("percent", 0)
+                .put("indeterminate", isClipJob)
+                .put("speed", "")
+                .put("eta", "")
+                .put("stage", if (isClipJob) "Cutting clip" else "Preparing")
+                .put("playlist_index", 0)
+                .put("playlist_total", 0)
+                .put("playlist_done", 0)
+                .put("playlist_left", 0)
+                .put("folder", outDir.absolutePath)
+                .put("file_path", outDir.absolutePath)
+
             synchronized(jobsLock) {
-                jobs[jid] = mutableMapOf(
-                    "id" to jid,
-                    "state" to "Downloading",
-                    "title" to if (isClipJob) "Preparing clip cutter…" else "Starting download",
-                    "video_title" to if (titleHint.isNotEmpty()) titleHint else "ClipHaven download",
-                    "video_title_locked" to titleHint.isNotEmpty(),
-                    "format" to fmt.uppercase(),
-                    "quality" to if (fmt in setOf("mp3", "m4a", "wav")) "Audio" else if (quality == "best") "Best" else "${quality}p",
-                    "detail" to "Connecting to media stream…",
-                    "percent" to 0,
-                    "indeterminate" to isClipJob,
-                    "speed" to "",
-                    "eta" to "",
-                    "stage" to if (isClipJob) "Cutting clip" else "Preparing",
-                    "playlist_index" to 0,
-                    "playlist_total" to 0,
-                    "playlist_done" to 0,
-                    "playlist_left" to 0,
-                    "folder" to outDir.absolutePath,
-                    "file_path" to outDir.absolutePath
-                )
+                jobs[jid] = initialJob
             }
 
             thread {
-                // Stage all native yt-dlp / FFmpeg operations inside private app cacheDir first
-                // so Android 11-14 Scoped Storage FUSE restrictions never block .part/.ytdl/.vtt/.webp files.
                 val workDir = File(cacheDir, "dl_$jid").apply { mkdirs() }
                 try {
                     ensureEnginesInitialized()
@@ -821,7 +871,7 @@ class MainActivity : AppCompatActivity() {
                         updateJob(jid, updates)
                     }
 
-                    val isCancelled = getJobJson(jid)?.optString("state") == "Cancelled"
+                    val isCancelled = getJobSnapshot(jid)?.optString("state") == "Cancelled"
                     if (!isCancelled) {
                         val exportedFiles = exportStagedFilesToTargetDir(workDir, outDir)
                         if (exportedFiles.isEmpty()) {
@@ -832,7 +882,7 @@ class MainActivity : AppCompatActivity() {
 
                         val firstSaved = exportedFiles.first()
                         val cleanTitle = firstSaved.name.replace(Regex("""\s*\[[A-Za-z0-9_-]{3,}\](?:\s*\[clip [^\]]+\])?\.[A-Za-z0-9]+$"""), "")
-                        val snapshot = getJobJson(jid)
+                        val snapshot = getJobSnapshot(jid)
                         val plTot = snapshot?.optInt("playlist_total", 0) ?: 0
                         val finalUpdates = mutableMapOf<String, Any?>(
                             "state" to "Complete",
@@ -856,10 +906,9 @@ class MainActivity : AppCompatActivity() {
                         }
                         updateJob(jid, finalUpdates)
                     }
-                } catch (e: Exception) {
-                    val snapshot = getJobJson(jid)
+                } catch (t: Throwable) {
+                    val snapshot = getJobSnapshot(jid)
                     if (snapshot?.optString("state") != "Cancelled") {
-                        // Check if --ignore-errors caused non-zero exit even though the main video file was created cleanly
                         val exportedFiles = exportStagedFilesToTargetDir(workDir, outDir)
                         if (exportedFiles.isNotEmpty()) {
                             val scanPaths = exportedFiles.map { it.absolutePath }.toTypedArray()
@@ -886,7 +935,7 @@ class MainActivity : AppCompatActivity() {
                                 mapOf(
                                     "state" to "Error",
                                     "title" to "Download failed",
-                                    "detail" to (e.message ?: "Download failed").take(500),
+                                    "detail" to (t.message ?: "Download failed").take(500),
                                     "percent" to 0,
                                     "stage" to "Error",
                                     "indeterminate" to false,
@@ -899,7 +948,7 @@ class MainActivity : AppCompatActivity() {
                 } finally {
                     try {
                         workDir.deleteRecursively()
-                    } catch (_: Exception) {
+                    } catch (_: Throwable) {
                     }
                     pruneJobs()
                 }
