@@ -3,6 +3,28 @@
 All notable changes to **ClipHaven** are documented in this file.
 
 
+## [[3.1.0](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.1.0)] - 2026-10-29
+
+### Android & Build Pipeline
+- **Slim APK (~35 MB)**: Reduced APK size from 100+ MB down to ~35 MB via R8/ProGuard shrinking and 64-bit ARM (`arm64-v8a`) focus.
+- **Seamless Updates**: Added persistent release signing (`.jks`) so future APKs update in place without reinstallation.
+- **Storage & Permissions**: Full Scoped Storage / MediaStore integration for Android 11–14 and runtime permission support for Android 7–10.
+- **Folder Picker & Gallery Sync**: Added SAF folder picker (`ACTION_OPEN_DOCUMENT_TREE`) and instant MediaScanner indexing for Gallery/Music apps.
+- **Engine Stability**: Added synchronized Python/FFmpeg startup checks and fixed mobile SSL handshake errors.
+
+### Frontend & UX
+- **Duplicate Job Guard**: Blocked accidental double submissions and orphaned downloads on `Enter` keypress.
+- **Smart URL Parsing**: Auto-extracts clean media links from shared or pasted text across major social platforms.
+- **Responsive UI States**: Clear preview error messages, format-aware toggle guards, and live playlist badge sync.
+
+### Backend & Media Processing
+- **Cover Art & Subtitles**: Fixed thumbnail/subtitle embedding for MP4, M4A, and MP3 using `mutagen` and targeted language codes (`en,bn`).
+- **Live Trimming Progress**: Real-time progress, speed, and ETA calculation during clip cutting.
+- **Playlist & Concurrent Safety**: Accurate single-video playlist previews and stem-scoped cleanup for cancelled downloads.
+- **Expanded Support**: Added native handling for `threads.com` and `snd.sc`.
+
+
+
 ## [[3.0.0](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.0.0)] - 2026-10-29
 
 ### Added

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cliphaven"
-version = "3.0.0"
+version = "3.1.0"
 description = "Cross-platform, local-only video and audio downloader for Windows, macOS, Linux, and Android"
 readme = "README.md"
 license = { text = "MIT" }
@@ -15,6 +15,7 @@ requires-python = ">=3.10"
 dependencies = [
   "yt-dlp>=2025.1.15",
   "imageio-ffmpeg>=0.5.1",
+  "mutagen>=1.47.0",
 ]
 keywords = ["video-downloader", "youtube", "facebook", "yt-dlp", "audio-downloader", "clip-trimmer", "android"]
 classifiers = [

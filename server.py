@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local-only backend for ClipHaven Video & Audio Downloader (v3.0.0).
+"""Local-only backend for ClipHaven Video & Audio Downloader (v3.1.0).
 Developed by Md Asadullah Al Munib (https://github.com/AsadullahAlMunib/ClipHaven/)."""
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
@@ -17,7 +17,7 @@ import time
 import webbrowser
 import logging
 
-VERSION = "3.0.0"
+VERSION = "3.1.0"
 AUTHOR = "Md Asadullah Al Munib"
 REPO_URL = "https://github.com/AsadullahAlMunib/ClipHaven/"
 IS_FROZEN = getattr(sys, "frozen", False)
@@ -33,15 +33,17 @@ except Exception:
 
 ALLOWED = {
     "youtube.com", "youtu.be", "youtube-nocookie.com", "facebook.com", "fb.watch", "fb.com", "fb.gg",
-    "instagram.com", "instagr.am", "threads.net", "tiktok.com", "twitter.com", "x.com", "t.co",
+    "instagram.com", "instagr.am", "threads.net", "threads.com", "tiktok.com", "twitter.com", "x.com", "t.co",
     "reddit.com", "redd.it", "vimeo.com", "dailymotion.com", "dai.ly", "twitch.tv",
-    "pinterest.com", "pin.it", "soundcloud.com",
+    "pinterest.com", "pin.it", "soundcloud.com", "snd.sc",
 }
 VALID_FORMATS = {"mp4", "mkv", "webm", "mp3", "m4a", "wav"}
 VALID_QUALITIES = {"best", "2160", "1440", "1080", "720", "480", "360"}
+SUB_OR_THUMB_EXTS = {".vtt", ".srt", ".ass", ".ssa", ".ttml", ".srv1", ".srv2", ".srv3", ".json3", ".webp", ".jpg", ".jpeg", ".png"}
 MAX_JOBS = 40
 
 lock = threading.Lock()
+_ffmpeg_lock = threading.Lock()
 jobs = {}
 procs = {}
 _FFMPEG_CACHED_PATH: str | None = None
@@ -52,55 +54,62 @@ def get_ytdlp_cmd() -> list[str]:
 
 
 def get_ffmpeg_path() -> str | None:
-    """Locate ffmpeg binary path and cache only when found."""
+    """Locate ffmpeg binary path thread-safely and cache only when found."""
     global _FFMPEG_CACHED_PATH
-    if _FFMPEG_CACHED_PATH and Path(_FFMPEG_CACHED_PATH).is_file():
-        return _FFMPEG_CACHED_PATH
-
-    exe_name = "ffmpeg.exe" if os.name == "nt" else "ffmpeg"
-    for base in (APP_DIR, BUNDLE_DIR):
-        candidate = base / exe_name
-        if candidate.is_file() and candidate.stat().st_size > 0:
-            if os.name != "nt" and not os.access(candidate, os.X_OK):
-                try:
-                    candidate.chmod(0o755)
-                except Exception:
-                    pass
-            _FFMPEG_CACHED_PATH = str(candidate)
+    with _ffmpeg_lock:
+        if _FFMPEG_CACHED_PATH and Path(_FFMPEG_CACHED_PATH).is_file():
             return _FFMPEG_CACHED_PATH
 
-    which_ff = shutil.which("ffmpeg")
-    if which_ff:
-        _FFMPEG_CACHED_PATH = which_ff
-        return _FFMPEG_CACHED_PATH
-
-    try:
-        import imageio_ffmpeg
-        pkg_ff = imageio_ffmpeg.get_ffmpeg_exe()
-        if pkg_ff and Path(pkg_ff).is_file():
-            local_target = APP_DIR / exe_name
-            if not local_target.exists() or local_target.stat().st_size == 0:
-                try:
-                    shutil.copyfile(pkg_ff, local_target)
-                    if os.name != "nt":
-                        local_target.chmod(0o755)
-                    _FFMPEG_CACHED_PATH = str(local_target)
-                    return _FFMPEG_CACHED_PATH
-                except Exception:
-                    _FFMPEG_CACHED_PATH = str(pkg_ff)
-                    return _FFMPEG_CACHED_PATH
-            _FFMPEG_CACHED_PATH = str(local_target)
-            return _FFMPEG_CACHED_PATH
-    except Exception:
-        pass
-
-    if os.name == "nt":
-        winget_pkgs = Path.home() / "AppData" / "Local" / "Microsoft" / "WinGet" / "Packages"
-        if winget_pkgs.exists():
-            for exe in winget_pkgs.rglob("ffmpeg.exe"):
-                _FFMPEG_CACHED_PATH = str(exe)
+        exe_name = "ffmpeg.exe" if os.name == "nt" else "ffmpeg"
+        for base in (APP_DIR, BUNDLE_DIR):
+            candidate = base / exe_name
+            if candidate.is_file() and candidate.stat().st_size > 0:
+                if os.name != "nt" and not os.access(candidate, os.X_OK):
+                    try:
+                        candidate.chmod(0o755)
+                    except Exception:
+                        pass
+                _FFMPEG_CACHED_PATH = str(candidate)
                 return _FFMPEG_CACHED_PATH
-    return None
+
+        which_ff = shutil.which("ffmpeg")
+        if which_ff:
+            _FFMPEG_CACHED_PATH = which_ff
+            return _FFMPEG_CACHED_PATH
+
+        try:
+            import imageio_ffmpeg
+            pkg_ff = imageio_ffmpeg.get_ffmpeg_exe()
+            if pkg_ff and Path(pkg_ff).is_file():
+                local_target = APP_DIR / exe_name
+                if not local_target.exists() or local_target.stat().st_size == 0:
+                    tmp_target = APP_DIR / f"{exe_name}.{os.getpid()}.tmp"
+                    try:
+                        shutil.copyfile(pkg_ff, tmp_target)
+                        if os.name != "nt":
+                            tmp_target.chmod(0o755)
+                        os.replace(tmp_target, local_target)
+                        _FFMPEG_CACHED_PATH = str(local_target)
+                        return _FFMPEG_CACHED_PATH
+                    except Exception:
+                        try:
+                            tmp_target.unlink(missing_ok=True)
+                        except Exception:
+                            pass
+                        _FFMPEG_CACHED_PATH = str(pkg_ff)
+                        return _FFMPEG_CACHED_PATH
+                _FFMPEG_CACHED_PATH = str(local_target)
+                return _FFMPEG_CACHED_PATH
+        except Exception:
+            pass
+
+        if os.name == "nt":
+            winget_pkgs = Path.home() / "AppData" / "Local" / "Microsoft" / "WinGet" / "Packages"
+            if winget_pkgs.exists():
+                for exe in winget_pkgs.rglob("ffmpeg.exe"):
+                    _FFMPEG_CACHED_PATH = str(exe)
+                    return _FFMPEG_CACHED_PATH
+        return None
 
 
 def ffmpeg_available() -> bool:
@@ -147,6 +156,8 @@ def validate_folder(folder) -> Path | None:
         return None
     try:
         p = Path(raw).expanduser()
+        if not p.is_absolute():
+            p = (APP_DIR / p).resolve()
         resolved = str(p.resolve()).lower().rstrip("\\/")
         blocked = {str(x).lower().rstrip("\\/") for x in (Path.home().anchor, "C:\\", "D:\\", "/") if x}
         if resolved in blocked:
@@ -205,9 +216,39 @@ def terminate_process(proc: subprocess.Popen):
             pass
 
 
-def cleanup_partial_files(folder: Path, started_at: float):
+def cleanup_partial_files(folder: Path, started_at: float, target_file: str = "", is_clip_job: bool = False):
     time.sleep(0.25)
     try:
+        if target_file:
+            tp = Path(target_file)
+            stem = tp.stem
+            # Clean up partial/temp files matching this specific download's filename stem
+            for f in folder.iterdir():
+                if not f.is_file():
+                    continue
+                if f.name.startswith(stem) and (
+                    is_clip_job
+                    or ".part" in f.name
+                    or ".temp" in f.name
+                    or f.suffix in {".ytdl", ".vtt", ".srt", ".webp"}
+                    or re.search(r"\.f\d+\.", f.name)
+                ):
+                    try:
+                        f.unlink(missing_ok=True)
+                    except Exception:
+                        pass
+            return
+
+        # Fallback when cancelled before Destination filename was printed:
+        # Only sweep recent partial files if no other job is actively downloading in the same folder.
+        with lock:
+            other_active = any(
+                v.get("state") in {"Queued", "Downloading"} and v.get("folder") == str(folder)
+                for v in jobs.values()
+            )
+        if other_active:
+            return
+
         for pattern in ("*.part*", "*.ytdl", "*.temp*", "*.f[0-9]*.*"):
             for f in folder.glob(pattern):
                 try:
@@ -223,6 +264,8 @@ def cleanup_partial_files(folder: Path, started_at: float):
 def update(jid: str, **kwargs):
     with lock:
         if jid in jobs:
+            if jobs[jid].get("state") == "Cancelled" and kwargs.get("state") != "Cancelled":
+                return
             jobs[jid].update(kwargs, updated_at=time.time())
 
 
@@ -239,7 +282,15 @@ def fetch_video_info(url: str) -> dict:
     clean_url = extract_url(url)
     if not valid_url(clean_url):
         raise ValueError("Enter a valid HTTPS video URL (YouTube, Facebook, Instagram, TikTok, etc.).")
-    cmd = get_ytdlp_cmd() + ["--dump-single-json", "--flat-playlist", "--playlist-end", "50", "--no-warnings", "--", clean_url]
+
+    parsed = urlparse(clean_url)
+    qs = parse_qs(parsed.query)
+    has_video_and_list = bool(qs.get("list")) and bool(qs.get("v") or parsed.hostname in {"youtu.be"})
+
+    # When a link points to a specific video inside a playlist (watch?v=...&list=...),
+    # fetch the single video's accurate title/duration with --no-playlist while flagging is_playlist=True.
+    playlist_flags = ["--no-playlist"] if has_video_and_list else ["--flat-playlist", "--playlist-end", "50"]
+    cmd = get_ytdlp_cmd() + ["--dump-single-json", *playlist_flags, "--no-warnings", "--", clean_url]
     res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", timeout=25, cwd=str(APP_DIR))
     if res.returncode != 0 or not res.stdout.strip():
         err_lines = [line.strip() for line in res.stderr.splitlines() if line.strip()]
@@ -253,8 +304,8 @@ def fetch_video_info(url: str) -> dict:
         json_line = next((ln.strip() for ln in reversed(raw_out.splitlines()) if ln.strip().startswith("{")), raw_out.splitlines()[-1])
         data = json.loads(json_line)
 
-    is_playlist = data.get("_type") == "playlist" or bool(data.get("entries"))
     entries = data.get("entries") or []
+    is_playlist = has_video_and_list or data.get("_type") == "playlist" or bool(entries)
     dur = data.get("duration")
     thumb = data.get("thumbnail") or (data["thumbnails"][-1].get("url", "") if data.get("thumbnails") else "")
     if not thumb and is_playlist and entries:
@@ -268,7 +319,7 @@ def fetch_video_info(url: str) -> dict:
         "duration_seconds": int(dur) if isinstance(dur, (int, float)) else 0,
         "thumbnail": thumb,
         "is_playlist": is_playlist,
-        "playlist_count": data.get("playlist_count") or (len(entries) if is_playlist else 1),
+        "playlist_count": data.get("playlist_count") or (len(entries) if entries else (2 if has_video_and_list else 1)),
         "webpage_url": data.get("webpage_url") or clean_url,
     }
 
@@ -287,6 +338,8 @@ def download(
     duration_hint: int = 0,
 ):
     proc, started_at, out = None, time.time(), validate_folder(folder)
+    saved_file = ""
+    is_clip_job = False
     try:
         if out is None:
             raise ValueError("Invalid or inaccessible save folder.")
@@ -295,7 +348,15 @@ def download(
 
         ffmpeg_bin = get_ffmpeg_path()
         has_ffmpeg = ffmpeg_bin is not None
-        cmd = get_ytdlp_cmd() + ["--yes-playlist" if allow_playlist else "--no-playlist", "--newline", "--progress", "--no-mtime", "--windows-filenames"]
+        cmd = get_ytdlp_cmd() + [
+            "--yes-playlist" if allow_playlist else "--no-playlist",
+            "--newline",
+            "--progress",
+            "--no-mtime",
+            "--windows-filenames",
+        ]
+        if allow_playlist:
+            cmd.append("--ignore-errors")
         if ffmpeg_bin:
             cmd.extend(["--ffmpeg-location", ffmpeg_bin])
 
@@ -304,41 +365,70 @@ def download(
                 raise RuntimeError(f"FFmpeg is required to convert audio to {fmt_choice.upper()}. Run setup-and-run.bat or choose M4A / MP4.")
             cmd.extend(["-x", "--audio-format", fmt_choice, "--audio-quality", "0"])
         elif has_ffmpeg:
-            fmt = "bv*+ba/b" if quality == "best" else f"bv*[height<={quality}]+ba/b[height<={quality}]/b"
+            if fmt_choice == "mp4":
+                fmt = (
+                    "bv*[ext=mp4]+ba[ext=m4a]/bv*+ba/b[ext=mp4]/b"
+                    if quality == "best"
+                    else f"bv*[ext=mp4][height<={quality}]+ba[ext=m4a]/bv*[height<={quality}]+ba/b[height<={quality}]/b"
+                )
+            else:
+                fmt = "bv*+ba/b" if quality == "best" else f"bv*[height<={quality}]+ba/b[height<={quality}]/b"
             cmd.extend(["--format", fmt, "--merge-output-format", fmt_choice])
         else:
             cmd.extend(["--format", "b" if quality == "best" else f"b[height<={quality}]/b"])
 
         clip_suffix = ""
         clip_duration = 0
-        if start_time or end_time:
+        s_sec = parse_timestamp(start_time) if start_time else 0
+        e_sec = parse_timestamp(end_time) if end_time else None
+        if (start_time and s_sec is None) or (end_time and e_sec is None) or (e_sec is not None and s_sec is not None and e_sec <= s_sec):
+            raise ValueError("Invalid clip time range. Use MM:SS or HH:MM:SS.")
+
+        is_clip_job = bool((s_sec and s_sec > 0) or e_sec is not None)
+        if is_clip_job:
             if not has_ffmpeg:
                 raise RuntimeError("FFmpeg is required for cutting/trimming video clips.")
-            s_sec = parse_timestamp(start_time) if start_time else 0
-            e_sec = parse_timestamp(end_time) if end_time else None
-            if s_sec is None or (end_time and e_sec is None) or (e_sec is not None and e_sec <= s_sec):
-                raise ValueError("Invalid clip time range. Use MM:SS or HH:MM:SS.")
             if e_sec is not None:
-                clip_duration = max(1, e_sec - s_sec)
-            elif duration_hint and duration_hint > s_sec:
-                clip_duration = max(1, int(duration_hint) - s_sec)
+                clip_duration = max(1, e_sec - (s_sec or 0))
+            elif duration_hint and duration_hint > (s_sec or 0):
+                clip_duration = max(1, int(duration_hint) - (s_sec or 0))
             cmd.extend([
                 "--download-sections",
-                f"*{s_sec}-{e_sec if e_sec is not None else 'inf'}",
+                f"*{s_sec or 0}-{e_sec if e_sec is not None else 'inf'}",
                 "--force-keyframes-at-cuts",
+                "--downloader-args",
+                "ffmpeg:-stats -v warning",
             ])
             clip_suffix = f" [clip {(start_time or '0').replace(':', '-')}_to_{(end_time or 'end').replace(':', '-')}]"
 
-        if subtitles:
-            cmd.extend(["--write-subs", "--write-auto-subs", "--sub-langs", "orig,bn.*,en.*"])
-            if fmt_choice in {"mp4", "mkv", "webm"} and has_ffmpeg:
+        if subtitles and fmt_choice in {"mp4", "mkv", "webm"}:
+            # Use specific language codes (en, bn, en-orig) rather than broad regexes to avoid YouTube HTTP 429 rate limits,
+            # convert WebVTT captions to SRT for clean MP4/MKV muxing, and prevent missing/rate-limited subs from aborting the video download.
+            cmd.extend([
+                "--write-subs",
+                "--write-auto-subs",
+                "--sub-langs",
+                "en,bn,en-orig",
+                "--compat-options",
+                "no-keep-subs",
+                "--ignore-errors",
+            ])
+            if has_ffmpeg:
+                if fmt_choice in {"mp4", "mkv"}:
+                    cmd.extend(["--convert-subs", "srt"])
                 cmd.append("--embed-subs")
 
         if embed_thumbnail and has_ffmpeg and fmt_choice in {"mp4", "mkv", "mp3", "m4a"}:
-            cmd.append("--embed-thumbnail")
+            # Convert WebP thumbnails to JPG first so MP4/M4A/MP3 containers never reject the cover art format.
+            cmd.extend(["--convert-thumbnails", "jpg", "--embed-thumbnail"])
 
         cmd.extend(["--output", str(out / f"%(title).160B [%(id)s]{clip_suffix}.%(ext)s"), "--", clean_url])
-        is_clip_job = bool(start_time or end_time)
+
+        with lock:
+            if jobs.get(jid, {}).get("state") == "Cancelled":
+                cleanup_partial_files(out, started_at, saved_file, is_clip_job)
+                return
+
         update(
             jid,
             state="Downloading",
@@ -359,9 +449,12 @@ def download(
 
         proc = subprocess.Popen(cmd, **popen_kwargs)
         with lock:
-            procs[jid] = proc
+            if jobs.get(jid, {}).get("state") == "Cancelled":
+                terminate_process(proc)
+            else:
+                procs[jid] = proc
 
-        recent, saved_file, stream_count = [], "", 0
+        recent, stream_count = [], 0
         pl_idx, pl_total = 0, 0
         clip_started_ts = time.time()
         for raw in proc.stdout:
@@ -398,17 +491,20 @@ def download(
                 (r"\[download\] Destination:\s+(.+)$", 1),
                 (r'\[Merger\] Merging formats into "(.+?)"', 0),
                 (r"\[ExtractAudio\] Destination:\s+(.+)$", 0),
+                (r"\[VideoRemuxer\] Remuxing video from \w+ to \w+; Destination:\s+(.+)$", 0),
                 (r"\[download\]\s+(.+?)\s+has already been downloaded", 0),
             ):
                 m = re.search(pat, line)
                 if m:
-                    saved_file = m.group(1).strip().strip('"')
-                    stream_count += inc
-                    if inc > 0:
-                        clip_started_ts = time.time()
+                    candidate_file = m.group(1).strip().strip('"')
+                    if Path(candidate_file).suffix.lower() not in SUB_OR_THUMB_EXTS:
+                        saved_file = candidate_file
+                        stream_count += inc
+                        if inc > 0:
+                            clip_started_ts = time.time()
 
             prog = re.search(
-                r"\[download\]\s+([\d.]+)%(?:\s+of\s+~?\s*[\d.]+\s*\w+)?(?:\s+at\s+([\d.]+\s*\w+/s))?(?:\s+ETA\s+([\d:]+))?",
+                r"\[download\]\s+([\d.]+)%(?:\s+of\s+~?\s*[\d.]+\s*\w+)?(?:\s+at\s+(?:([\d.]+\s*\w+/s)|Unknown\s*\w*/s))?(?:\s+ETA\s+([\d:]+))?",
                 line,
             )
             dl_elapsed = re.search(
@@ -503,29 +599,36 @@ def download(
             is_cancelled = job_snapshot.get("state") == "Cancelled"
 
         if is_cancelled:
-            cleanup_partial_files(out, started_at)
+            cleanup_partial_files(out, started_at, saved_file, is_clip_job)
             update(jid, state="Cancelled", title="Download cancelled", detail="Download cancelled and temporary files cleaned up.", percent=0, indeterminate=False, speed="", eta="", stage="Cancelled")
-        elif rc == 0:
+        elif rc == 0 or (saved_file and Path(saved_file).is_file() and Path(saved_file).stat().st_size > 0):
+            # Note: If --ignore-errors was active (e.g., optional subtitle track returned 429)
+            # yt-dlp may exit with non-zero even though the main video file was downloaded and merged cleanly.
             final_name = Path(saved_file).name if saved_file else ""
-            if final_name and not job_snapshot.get("video_title_locked"):
+            if final_name and (not job_snapshot.get("video_title_locked") or not allow_playlist):
                 clean_title = re.sub(r"\s*\[[A-Za-z0-9_-]{3,}\](?:\s*\[clip [^\]]+\])?\.[A-Za-z0-9]+$", "", final_name)
-                if clean_title:
+                if clean_title and pl_total <= 1:
                     update(jid, video_title=clean_title)
             done_overrides = {}
             if pl_total > 1:
                 done_overrides = {"playlist_index": pl_total, "playlist_done": pl_total, "playlist_left": 0}
+            detail_msg = (
+                f"Saved {pl_total} playlist items to: {out}"
+                if pl_total > 1
+                else (f"Saved: {final_name}" if final_name else f"Saved to: {out}")
+            )
             update(
                 jid,
                 state="Complete",
                 title="Download complete!",
-                detail=f"Saved: {final_name}" if final_name else f"Saved to: {out}",
+                detail=detail_msg,
                 percent=100,
                 indeterminate=False,
                 speed="",
                 eta="",
                 stage="Complete",
                 folder=str(out),
-                file_path=saved_file or str(out),
+                file_path=str(out) if pl_total > 1 else (saved_file or str(out)),
                 **done_overrides,
             )
         else:
@@ -660,11 +763,15 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         origin = self.headers.get("Origin", "")
-        if origin and not (origin.startswith("http://127.0.0.1:") or origin.startswith("http://localhost:")):
-            return self.json(403, {"ok": False, "error": "Request origin not allowed."})
+        if origin:
+            parsed_origin = urlparse(origin)
+            if parsed_origin.scheme != "http" or parsed_origin.hostname not in {"127.0.0.1", "localhost"}:
+                return self.json(403, {"ok": False, "error": "Request origin not allowed."})
         try:
             n = int(self.headers.get("Content-Length", "0"))
-            body = json.loads(self.rfile.read(n).decode("utf-8") if 0 < n <= 20000 else "{}")
+            if n > 20000:
+                return self.json(413, {"ok": False, "error": "Request payload too large."})
+            body = json.loads(self.rfile.read(n).decode("utf-8") if n > 0 else "{}")
             if not isinstance(body, dict):
                 body = {}
         except Exception:
@@ -709,6 +816,8 @@ class Handler(SimpleHTTPRequestHandler):
                 duration_hint = int(body.get("duration_hint", 0) or 0)
             except Exception:
                 duration_hint = 0
+            if duration_hint > 0 and s_sec is not None and s_sec >= duration_hint:
+                return self.json(400, {"ok": False, "error": "Start time exceeds video duration."})
 
             jid, now = uuid.uuid4().hex, time.time()
             with lock:

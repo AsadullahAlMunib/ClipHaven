@@ -6,6 +6,8 @@ let previewSeq = 0;
 let lastPreviewUrl = "";
 let currentTitleHint = "";
 let currentDurationHint = 0;
+let currentPlaylistCount = 0;
+let isCurrentUrlPlaylist = false;
 let lastCompletedPath = "";
 let androidReqSeq = 0;
 const androidPending = {};
@@ -20,12 +22,18 @@ window.__onAndroidApiResult = (reqId, data) => {
 
 function normalizeInputUrl(raw) {
   if (!raw) return "";
-  let s = String(raw).trim().replace(/\bhttp:\/\//gi, "https://");
-  if (!/https?:\/\//i.test(s)) {
-    const bare = s.match(/(?:www\.)?(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\/[^\s<>"']*/);
-    if (bare) {
-      s = s.replace(bare[0], "https://" + bare[0]);
-    }
+  const s = String(raw).trim();
+  const httpMatch = s.match(/https?:\/\/[^\s<>"']+/i);
+  if (httpMatch) {
+    return httpMatch[0]
+      .replace(/[.,;)!\]>]+$/, "")
+      .replace(/^http:\/\//i, "https://");
+  }
+  const bareMatch = s.match(
+    /(?:www\.)?(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\/[^\s<>"']*/,
+  );
+  if (bareMatch) {
+    return "https://" + bareMatch[0].replace(/[.,;)!\]>]+$/, "");
   }
   return s;
 }
@@ -92,13 +100,22 @@ async function api(path, opts = {}) {
       const d = await new Promise((resolve) => {
         const reqId = "req_" + ++androidReqSeq + "_" + Date.now();
         androidPending[reqId] = resolve;
-        window.ClipHavenAndroid.requestAsync(reqId, path, opts.method || "GET", opts.body || "{}");
+        window.ClipHavenAndroid.requestAsync(
+          reqId,
+          path,
+          opts.method || "GET",
+          opts.body || "{}",
+        );
       });
       if (!d || d.ok === false) throw Error((d && d.error) || "Request failed");
       return d;
     }
     if (typeof window.ClipHavenAndroid.request === "function") {
-      const rawResp = window.ClipHavenAndroid.request(path, opts.method || "GET", opts.body || "{}");
+      const rawResp = window.ClipHavenAndroid.request(
+        path,
+        opts.method || "GET",
+        opts.body || "{}",
+      );
       const d = JSON.parse(rawResp);
       if (d.ok === false) throw Error(d.error || "Request failed");
       return d;
@@ -142,11 +159,59 @@ themeBtn.onclick = () =>
       : "light",
   );
 
-// Format & Quality toggle
+// Extra Options active badge indicator & playlist badge sync
+function syncPlaylistBadgeText() {
+  const badge = $("preview-playlist");
+  if (!isCurrentUrlPlaylist) {
+    badge.style.display = "none";
+    return;
+  }
+  const countStr =
+    currentPlaylistCount > 1 ? ` (${currentPlaylistCount} videos)` : "";
+  const isAll = $("allow-playlist").checked;
+  badge.textContent = isAll
+    ? `✅ Full Playlist${countStr}`
+    : `📑 Playlist${countStr} • Single`;
+  badge.style.display = "inline-block";
+}
+
+function updateExtraOptionsBadge() {
+  const fmt = $("format").value;
+  const isAudio = ["mp3", "m4a", "wav"].includes(fmt);
+  const canThumb = ["mp4", "mkv", "mp3", "m4a"].includes(fmt);
+  const hasTrim =
+    $("start-time").value.trim() !== "" || $("end-time").value.trim() !== "";
+  const hasChecks =
+    (!isAudio && $("subtitles").checked) ||
+    (canThumb && $("embed-thumbnail").checked) ||
+    $("allow-playlist").checked;
+  $("active-options-badge").style.display =
+    hasTrim || hasChecks ? "inline-block" : "none";
+  syncPlaylistBadgeText();
+}
+
+// Format & Quality toggle (also guards format-specific checkboxes)
 $("format").onchange = () => {
-  const audio = ["mp3", "m4a", "wav"].includes($("format").value);
+  const fmt = $("format").value;
+  const audio = ["mp3", "m4a", "wav"].includes(fmt);
+  const canThumb = ["mp4", "mkv", "mp3", "m4a"].includes(fmt);
+
   $("quality").disabled = audio;
   $("quality").style.opacity = audio ? "0.5" : "1";
+
+  $("subtitles").disabled = audio;
+  $("subtitles").parentElement.style.opacity = audio ? "0.5" : "1";
+  $("subtitles").parentElement.title = audio
+    ? "Subtitles apply to video formats (MP4, MKV, WEBM)"
+    : "";
+
+  $("embed-thumbnail").disabled = !canThumb;
+  $("embed-thumbnail").parentElement.style.opacity = canThumb ? "1" : "0.5";
+  $("embed-thumbnail").parentElement.title = canThumb
+    ? ""
+    : "Cover art embedding is supported for MP4, MKV, MP3, and M4A";
+
+  updateExtraOptionsBadge();
 };
 $("format").onchange();
 
@@ -178,17 +243,6 @@ $("browse-folder-btn").onclick = async () => {
   }
 };
 
-// Extra Options active badge indicator
-function updateExtraOptionsBadge() {
-  const hasTrim =
-    $("start-time").value.trim() !== "" || $("end-time").value.trim() !== "";
-  const hasChecks =
-    $("subtitles").checked ||
-    $("embed-thumbnail").checked ||
-    $("allow-playlist").checked;
-  $("active-options-badge").style.display =
-    hasTrim || hasChecks ? "inline-block" : "none";
-}
 [
   "start-time",
   "end-time",
@@ -230,7 +284,7 @@ $("paste-btn").onclick = async () => {
   try {
     const text = await navigator.clipboard.readText();
     if (text && text.trim()) {
-      $("url").value = text.trim();
+      $("url").value = normalizeInputUrl(text.trim());
       syncClearBtn();
       triggerPreview();
     }
@@ -246,11 +300,13 @@ function hidePreview() {
   $("preview-card").style.display = "none";
   currentTitleHint = "";
   currentDurationHint = 0;
+  currentPlaylistCount = 0;
+  isCurrentUrlPlaylist = false;
 }
 
 async function fetchPreview(rawUrl) {
   const clean = normalizeInputUrl(rawUrl);
-  if (!clean || !clean.includes("http")) {
+  if (!clean || !clean.startsWith("https://")) {
     hidePreview();
     return;
   }
@@ -258,6 +314,10 @@ async function fetchPreview(rawUrl) {
   lastPreviewUrl = clean;
 
   const seq = ++previewSeq;
+  currentTitleHint = "";
+  currentDurationHint = 0;
+  currentPlaylistCount = 0;
+  isCurrentUrlPlaylist = false;
   $("preview-card").style.display = "flex";
   $("preview-thumb").style.display = "none";
   $("preview-title").textContent = "Checking video link…";
@@ -275,6 +335,8 @@ async function fetchPreview(rawUrl) {
     const info = d.info || {};
     currentTitleHint = info.title || "";
     currentDurationHint = info.duration_seconds || 0;
+    isCurrentUrlPlaylist = Boolean(info.is_playlist);
+    currentPlaylistCount = info.playlist_count || 0;
     $("preview-title").textContent = info.title || "Video ready to download";
     $("preview-uploader").textContent = info.uploader || "";
     if (info.thumbnail) {
@@ -286,16 +348,16 @@ async function fetchPreview(rawUrl) {
       $("preview-duration").textContent = info.duration;
       $("preview-duration").style.display = "inline-block";
     }
-    if (info.is_playlist) {
-      $("preview-playlist").textContent =
-        info.playlist_count > 1
-          ? `Playlist (${info.playlist_count} videos)`
-          : "Playlist";
-      $("preview-playlist").style.display = "inline-block";
-    }
-  } catch {
+    syncPlaylistBadgeText();
+  } catch (err) {
     if (seq === previewSeq) {
-      hidePreview();
+      $("preview-thumb").style.display = "none";
+      $("preview-dot").style.display = "none";
+      $("preview-duration").style.display = "none";
+      $("preview-playlist").style.display = "none";
+      $("preview-title").textContent = "Preview unavailable";
+      $("preview-uploader").textContent =
+        (err && err.message) || "Check link or click Download Now to try directly.";
     }
   }
 }
@@ -307,7 +369,15 @@ function triggerPreview() {
 }
 
 $("url").addEventListener("input", triggerPreview);
-$("url").addEventListener("paste", () => setTimeout(triggerPreview, 80));
+$("url").addEventListener("paste", () =>
+  setTimeout(() => {
+    const cleaned = normalizeInputUrl($("url").value);
+    if (cleaned && cleaned !== $("url").value) {
+      $("url").value = cleaned;
+    }
+    triggerPreview();
+  }, 80),
+);
 
 // Open folder button
 async function openFolder(pathOrJobId = {}) {
@@ -484,9 +554,12 @@ function startPolling(jobId) {
 // Form submission
 $("form").onsubmit = async (e) => {
   e.preventDefault();
-  if (timer) clearInterval(timer);
   const b = $("start");
   const cb = $("cancel");
+  // Prevent duplicate submission if Enter is pressed in an input while a job is already active
+  if (currentJobId || b.disabled) return;
+  if (timer) clearInterval(timer);
+
   b.disabled = true;
   b.textContent = "Starting…";
   cb.style.display = "none";
@@ -495,6 +568,15 @@ $("form").onsubmit = async (e) => {
 
   const chosenFolder = $("folder").value.trim();
   if (chosenFolder) localStorage.setItem("cliphaven_folder", chosenFolder);
+
+  const fmt = $("format").value;
+  const isAudio = ["mp3", "m4a", "wav"].includes(fmt);
+  const canThumb = ["mp4", "mkv", "mp3", "m4a"].includes(fmt);
+  const cleanUrl = normalizeInputUrl($("url").value);
+  if (cleanUrl && cleanUrl !== $("url").value) {
+    $("url").value = cleanUrl;
+    syncClearBtn();
+  }
 
   status(
     "Starting download",
@@ -511,14 +593,14 @@ $("form").onsubmit = async (e) => {
     const d = await api("/api/download", {
       method: "POST",
       body: JSON.stringify({
-        url: normalizeInputUrl($("url").value),
+        url: cleanUrl,
         folder: chosenFolder,
         quality: $("quality").value,
-        format: $("format").value,
+        format: fmt,
         start_time: $("start-time").value.trim(),
         end_time: $("end-time").value.trim(),
-        subtitles: $("subtitles").checked,
-        embed_thumbnail: $("embed-thumbnail").checked,
+        subtitles: !isAudio && $("subtitles").checked,
+        embed_thumbnail: canThumb && $("embed-thumbnail").checked,
         allow_playlist: $("allow-playlist").checked,
         title_hint: currentTitleHint,
         duration_hint: currentDurationHint,
@@ -549,9 +631,15 @@ $("form").onsubmit = async (e) => {
     if (cfg.ffmpeg === false) {
       $("ffmpeg-warning").style.display = "block";
     }
+    const jobsList = cfg.jobs || [];
     const savedJob = localStorage.getItem("cliphaven_active_job");
+    const activeServerJob = jobsList
+      .slice()
+      .reverse()
+      .find((j) => !["Complete", "Error", "Cancelled"].includes(j.state));
+
     if (savedJob) {
-      const match = (cfg.jobs || []).find((j) => j.id === savedJob);
+      const match = jobsList.find((j) => j.id === savedJob);
       if (match && !["Complete", "Error", "Cancelled"].includes(match.state)) {
         startPolling(savedJob);
       } else {
@@ -570,7 +658,12 @@ $("form").onsubmit = async (e) => {
           );
         }
         localStorage.removeItem("cliphaven_active_job");
+        if (activeServerJob) {
+          startPolling(activeServerJob.id);
+        }
       }
+    } else if (activeServerJob) {
+      startPolling(activeServerJob.id);
     }
   } catch {
     if (!$("folder").value) {
