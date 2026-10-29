@@ -199,7 +199,7 @@ class MainActivity : AppCompatActivity() {
                 when (cleanPath) {
                     "/api/config" -> {
                         val arr = JSONArray()
-                        jobs.values.takeLast(10).forEach { arr.put(it) }
+                        jobs.values.toList().takeLast(10).forEach { arr.put(it) }
                         JSONObject()
                             .put("ok", true)
                             .put("version", "3.0.0")
