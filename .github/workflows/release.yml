@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: "Release tag (e.g. v3.0.0) - leave blank if just testing build."
+        description: "Release tag (e.g. v3.1.0) - leave blank if just testing build."
         required: false
         default: ""
 
@@ -54,6 +54,7 @@ jobs:
             --add-data "app.js;." ^
             --add-data "logo.svg;." ^
             --collect-all yt_dlp ^
+            --collect-all mutagen ^
             server.py
 
       - name: Build 2 — Standalone Windows Executable (ClipHaven-Windows.exe)
@@ -69,6 +70,7 @@ jobs:
             --add-data "logo.svg;." ^
             --add-binary "ffmpeg.exe;." ^
             --collect-all yt_dlp ^
+            --collect-all mutagen ^
             server.py
 
       - name: Package Windows & Source Release Assets
@@ -127,6 +129,7 @@ jobs:
             --add-data "app.js:." \
             --add-data "logo.svg:." \
             --collect-all yt_dlp \
+            --collect-all mutagen \
             server.py
 
           pyinstaller --noconfirm --clean --onefile --name ClipHaven-macOS \
@@ -138,6 +141,7 @@ jobs:
             --add-data "logo.svg:." \
             --add-binary "ffmpeg:." \
             --collect-all yt_dlp \
+            --collect-all mutagen \
             server.py
 
           mkdir -p release_out
@@ -183,6 +187,7 @@ jobs:
             --add-data "app.js:." \
             --add-data "logo.svg:." \
             --collect-all yt_dlp \
+            --collect-all mutagen \
             server.py
 
           pyinstaller --noconfirm --clean --onefile --name ClipHaven-Linux-x64 \
@@ -194,6 +199,7 @@ jobs:
             --add-data "logo.svg:." \
             --add-binary "ffmpeg:." \
             --collect-all yt_dlp \
+            --collect-all mutagen \
             server.py
 
           mkdir -p release_out
@@ -249,6 +255,7 @@ jobs:
             --add-data "app.js:." \
             --add-data "logo.svg:." \
             --collect-all yt_dlp \
+            --collect-all mutagen \
             server.py
 
           pyinstaller --noconfirm --clean --onefile --name ClipHaven-Linux-ARM64 \
@@ -260,6 +267,7 @@ jobs:
             --add-data "logo.svg:." \
             --add-binary "ffmpeg:." \
             --collect-all yt_dlp \
+            --collect-all mutagen \
             server.py
 
           mkdir -p release_out
