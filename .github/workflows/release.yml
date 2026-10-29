@@ -1,4 +1,4 @@
-name: Build & Release (Windows Full Bundle, Standalone .exe & Source ZIP)
+name: Build & Release (Windows, macOS, Linux x64/ARM64, Android APK & Source)
 
 on:
   push:
@@ -7,16 +7,16 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: "Release tag (e.g. v2.1.1) - leave blank if just testing build"
+        description: "Release tag (e.g. v3.0.0) - leave blank if just testing build"
         required: false
-        default: ""
+        default: "v3.0.0"
 
 permissions:
   contents: write
 
 jobs:
   build-windows:
-    name: Build Windows App Bundles (.zip + .exe + Source)
+    name: Build Windows (ClipHaven-Windows-All.zip, ClipHaven-Windows.exe & Source)
     runs-on: windows-latest
     steps:
       - name: Checkout Repository
@@ -36,24 +36,13 @@ jobs:
       - name: Run Unit Tests Before Building
         run: pytest -v
 
-      - name: Generate Windows Icon (logo.ico) & Locate Bundled FFmpeg
+      - name: Generate Windows Icon (logo.ico from logo.svg) & Locate Bundled FFmpeg
         shell: pwsh
         run: |
-          python -c "
-          from PIL import Image, ImageDraw
-          import shutil, imageio_ffmpeg
-          img = Image.new('RGBA', (256, 256), (0, 0, 0, 0))
-          draw = ImageDraw.Draw(img)
-          draw.rounded_rectangle([(12, 12), (244, 244)], radius=56, fill=(83, 140, 255, 255))
-          draw.polygon([(128, 176), (76, 124), (108, 124), (108, 68), (148, 68), (148, 124), (180, 124)], fill=(255, 255, 255, 255))
-          draw.rounded_rectangle([(72, 190), (184, 210)], radius=10, fill=(255, 255, 255, 255))
-          img.save('logo.ico', format='ICO', sizes=[(256, 256), (128, 128), (64, 64), (48, 48), (32, 32), (16, 16)])
-          ff = imageio_ffmpeg.get_ffmpeg_exe()
-          shutil.copyfile(ff, 'ffmpeg.exe')
-          print('Prepared logo.ico and ffmpeg.exe from', ff)
-          "
+          python scripts/generate_icons.py
+          python -c "import shutil, imageio_ffmpeg; ff = imageio_ffmpeg.get_ffmpeg_exe(); shutil.copyfile(ff, 'ffmpeg.exe'); print('Bundled ffmpeg.exe from', ff)"
 
-      - name: Build 1 — Recommended Full Windows App Folder (--onedir + bundled ffmpeg.exe)
+      - name: Build 1 — Full Windows App Bundle (--onedir + bundled ffmpeg.exe)
         shell: cmd
         run: |
           pyinstaller --noconfirm --clean --onedir --name ClipHaven ^
@@ -67,10 +56,10 @@ jobs:
             --collect-all yt_dlp ^
             server.py
 
-      - name: Build 2 — Standalone Single-File Executable (ClipHaven.exe)
+      - name: Build 2 — Standalone Windows Executable (ClipHaven-Windows.exe)
         shell: cmd
         run: |
-          pyinstaller --noconfirm --clean --onefile --name ClipHaven ^
+          pyinstaller --noconfirm --clean --onefile --name ClipHaven-Windows ^
             --distpath dist_single --workpath build_single ^
             --icon logo.ico ^
             --exclude-module tkinter ^
@@ -82,40 +71,285 @@ jobs:
             --collect-all yt_dlp ^
             server.py
 
-      - name: Package All 3 Release Assets
+      - name: Package Windows & Source Release Assets
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path release_out | Out-Null
 
-          # Asset 1 (Recommended): Full Windows Dependency Bundle (--onedir + ffmpeg.exe)
+          # 1. ClipHaven-Windows-All.zip
           Copy-Item ffmpeg.exe dist_dir/ClipHaven/ffmpeg.exe -Force
           Copy-Item README.md, LICENSE dist_dir/ClipHaven/ -Force
-          Compress-Archive -Path dist_dir/ClipHaven -DestinationPath release_out/ClipHaven-Windows-EXE.zip -Force
+          Compress-Archive -Path dist_dir/ClipHaven -DestinationPath release_out/ClipHaven-Windows-All.zip -Force
 
-          # Asset 2: Standalone Single-File .exe (ClipHaven.exe)
-          Copy-Item dist_single/ClipHaven.exe release_out/ClipHaven.exe -Force
+          # 2. ClipHaven-Windows.exe
+          Copy-Item dist_single/ClipHaven-Windows.exe release_out/ClipHaven-Windows.exe -Force
 
-          # Asset 3: Lightweight Source + setup-and-run.bat Bundle
+          # 3. ClipHaven-Source-Bat.zip
           New-Item -ItemType Directory -Force -Path staging_src/ClipHaven | Out-Null
           Copy-Item setup-and-run.bat, server.py, index.html, style.css, app.js, logo.svg, requirements.txt, pyproject.toml, README.md, CHANGELOG.md, LICENSE staging_src/ClipHaven/
           Compress-Archive -Path staging_src/ClipHaven -DestinationPath release_out/ClipHaven-Source-Bat.zip -Force
 
-      - name: Upload Build Artifacts
+      - name: Upload Windows Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ClipHaven-Windows-Packages
+          name: pkg-windows
           path: |
-            release_out/ClipHaven-Windows-EXE.zip
-            release_out/ClipHaven.exe
+            release_out/ClipHaven-Windows-All.zip
+            release_out/ClipHaven-Windows.exe
             release_out/ClipHaven-Source-Bat.zip
+
+  build-macos:
+    name: Build macOS (ClipHaven-macOS-All.zip & ClipHaven-macOS)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install Dependencies & Prepare FFmpeg
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller pillow
+          python -c "import os, shutil, imageio_ffmpeg; ff = imageio_ffmpeg.get_ffmpeg_exe(); shutil.copyfile(ff, 'ffmpeg'); os.chmod('ffmpeg', 0o755)"
+
+      - name: Build macOS Bundle & Standalone Executable
+        run: |
+          pyinstaller --noconfirm --clean --onedir --name ClipHaven \
+            --distpath dist_dir --workpath build_dir \
+            --exclude-module tkinter \
+            --add-data "index.html:." \
+            --add-data "style.css:." \
+            --add-data "app.js:." \
+            --add-data "logo.svg:." \
+            --collect-all yt_dlp \
+            server.py
+
+          pyinstaller --noconfirm --clean --onefile --name ClipHaven-macOS \
+            --distpath dist_single --workpath build_single \
+            --exclude-module tkinter \
+            --add-data "index.html:." \
+            --add-data "style.css:." \
+            --add-data "app.js:." \
+            --add-data "logo.svg:." \
+            --add-binary "ffmpeg:." \
+            --collect-all yt_dlp \
+            server.py
+
+          mkdir -p release_out
+          cp ffmpeg README.md LICENSE dist_dir/ClipHaven/
+          chmod +x dist_dir/ClipHaven/ClipHaven dist_dir/ClipHaven/ffmpeg dist_single/ClipHaven-macOS
+          (cd dist_dir && zip -r -q ../release_out/ClipHaven-macOS-All.zip ClipHaven)
+          cp dist_single/ClipHaven-macOS release_out/ClipHaven-macOS
+
+      - name: Upload macOS Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pkg-macos
+          path: |
+            release_out/ClipHaven-macOS-All.zip
+            release_out/ClipHaven-macOS
+
+  build-linux-x64:
+    name: Build Linux x64 (ClipHaven-Linux-x64-All.zip & ClipHaven-Linux-x64)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install Dependencies & Prepare FFmpeg
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller pillow
+          python -c "import os, shutil, imageio_ffmpeg; ff = imageio_ffmpeg.get_ffmpeg_exe(); shutil.copyfile(ff, 'ffmpeg'); os.chmod('ffmpeg', 0o755)"
+
+      - name: Build Linux x64 Bundle & Standalone Executable
+        run: |
+          pyinstaller --noconfirm --clean --onedir --name ClipHaven \
+            --distpath dist_dir --workpath build_dir \
+            --exclude-module tkinter \
+            --add-data "index.html:." \
+            --add-data "style.css:." \
+            --add-data "app.js:." \
+            --add-data "logo.svg:." \
+            --collect-all yt_dlp \
+            server.py
+
+          pyinstaller --noconfirm --clean --onefile --name ClipHaven-Linux-x64 \
+            --distpath dist_single --workpath build_single \
+            --exclude-module tkinter \
+            --add-data "index.html:." \
+            --add-data "style.css:." \
+            --add-data "app.js:." \
+            --add-data "logo.svg:." \
+            --add-binary "ffmpeg:." \
+            --collect-all yt_dlp \
+            server.py
+
+          mkdir -p release_out
+          cp ffmpeg README.md LICENSE dist_dir/ClipHaven/
+          chmod +x dist_dir/ClipHaven/ClipHaven dist_dir/ClipHaven/ffmpeg dist_single/ClipHaven-Linux-x64
+          (cd dist_dir && zip -r -q ../release_out/ClipHaven-Linux-x64-All.zip ClipHaven)
+          cp dist_single/ClipHaven-Linux-x64 release_out/ClipHaven-Linux-x64
+
+      - name: Upload Linux x64 Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pkg-linux-x64
+          path: |
+            release_out/ClipHaven-Linux-x64-All.zip
+            release_out/ClipHaven-Linux-x64
+
+  build-linux-arm64:
+    name: Build Linux ARM64 (ClipHaven-Linux-ARM64-All.zip & ClipHaven-Linux-ARM64)
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install Dependencies & Prepare ARM64 FFmpeg
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg zip binutils
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller pillow
+          python -c "
+          import os, shutil
+          try:
+              import imageio_ffmpeg
+              ff = imageio_ffmpeg.get_ffmpeg_exe()
+          except Exception:
+              ff = shutil.which('ffmpeg')
+          shutil.copyfile(ff, 'ffmpeg')
+          os.chmod('ffmpeg', 0o755)
+          "
+
+      - name: Build Linux ARM64 Bundle & Standalone Executable
+        run: |
+          pyinstaller --noconfirm --clean --onedir --name ClipHaven \
+            --distpath dist_dir --workpath build_dir \
+            --exclude-module tkinter \
+            --add-data "index.html:." \
+            --add-data "style.css:." \
+            --add-data "app.js:." \
+            --add-data "logo.svg:." \
+            --collect-all yt_dlp \
+            server.py
+
+          pyinstaller --noconfirm --clean --onefile --name ClipHaven-Linux-ARM64 \
+            --distpath dist_single --workpath build_single \
+            --exclude-module tkinter \
+            --add-data "index.html:." \
+            --add-data "style.css:." \
+            --add-data "app.js:." \
+            --add-data "logo.svg:." \
+            --add-binary "ffmpeg:." \
+            --collect-all yt_dlp \
+            server.py
+
+          mkdir -p release_out
+          cp ffmpeg README.md LICENSE dist_dir/ClipHaven/
+          chmod +x dist_dir/ClipHaven/ClipHaven dist_dir/ClipHaven/ffmpeg dist_single/ClipHaven-Linux-ARM64
+          (cd dist_dir && zip -r -q ../release_out/ClipHaven-Linux-ARM64-All.zip ClipHaven)
+          cp dist_single/ClipHaven-Linux-ARM64 release_out/ClipHaven-Linux-ARM64
+
+      - name: Upload Linux ARM64 Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pkg-linux-arm64
+          path: |
+            release_out/ClipHaven-Linux-ARM64-All.zip
+            release_out/ClipHaven-Linux-ARM64
+
+  build-android:
+    name: Build Android APK (ClipHaven-Android.apk)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python & Generate Launcher Icons from logo.svg
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: |
+          pip install pillow
+          python scripts/generate_icons.py
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.5"
+
+      - name: Build Signed Release APK
+        run: |
+          gradle -p android assembleRelease
+          mkdir -p release_out
+          cp android/app/build/outputs/apk/release/app-release.apk release_out/ClipHaven-Android.apk
+
+      - name: Upload Android Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pkg-android
+          path: release_out/ClipHaven-Android.apk
+
+  publish-release:
+    name: Publish All 10 Release Assets
+    needs: [build-windows, build-macos, build-linux-x64, build-linux-arm64, build-android]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download All Built Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release_assets
+          merge-multiple: true
+
+      - name: Ensure Executable Permissions on Unix Binaries
+        run: |
+          chmod +x release_assets/ClipHaven-macOS release_assets/ClipHaven-Linux-x64 release_assets/ClipHaven-Linux-ARM64 || true
+          ls -lh release_assets/
+
+      - name: Upload Combined Build Bundle Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ClipHaven-All-Release-Packages
+          path: release_assets/*
 
       - name: Publish GitHub Release (on tag push or manual tag input)
         if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.tag_name != '')
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event.inputs.tag_name || github.ref_name }}
+          tag_name: ${{ inputs.tag_name || github.ref_name }}
           generate_release_notes: true
           files: |
-            release_out/ClipHaven-Windows-EXE.zip
-            release_out/ClipHaven.exe
-            release_out/ClipHaven-Source-Bat.zip
+            release_assets/ClipHaven-Windows-All.zip
+            release_assets/ClipHaven-Windows.exe
+            release_assets/ClipHaven-macOS-All.zip
+            release_assets/ClipHaven-macOS
+            release_assets/ClipHaven-Linux-x64-All.zip
+            release_assets/ClipHaven-Linux-x64
+            release_assets/ClipHaven-Linux-ARM64-All.zip
+            release_assets/ClipHaven-Linux-ARM64
+            release_assets/ClipHaven-Android.apk
+            release_assets/ClipHaven-Source-Bat.zip

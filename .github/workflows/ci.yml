@@ -19,7 +19,7 @@ jobs:
       - name: Install Ruff
         run: pip install ruff
       - name: Run Ruff Check
-        run: ruff check server.py tests/ --select E,F --ignore E501,E402
+        run: ruff check server.py scripts/ tests/ --select E,F --ignore E501,E402,E731
 
   test:
     name: Automated Tests (${{ matrix.os }}, Python ${{ matrix.python-version }})
@@ -38,6 +38,8 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt pytest
+          pip install -r requirements.txt pytest pillow
       - name: Run Unit & API Tests
         run: pytest -v
+      - name: Verify Icon Generator
+        run: python scripts/generate_icons.py
