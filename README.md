@@ -1,72 +1,103 @@
-# <img src="logo.svg" width="48" height="48" align="top" alt="ClipHaven logo" /> ClipHaven
+<div align="center">
+ 
+# <img src="logo.svg" width="40" height="40" align="top" alt="ClipHaven logo" /> ClipHaven
 
 **Catch, keep, and enjoy your clips — locally, safely, and effortlessly.**
 
 ![CI Status](https://img.shields.io/badge/CI-passing-brightgreen)
-[![Release](https://img.shields.io/badge/version-v2.1.1-blue)](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v2.1.1)
+[![Release](https://img.shields.io/badge/version-v3.0.0-blue)](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.0.0)
 ![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white)
-![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-lightgrey)
+[![Developer](https://img.shields.io/badge/developer-Md%20Asadullah%20Al%20Munib-8b5cf6)](https://github.com/AsadullahAlMunib)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-[✨ Features](#-key-features) • [⚡ Quick Download](#-quick-downloads) • [🚀 Getting Started](#-getting-started) • [📦 Releases](https://github.com/AsadullahAlMunib/ClipHaven/releases)
+[✨ Features](#-key-features) • [⚡ Quick Downloads](#-quick-downloads) • [🚀 Getting Started](#-getting-started) • [📦 Releases](https://github.com/AsadullahAlMunib/ClipHaven/releases) • [👨‍💻 Developer](#-developer)
 
-ClipHaven is a modern, high-speed, 100% local video and audio downloader powered by [`yt-dlp`](https://github.com/yt-dlp/yt-dlp). It runs privately on your computer (`127.0.0.1:8765`) through a clean dark/light web UI—**no ads, no tracking, no external server relays, and zero telemetry**.
+ClipHaven is a modern, high-speed, 100% local video and audio downloader developed by [**Md Asadullah Al Munib**](https://github.com/AsadullahAlMunib) and powered by [`yt-dlp`](https://github.com/yt-dlp/yt-dlp). Available across **Windows, macOS, Linux (`x64` & `ARM64`), and Android**, it runs privately on your device (`127.0.0.1:8765`) — **no ads, no tracking, no external server relays, and zero telemetry**.
+</div>
+
 
 ## ⚡ Quick Downloads
 
-| Package | Recommended For | Direct Link |
-| ----- | ----- | ----- |
-| **🚀 Windows Full App Bundle (`.zip`)** ⭐ **(Recommended)** | Complete Windows app with **all dependencies & `FFmpeg` included** (Antivirus-friendly, no Python required) | [⬇️ Download `ClipHaven-Windows-EXE.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/latest/download/ClipHaven-Windows-EXE.zip) |
-| **📦 Standalone Windows App `.exe`** | Single portable executable (`ClipHaven.exe`) with embedded `FFmpeg` & zero setup | [⬇️ Download `ClipHaven.exe`](https://github.com/AsadullahAlMunib/ClipHaven/releases/latest/download/ClipHaven.exe) |
-| **⚡ Source + Launcher (`.bat`)** | Auto-updating `yt-dlp` & script usage on Windows (`setup-and-run.bat`) | [⬇️ Download `ClipHaven-Source-Bat.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/latest/download/ClipHaven-Source-Bat.zip) |
-| **🌐 Cross-Platform Source** | Linux, macOS, or custom developer environments | [📦 View All Releases & Source Code](https://github.com/AsadullahAlMunib/ClipHaven/releases/latest) |
+<details open>
+  <summary><strong>📥 Click here to choose &amp; download ClipHaven for your device (Dropdown Menu)</strong></summary>
+  <br />
+
+  * **🪟 Windows:**
+    * ⭐ [**`ClipHaven-Windows-All.zip`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.0.0/ClipHaven-Windows-All.zip) — *Full Windows Bundle with `FFmpeg` & all dependencies included (Recommended)*
+    * 📦 [**`ClipHaven-Windows.exe`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.0.0/ClipHaven-Windows.exe) — *Standalone single-file portable Windows executable*
+  * **🐧 Linux (x64 &amp; ARM64):**
+    * ⭐ [**`ClipHaven-Linux-x64-All.zip`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.0.0/ClipHaven-Linux-x64-All.zip) — *Full Linux x64 Bundle with `FFmpeg` & all dependencies included*
+    * 📦 [**`ClipHaven-Linux-x64`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.0.0/ClipHaven-Linux-x64) — *Standalone single-file Linux x64 binary*
+    * ⭐ [**`ClipHaven-Linux-ARM64-All.zip`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.0.0/ClipHaven-Linux-ARM64-All.zip) — *Full Linux ARM64 Bundle with `FFmpeg` & all dependencies included*
+    * 📦 [**`ClipHaven-Linux-ARM64`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.0.0/ClipHaven-Linux-ARM64) — *Standalone single-file Linux ARM64 binary*
+  * **🍎 macOS:**
+    * ⭐ [**`ClipHaven-macOS-All.zip`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.0.0/ClipHaven-macOS-All.zip) — *Full macOS Bundle with `FFmpeg` & all dependencies included*
+    * 📦 [**`ClipHaven-macOS`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.0.0/ClipHaven-macOS) — *Standalone single-file macOS binary*
+  * **🤖 Android:**
+    * 📱 [**`ClipHaven-Android.apk`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.0.0/ClipHaven-Android.apk) — *Self-contained Android app with embedded Python, `yt-dlp` & `FFmpeg`*
+  * **⚡ Source Code + Launcher (`.bat`):**
+    * 🛠️ [**`ClipHaven-Source-Bat.zip`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.0.0/ClipHaven-Source-Bat.zip) — *Lightweight source bundle with one-click `setup-and-run.bat`*
+</details>
+
+<br />
+
+| Platform | All-in-One Bundle (`-All.zip`) ⭐ | Standalone Single App |
+| :--- | :--- | :--- |
+| **🪟 Windows** | [⬇️ `ClipHaven-Windows-All.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.0.0/ClipHaven-Windows-All.zip) | [⬇️ `ClipHaven-Windows.exe`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.0.0/ClipHaven-Windows.exe) |
+| **🍎 macOS** | [⬇️ `ClipHaven-macOS-All.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.0.0/ClipHaven-macOS-All.zip) | [⬇️ `ClipHaven-macOS`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.0.0/ClipHaven-macOS) |
+| **🐧 Linux (x64)** | [⬇️ `ClipHaven-Linux-x64-All.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.0.0/ClipHaven-Linux-x64-All.zip) | [⬇️ `ClipHaven-Linux-x64`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.0.0/ClipHaven-Linux-x64) |
+| **🐧 Linux (ARM64)** | [⬇️ `ClipHaven-Linux-ARM64-All.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.0.0/ClipHaven-Linux-ARM64-All.zip) | [⬇️ `ClipHaven-Linux-ARM64`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.0.0/ClipHaven-Linux-ARM64) |
+| **🤖 Android** | *(Self-contained inside `.apk`)* | [⬇️ `ClipHaven-Android.apk`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.0.0/ClipHaven-Android.apk) |
+| **⚡ Source + `.bat`** | [⬇️ `ClipHaven-Source-Bat.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.0.0/ClipHaven-Source-Bat.zip) | [📦 All Releases](https://github.com/AsadullahAlMunib/ClipHaven/releases/latest) |
+
 
 ## ✨ Key Features
 
-### 💻 Three Flexible Launch Modes
-* **Option A — Windows Full App Bundle (`ClipHaven-Windows-EXE.zip` — ⭐ Recommended):** Pre-packaged `--onedir` build containing `ClipHaven.exe`, `ffmpeg.exe`, and all runtime dependencies. Launches instantly without temporary unpacking or antivirus false positives.
-* **Option B — Standalone Single Executable (`ClipHaven.exe`):** A single self-contained `.exe` file you can drop anywhere and double-click to run.
-* **Option C — One-Click `setup-and-run.bat` (`ClipHaven-Source-Bat.zip`):** Automatically creates an isolated `.venv`, installs/updates `yt-dlp` and `imageio-ffmpeg`, and opens your default browser.
+### 💻 Multi-Platform Ready
+* **Desktop (`-All.zip` & Standalone Binaries):** Full pre-packaged bundles and portable single-file apps for **Windows, macOS, Linux x64, and Linux ARM64** with `FFmpeg` pre-included.
+* **Android (`ClipHaven-Android.apk`):** Install a single `.apk`—Python, `yt-dlp`, and `FFmpeg` unpack and run inside the app's private internal storage with zero external setup, saving directly to `Downloads/ClipHaven`.
+* **Source Launcher (`setup-and-run.bat`):** Creates an isolated `.venv`, installs/updates `yt-dlp` and `imageio-ffmpeg`, and launches the dashboard.
 
 ### 🌐 Wide Multi-Platform Extraction
 Cleanly extracts video and audio from popular media platforms:
 * **YouTube:** Full Videos, Shorts, and complete Playlists
-* **Meta:** Facebook Videos & Reels, Instagram Reels & Posts
-* **Others:** TikTok, X (Twitter), Reddit, Vimeo, Dailymotion, and Twitch
+* **Meta:** Facebook Videos & Reels, Instagram Reels, Posts & Threads (`threads.net`)
+* **Others:** TikTok, X / Twitter (including `t.co` share links), Reddit, Vimeo, Dailymotion, Twitch, Pinterest (`pin.it`), and SoundCloud
 
 ### 🎯 Precision Tools & Media Options
-* **✂️ Video Trimming & Clip Cutter:** Download only the section you need by specifying `Start Time` and `End Time` (e.g., `01:15` to `02:30`).
-* **💬 Multi-Language Subtitles (CC):** Download and embed English or Bangla subtitles directly into your video files.
-* **🖼️ Embed Cover Art / Thumbnail:** Embed video thumbnails directly into downloaded media files.
-* **📑 Playlist Downloads:** Download entire video playlists in batch with auto-detected item counts.
-* **📋 Smart URL Sanitizer:** Strips out messy share text and metadata from mobile app links automatically.
+* **📁 Native Folder Picker (`Browse`):** Pick your download folder using your OS's native folder selection dialog or type any path directly.
+* **✂️ Video Trimming & Clip Cutter with Live Progress:** Download specific time ranges (`Start Time` to `End Time` in `MM:SS` or `HH:MM:SS`) with real-time FFmpeg percentage (`%`), encoding speed, and remaining `ETA`.
+* **📑 Playlist Downloads:** Download entire video playlists in batch with visual badge (`📑 3/15 • 2 done • 12 left`) showing which playlist video is downloading, how many are finished, and how many remain.
+* **💬 Multi-Language Subtitles (CC):** Automatically detects and embeds the video's original language (`orig`) alongside Bangla (`bn.*`) and English (`en.*`) subtitles without triggering rate limits.
+* **🖼️ Embed Cover Art / Thumbnail:** Embeds video thumbnails as permanent cover art into `MP4`, `MKV`, `MP3`, and `M4A` files.
 * **⚡ Multiple Formats & 4K Quality:**
   * **Video Formats:** `MP4` *(Recommended)*, `MKV`, `WEBM`
-  * **Audio Formats:** `MP3`, `M4A`, `WAV` (automatically disables irrelevant video resolution selectors)
+  * **Audio Formats:** `MP3`, `M4A`, `WAV`
   * **Resolutions:** `Best Available`, `4K (2160p)`, `2K (1440p)`, `1080p`, `720p`, `480p`, `360p`
 * **📊 Real-Time Feedback:** Live download speed counters (`MB/s`), accurate remaining time (`ETA`), percentage progress bars, and post-download directory navigation (`📂 Open Folder`).
 
+
 ## 🚀 Getting Started
 
-### Method 1: Windows Full App Bundle (⭐ Recommended)
-1. Download [`ClipHaven-Windows-EXE.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/latest/download/ClipHaven-Windows-EXE.zip) from [Releases](https://github.com/AsadullahAlMunib/ClipHaven/releases/latest).
-2. Extract the archive into any folder.
-3. Open the `ClipHaven` folder and double-click **`ClipHaven.exe`**. Your default browser will immediately open `http://127.0.0.1:8765/`.
+### Method 1: All-in-One Bundles (`-All.zip` — ⭐ Recommended for Desktop)
+1. Download `ClipHaven-Windows-All.zip`, `ClipHaven-macOS-All.zip`, `ClipHaven-Linux-x64-All.zip`, or `ClipHaven-Linux-ARM64-All.zip` from [Releases](https://github.com/AsadullahAlMunib/ClipHaven/releases/latest).
+2. Extract the archive and launch **`ClipHaven`** (`ClipHaven.exe` on Windows). Your browser will open `http://127.0.0.1:8765/`.
 
-### Method 2: Standalone Windows App (`ClipHaven.exe`)
-1. Download [`ClipHaven.exe`](https://github.com/AsadullahAlMunib/ClipHaven/releases/latest/download/ClipHaven.exe) directly from [Releases](https://github.com/AsadullahAlMunib/ClipHaven/releases/latest).
-2. Double-click **`ClipHaven.exe`** to launch the web dashboard at `http://127.0.0.1:8765/`.
+### Method 2: Android App (`ClipHaven-Android.apk`)
+1. Download [`ClipHaven-Android.apk`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.0.0/ClipHaven-Android.apk) on your Android phone and install it.
+2. Open **ClipHaven** (or share any video link directly to ClipHaven from YouTube, Facebook, Instagram, or TikTok).
 
 ### Method 3: One-Click Script (`setup-and-run.bat`)
-1. Verify that **Python 3.10+** is installed with the **"Add Python to PATH"** checkbox selected during setup.
-2. Download and extract [`ClipHaven-Source-Bat.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/latest/download/ClipHaven-Source-Bat.zip) (or clone the repository):
+1. Ensure **Python 3.10+** is installed with **"Add Python to PATH"** enabled.
+2. Download and extract [`ClipHaven-Source-Bat.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.0.0/ClipHaven-Source-Bat.zip) (or clone the repository):
    ```bash
    git clone https://github.com/AsadullahAlMunib/ClipHaven.git
    cd ClipHaven
    ```
 3. Double-click **`setup-and-run.bat`**. The script manages virtual environment creation, installs `yt-dlp` and portable `FFmpeg` (`imageio-ffmpeg`), and opens the dashboard automatically.
 
-### Method 4: Cross-Platform & Developer Setup (macOS / Linux / Windows)
+### Method 4: Developer Setup (macOS / Linux / Windows)
 ```bash
 # 1. Create and activate a virtual environment
 python3 -m venv .venv
@@ -83,16 +114,6 @@ python server.py
 pytest -v
 ```
 
-## 🤖 CI/CD & Repository Automation
-
-This repository includes continuous integration workflows:
-
-* [**`ci.yml`**](.github/workflows/ci.yml): Executes syntax linting with `ruff` and runs full test suites via `pytest` across **Windows, Ubuntu, and macOS** on Python `3.10`, `3.11`, and `3.12`.
-
-* [**`release.yml`**](.github/workflows/release.yml): Packages and publishes both standalone Windows `.exe` bundles and `.bat` source archives when a version tag (e.g., `v2.0.0`) is published or triggered via workflow dispatch.
-
-* [**`dependabot.yml`**](.github/dependabot.yml): Schedules regular dependency audits and automatic PR creation for security patches.
-
 
 ## 📂 Project Structure
 
@@ -102,13 +123,16 @@ ClipHaven/
 │   ├── dependabot.yml            # Dependency updater configuration
 │   └── workflows/
 │       ├── ci.yml                # Multi-platform CI testing pipeline
-│       └── release.yml           # Automated GitHub Releases builder (Full ZIP, Standalone .exe & Source ZIP)
+│       └── release.yml           # Automated 10-asset builder (Windows, macOS, Linux x64/ARM64, Android & Source)
+├── android/                      # Self-contained Android APK project (WebView + youtubedl-android)
+├── scripts/
+│   └── generate_icons.py         # Pixel-faithful logo.svg -> logo.ico & Android mipmap generator
 ├── tests/
 │   └── test_server.py            # Unit and API integration test suite
 ├── logo.svg                      # Vector application logo and favicon
 ├── index.html                    # Clean, responsive web UI
-├── style.css                     # Dark and light mode design tokens
-├── app.js                        # Client state, preview rendering & polling
+├── style.css                     # Dark and light mode design tokens & animations
+├── app.js                        # Client state, preview rendering, folder picker & polling
 ├── server.py                     # Local HTTP server and yt-dlp backend bridge
 ├── setup-and-run.bat             # Windows one-click runner and environment builder
 ├── requirements.txt              # Core Python dependencies (yt-dlp + imageio-ffmpeg)
@@ -117,17 +141,21 @@ ClipHaven/
 └── LICENSE                       # MIT Open Source License
 ```
 
+
+## 👨‍💻 Developer
+
+* **Developer:** [Md Asadullah Al Munib](https://github.com/AsadullahAlMunib)
+* **Official Repository:** [https://github.com/AsadullahAlMunib/ClipHaven/](https://github.com/AsadullahAlMunib/ClipHaven/)
+
+
 ## 🤝 Contributing & Feedback
 
 Contributions, suggestions, and bug reports are welcome!
-
 * 🐛 **Found a bug?** Open an [Issue](https://github.com/AsadullahAlMunib/ClipHaven/issues).
-
-* 💡 **Have a feature idea?** Start a discussion or submit a Pull Request.
-
+* 💡 **Have a feature idea?** Start a discussion or submit a [Pull Request](https://github.com/AsadullahAlMunib/ClipHaven/pulls).
 * 📜 **Want to see what changed?** Check out the [CHANGELOG.md](CHANGELOG.md) or review the [Latest Release Notes](https://github.com/AsadullahAlMunib/ClipHaven/releases/latest).
 
 
 ## 📄 License
 
-This project is licensed under the [MIT License](LICENSE) — free for personal and commercial use.
+This project is licensed under the [MIT License](LICENSE) — Copyright (c) 2026 **Md Asadullah Al Munib**.

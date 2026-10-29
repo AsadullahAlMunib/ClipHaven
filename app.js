@@ -5,7 +5,30 @@ let previewTimer = null;
 let previewSeq = 0;
 let lastPreviewUrl = "";
 let currentTitleHint = "";
+let currentDurationHint = 0;
 let lastCompletedPath = "";
+let androidReqSeq = 0;
+const androidPending = {};
+
+window.__onAndroidApiResult = (reqId, data) => {
+  const cb = androidPending[reqId];
+  if (cb) {
+    delete androidPending[reqId];
+    cb(data);
+  }
+};
+
+function normalizeInputUrl(raw) {
+  if (!raw) return "";
+  let s = String(raw).trim().replace(/\bhttp:\/\//gi, "https://");
+  if (!/https?:\/\//i.test(s)) {
+    const bare = s.match(/(?:www\.)?(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\/[^\s<>"']*/);
+    if (bare) {
+      s = s.replace(bare[0], "https://" + bare[0]);
+    }
+  }
+  return s;
+}
 
 function status(
   title,
@@ -16,13 +39,35 @@ function status(
   speed = "",
   eta = "",
   showOpenBtn = false,
+  indeterminate = false,
+  playlistInfo = null,
 ) {
   $("status").classList.add("show");
   $("title").textContent = title;
   $("title").className = "status-title " + cls;
   $("detail").textContent = detail || "";
-  $("progress").value = Math.max(0, Math.min(100, pct));
+
+  const progEl = $("progress");
+  if (indeterminate) {
+    progEl.removeAttribute("value");
+    progEl.classList.add("indeterminate");
+  } else {
+    progEl.classList.remove("indeterminate");
+    progEl.value = Math.max(0, Math.min(100, pct));
+  }
   $("pill").textContent = pill;
+
+  const plEl = $("playlist-pill");
+  if (playlistInfo && playlistInfo.total > 1) {
+    const idx = playlistInfo.index || 1;
+    const tot = playlistInfo.total;
+    const done = playlistInfo.done ?? Math.max(0, idx - 1);
+    const left = playlistInfo.left ?? Math.max(0, tot - idx);
+    plEl.textContent = `📑 ${idx}/${tot} • ${done} done • ${left} left`;
+    plEl.style.display = "inline-block";
+  } else {
+    plEl.style.display = "none";
+  }
 
   const speedEl = $("speed-pill");
   const etaEl = $("eta-pill");
@@ -42,6 +87,24 @@ function status(
 }
 
 async function api(path, opts = {}) {
+  if (window.ClipHavenAndroid) {
+    if (typeof window.ClipHavenAndroid.requestAsync === "function") {
+      const d = await new Promise((resolve) => {
+        const reqId = "req_" + ++androidReqSeq + "_" + Date.now();
+        androidPending[reqId] = resolve;
+        window.ClipHavenAndroid.requestAsync(reqId, path, opts.method || "GET", opts.body || "{}");
+      });
+      if (!d || d.ok === false) throw Error((d && d.error) || "Request failed");
+      return d;
+    }
+    if (typeof window.ClipHavenAndroid.request === "function") {
+      const rawResp = window.ClipHavenAndroid.request(path, opts.method || "GET", opts.body || "{}");
+      const d = JSON.parse(rawResp);
+      if (d.ok === false) throw Error(d.error || "Request failed");
+      return d;
+    }
+  }
+
   const r = await fetch(path, {
     ...opts,
     headers: {
@@ -54,7 +117,7 @@ async function api(path, opts = {}) {
     d = await r.json();
   } catch {
     throw Error(
-      "Backend response was not valid JSON. Check that server.py is running.",
+      "Backend response was not valid JSON. Check that ClipHaven is running.",
     );
   }
   if (!r.ok || d.ok === false) throw Error(d.error || "Request failed");
@@ -87,11 +150,33 @@ $("format").onchange = () => {
 };
 $("format").onchange();
 
-// Save folder persistence
+// Save folder persistence & Browse button
 $("folder").addEventListener("change", () => {
   const val = $("folder").value.trim();
   if (val) localStorage.setItem("cliphaven_folder", val);
 });
+
+$("browse-folder-btn").onclick = async () => {
+  const btn = $("browse-folder-btn");
+  const prevText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "📁 Browsing…";
+  try {
+    const d = await api("/api/pick-folder", {
+      method: "POST",
+      body: JSON.stringify({ current: $("folder").value.trim() }),
+    });
+    if (!d.cancelled && d.folder) {
+      $("folder").value = d.folder;
+      localStorage.setItem("cliphaven_folder", d.folder);
+    }
+  } catch (e) {
+    status("Could not open folder picker", e.message, 0, "Error", "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = prevText;
+  }
+};
 
 // Extra Options active badge indicator
 function updateExtraOptionsBadge() {
@@ -123,6 +208,11 @@ $("preview-playlist").onclick = () => {
   $("extra-options").open = true;
 };
 
+// Hide broken thumbnail images gracefully
+$("preview-thumb").onerror = () => {
+  $("preview-thumb").style.display = "none";
+};
+
 // Clear URL button visibility & action
 function syncClearBtn() {
   $("clear-url-btn").style.display = $("url").value.trim() ? "grid" : "none";
@@ -130,7 +220,6 @@ function syncClearBtn() {
 
 $("clear-url-btn").onclick = () => {
   $("url").value = "";
-  lastPreviewUrl = "";
   syncClearBtn();
   hidePreview();
   $("url").focus();
@@ -153,12 +242,14 @@ $("paste-btn").onclick = async () => {
 // Auto Video Info Preview with sequence guard against race conditions
 function hidePreview() {
   previewSeq++;
+  lastPreviewUrl = "";
   $("preview-card").style.display = "none";
   currentTitleHint = "";
+  currentDurationHint = 0;
 }
 
 async function fetchPreview(rawUrl) {
-  const clean = rawUrl.trim().replace(/^http:\/\//i, "https://");
+  const clean = normalizeInputUrl(rawUrl);
   if (!clean || !clean.includes("http")) {
     hidePreview();
     return;
@@ -183,6 +274,7 @@ async function fetchPreview(rawUrl) {
     if (seq !== previewSeq) return;
     const info = d.info || {};
     currentTitleHint = info.title || "";
+    currentDurationHint = info.duration_seconds || 0;
     $("preview-title").textContent = info.title || "Video ready to download";
     $("preview-uploader").textContent = info.uploader || "";
     if (info.thumbnail) {
@@ -342,6 +434,15 @@ function startPolling(jobId) {
       if (s.file_path || s.folder) {
         lastCompletedPath = s.file_path || s.folder;
       }
+      const plInfo =
+        s.playlist_total && s.playlist_total > 1
+          ? {
+              index: s.playlist_index,
+              total: s.playlist_total,
+              done: s.playlist_done,
+              left: s.playlist_left,
+            }
+          : null;
       status(
         s.title || s.state,
         s.detail || "",
@@ -351,6 +452,8 @@ function startPolling(jobId) {
         s.speed || "",
         s.eta || "",
         isDone,
+        Boolean(s.indeterminate && !isDone && !isErr),
+        plInfo,
       );
       if (isDone || isErr) {
         clearInterval(timer);
@@ -398,12 +501,17 @@ $("form").onsubmit = async (e) => {
     "Checking video link and preparing stream…",
     0,
     "Starting",
+    "",
+    "",
+    "",
+    false,
+    true,
   );
   try {
     const d = await api("/api/download", {
       method: "POST",
       body: JSON.stringify({
-        url: $("url").value.trim().replace(/^http:\/\//i, "https://"),
+        url: normalizeInputUrl($("url").value),
         folder: chosenFolder,
         quality: $("quality").value,
         format: $("format").value,
@@ -413,6 +521,7 @@ $("form").onsubmit = async (e) => {
         embed_thumbnail: $("embed-thumbnail").checked,
         allow_playlist: $("allow-playlist").checked,
         title_hint: currentTitleHint,
+        duration_hint: currentDurationHint,
       }),
     });
     startPolling(d.id);
@@ -446,6 +555,20 @@ $("form").onsubmit = async (e) => {
       if (match && !["Complete", "Error", "Cancelled"].includes(match.state)) {
         startPolling(savedJob);
       } else {
+        if (match && match.state === "Complete") {
+          lastCompletedPath = match.file_path || match.folder || "";
+          addToHistory(match);
+          status(
+            match.title || "Download complete!",
+            match.detail || "",
+            100,
+            "Complete",
+            "success",
+            "",
+            "",
+            true,
+          );
+        }
         localStorage.removeItem("cliphaven_active_job");
       }
     }

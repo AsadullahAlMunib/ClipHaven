@@ -3,6 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="author" content="Md Asadullah Al Munib" />
     <title>ClipHaven — Video &amp; Audio Downloader</title>
     <link rel="icon" type="image/svg+xml" href="logo.svg" />
     <link rel="stylesheet" href="style.css" />
@@ -26,10 +27,10 @@
 
       <div class="head">
         <img src="logo.svg" class="logo" alt="ClipHaven logo" width="60" height="60" />
-        <div>
+        <div class="head-text">
           <div class="title-row">
             <h1>ClipHaven</h1>
-            <span class="version-pill">v2.1.1</span>
+            <span class="version-pill">v3.0.0</span>
           </div>
           <p class="sub">Paste a link, pick a format, and save your clip in seconds.</p>
         </div>
@@ -63,14 +64,19 @@
               ✕
             </button>
           </div>
-          <button class="btn secondary" id="paste-btn" type="button" title="Paste link from clipboard">
+          <button class="btn secondary action-inline-btn" id="paste-btn" type="button" title="Paste link from clipboard">
             📋 Paste
           </button>
         </div>
 
         <!-- Auto Video Preview Card -->
         <div class="preview-card" id="preview-card" style="display: none">
-          <img id="preview-thumb" class="preview-thumb" alt="Video thumbnail" />
+          <img
+            id="preview-thumb"
+            class="preview-thumb"
+            alt="Video thumbnail"
+            referrerpolicy="no-referrer"
+          />
           <div class="preview-info">
             <div class="preview-title" id="preview-title">Loading video info…</div>
             <div class="preview-meta">
@@ -117,11 +123,19 @@
         </div>
 
         <label for="folder">4. Save Folder</label>
-        <div class="row">
-          <input id="folder" placeholder="Loading default save folder…" required />
+        <div class="row folder-row">
+          <input id="folder" type="text" placeholder="Loading default save folder…" required />
+          <button
+            class="btn secondary action-inline-btn"
+            id="browse-folder-btn"
+            type="button"
+            title="Browse and select save folder"
+          >
+            📁 Browse
+          </button>
         </div>
         <p class="hint" id="folder-hint">
-          Your chosen folder path is remembered automatically for next time.
+          Click Browse to pick a folder or type a path—remembered automatically for next time.
         </p>
 
         <!-- Progressive Disclosure: Optional Tools tucked away neatly -->
@@ -150,7 +164,7 @@
               <div class="checks-grid">
                 <label class="check-item">
                   <input type="checkbox" id="subtitles" />
-                  <span>Include Subtitles (CC)</span>
+                  <span>Include Subtitles (CC — Auto + BN/EN)</span>
                 </label>
                 <label class="check-item">
                   <input type="checkbox" id="embed-thumbnail" />
@@ -185,6 +199,7 @@
         <div class="statusline">
           <span class="status-title" id="title">Ready</span>
           <div class="status-badges">
+            <span class="metric-pill playlist-pill" id="playlist-pill" style="display: none"></span>
             <span class="metric-pill" id="speed-pill" style="display: none"></span>
             <span class="metric-pill" id="eta-pill" style="display: none"></span>
             <span class="pill" id="pill">Idle</span>
@@ -214,9 +229,17 @@
       </section>
 
       <div class="notice">
-        <strong>Privacy &amp; Safety:</strong> Runs 100% locally on your computer (<code>127.0.0.1</code>). Only download videos you own or have permission to save.
+        <strong>Privacy &amp; Safety:</strong> Runs 100% locally on your device (<code>127.0.0.1</code>). Only download videos you own or have permission to save.
       </div>
-      <footer>Keep the terminal window open while downloading.</footer>
+      <footer>
+        <div>Keep the app running while downloading.</div>
+        <div class="dev-credit">
+          Developed by
+          <a href="https://github.com/AsadullahAlMunib" target="_blank" rel="noopener noreferrer">Md Asadullah Al Munib</a>
+          <span>•</span>
+          <a href="https://github.com/AsadullahAlMunib/ClipHaven/" target="_blank" rel="noopener noreferrer">GitHub Repository</a>
+        </div>
+      </footer>
     </main>
     <script src="app.js" defer></script>
   </body>

@@ -4,16 +4,19 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cliphaven"
-version = "2.1.1"
-description = "Clean, local-only video and audio downloader for YouTube, Facebook, Instagram, TikTok, X, and more"
+version = "3.0.0"
+description = "Cross-platform, local-only video and audio downloader for Windows, macOS, Linux, and Android"
 readme = "README.md"
 license = { text = "MIT" }
+authors = [
+  { name = "Md Asadullah Al Munib" },
+]
 requires-python = ">=3.10"
 dependencies = [
   "yt-dlp>=2025.1.15",
   "imageio-ffmpeg>=0.5.1",
 ]
-keywords = ["video-downloader", "youtube", "facebook", "yt-dlp", "audio-downloader", "clip-trimmer"]
+keywords = ["video-downloader", "youtube", "facebook", "yt-dlp", "audio-downloader", "clip-trimmer", "android"]
 classifiers = [
   "Development Status :: 5 - Production/Stable",
   "Environment :: Web Environment",
@@ -22,8 +25,16 @@ classifiers = [
   "Operating System :: Microsoft :: Windows",
   "Operating System :: POSIX :: Linux",
   "Operating System :: MacOS",
+  "Operating System :: Android",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
 ]
+
+[project.urls]
+Homepage = "https://github.com/AsadullahAlMunib/ClipHaven/"
+Repository = "https://github.com/AsadullahAlMunib/ClipHaven/"
+Releases = "https://github.com/AsadullahAlMunib/ClipHaven/releases"
+Issues = "https://github.com/AsadullahAlMunib/ClipHaven/issues"
+Developer = "https://github.com/AsadullahAlMunib"

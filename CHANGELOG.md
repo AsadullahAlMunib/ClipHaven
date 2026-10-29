@@ -1,6 +1,38 @@
 # Changelog
 
-All notable changes to **ClipHaven** are documented in this file. 
+All notable changes to **ClipHaven** are documented in this file.
+
+
+## [[3.0.0](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.0.0)] - 2026-10-29
+
+### Added
+- **Multi-Platform Release Suite (10 Automated Release Assets in `release.yml`)**:
+  - **Windows**: `ClipHaven-Windows-All.zip` (Full `--onedir` bundle + `ffmpeg.exe`) & `ClipHaven-Windows.exe` (Standalone).
+  - **macOS**: `ClipHaven-macOS-All.zip` (Full bundle + `ffmpeg`) & `ClipHaven-macOS` (Standalone).
+  - **Linux x64**: `ClipHaven-Linux-x64-All.zip` (Full bundle + `ffmpeg`) & `ClipHaven-Linux-x64` (Standalone).
+  - **Linux ARM64**: `ClipHaven-Linux-ARM64-All.zip` (Full bundle + `ffmpeg`) & `ClipHaven-Linux-ARM64` (Standalone).
+  - **Android**: `ClipHaven-Android.apk` (Self-contained Android app in `android/` powered by `youtubedl-android` with embedded Python, `yt-dlp`, and `FFmpeg` running in private app data).
+  - **Source**: `ClipHaven-Source-Bat.zip` (Lightweight source bundle with `setup-and-run.bat`).
+- **Native OS Folder Picker (`📁 Browse` & `/api/pick-folder`)**: Added a `📁 Browse` button next to the Save Folder input that opens a native folder selection dialog on Windows, macOS, and Linux without requiring `tkinter`.
+- **Live Playlist Progress Counter (`📑 X/Y • Done • Left`)**: Parses playlist item progress from `yt-dlp` and displays a live badge in the status bar showing current video index, total videos, completed count, and remaining count, while resetting stream counters per item.
+- **Real-Time Clip Cutter Progress, Speed & ETA**: Added `--downloader-args "ffmpeg:-stats"` and FFmpeg `time=` / `speed=` parsing so trimming video clips (`Start Time` / `End Time`) displays live percentage progress (`0%–100%`), encoding speed, and remaining `ETA`, plus an animated indeterminate shimmer bar during post-processing stages (`Subtitles (CC)`, `Embedding cover`, `Merging`, `Converting audio`).
+- **Smart Multi-Language Subtitles (`orig,bn.*,en.*`)**: Automatically downloads and embeds the video's original language alongside Bangla and English subtitles without triggering YouTube `HTTP 429` rate limits.
+- **Pixel-Faithful `logo.svg` Icon Generator (`scripts/generate_icons.py`)**: Replaced the placeholder rectangle icon in `release.yml` with a high-resolution supersampled renderer that converts `logo.svg` into multi-size `logo.ico` and Android launcher icons.
+- **Expanded Platform Domains**: Added support for `t.co` (X/Twitter mobile share links), `threads.net`, `pinterest.com`, `pin.it`, and `soundcloud.com`, plus automatic `https://` normalization for bare domain links and mid-text `http://` share links.
+- **Interactive Download Dropdown in `README.md`**: Added an expandable `<details>` download selector at the top of `README.md` alongside the comparison table.
+
+### Fixed
+- **Windows Explorer File Highlight Fix (`open_in_explorer`)**: Passed `explorer.exe /select,"<path>"` with proper quoting so paths containing spaces highlight the downloaded file in its true folder instead of opening `Documents`.
+- **FFmpeg Discovery Cache Fix (`get_ffmpeg_path`)**: Only caches `get_ffmpeg_path()` once a valid binary is found so installing FFmpeg while the server is running is detected immediately without restarting.
+- **Preview Card Reset Fix (`hidePreview`)**: Reset `lastPreviewUrl = ""` inside `hidePreview()` so clearing the URL with the keyboard and re-pasting the same link always triggers the video preview card.
+- **Social Media Thumbnail Loading (`referrerpolicy="no-referrer"`)**: Added `referrerpolicy="no-referrer"` and an `onerror` fallback on `#preview-thumb` so Instagram, Facebook, and TikTok CDN thumbnails load without `403 Forbidden` blocks.
+- **Thumbnail Embedding Container Guard**: Skipped `--embed-thumbnail` when `WEBM` or `WAV` is selected so `yt-dlp` never fails at post-processing on unsupported containers.
+- **Clip End-Time Endpoint Validation**: Validated `end_time <= start_time` even when `start_time` is omitted (`00:00`) directly in `/api/download`.
+- **Page Refresh Completed Job Recovery**: Jobs that finish while the browser tab is refreshing are now recorded in `Recent Downloads` (`addToHistory`) and displayed in the status panel.
+- **Windows Process Tree Cancellation & Stream Cleanup**: Used `taskkill /F /T /PID` on Windows to terminate child `ffmpeg.exe` processes on cancel and cleaned up unmerged `*.f[0-9]*.*` stream files.
+- **Batch Launcher Fallback Quoting (`setup-and-run.bat`)**: Fixed `%RUN_PY%` quoting when `.venv` is absent and added a real Python 3.10+ version check.
+
+
 
 ## [[2.1.1](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v2.1.1)] - 2026-10-28
 
