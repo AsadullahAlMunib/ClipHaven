@@ -15,11 +15,17 @@ def test_extract_and_valid_url():
     assert server.valid_url("https://youtu.be/abc")
     assert server.valid_url("Check out this video: https://fb.watch/xyz123/!")
     assert server.valid_url("https://www.instagram.com/reel/abc123/")
+    assert server.valid_url("https://www.threads.net/@user/post/abc123")
     assert server.valid_url("https://www.tiktok.com/@user/video/123456")
     assert server.valid_url("https://x.com/user/status/123456")
+    assert server.valid_url("https://t.co/xyz123")
+    assert server.valid_url("https://soundcloud.com/artist/track")
+    assert server.valid_url("youtube.com/watch?v=abc")
+    assert server.valid_url("www.youtube.com/watch?v=abc")
     assert not server.valid_url("http://youtube.com/x")
     assert not server.valid_url("https://example.com/x")
     assert server.extract_url("Watch now https://youtu.be/abc123.") == "https://youtu.be/abc123"
+    assert server.extract_url("youtube.com/watch?v=abc123") == "https://youtube.com/watch?v=abc123"
 
 
 def test_validate_folder(tmp_path):
@@ -48,6 +54,7 @@ def test_config_logo_and_validation_endpoints(tmp_path):
             assert resp.status == 200
             data = json.loads(resp.read().decode("utf-8"))
             assert data["ok"] is True
+            assert data["version"] == "3.0.0"
             assert "default_folder" in data
             assert "ffmpeg" in data
 
@@ -56,7 +63,7 @@ def test_config_logo_and_validation_endpoints(tmp_path):
             svg_text = resp.read().decode("utf-8")
             assert "<svg" in svg_text
 
-        # Test invalid time range rejection on /api/download
+        # Test invalid time range rejection (start_time > end_time) on /api/download
         req = urllib.request.Request(
             f"http://127.0.0.1:{port}/api/download",
             data=json.dumps({
@@ -77,6 +84,39 @@ def test_config_logo_and_validation_endpoints(tmp_path):
             assert e.code == 400
             err_data = json.loads(e.read().decode("utf-8"))
             assert err_data["ok"] is False
+
+        # Test end_time="00:00" without start_time is rejected immediately at endpoint
+        req_zero_end = urllib.request.Request(
+            f"http://127.0.0.1:{port}/api/download",
+            data=json.dumps({
+                "url": "https://www.youtube.com/watch?v=abc",
+                "folder": str(tmp_path),
+                "format": "mp4",
+                "quality": "1080",
+                "start_time": "",
+                "end_time": "00:00",
+            }).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            urllib.request.urlopen(req_zero_end, timeout=5)
+            assert False, "Should have returned 400 for end_time 00:00"
+        except urllib.error.HTTPError as e:
+            assert e.code == 400
+
+        # Test non-dict JSON body does not crash server
+        req_nondict = urllib.request.Request(
+            f"http://127.0.0.1:{port}/api/info",
+            data=b"[]",
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            urllib.request.urlopen(req_nondict, timeout=5)
+            assert False, "Should have returned 400"
+        except urllib.error.HTTPError as e:
+            assert e.code == 400
     finally:
         httpd.shutdown()
         httpd.server_close()
