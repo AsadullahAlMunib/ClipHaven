@@ -14,10 +14,10 @@ android {
         versionCode = 310
         versionName = "3.1.0"
 
-        ndk {
-            // Target 64-bit ARM (99%+ of modern Android devices), reducing APK size from ~140+ MB to ~35 MB
-            // by excluding PC emulator (x86, x86_64) and duplicate 32-bit Python/FFmpeg archives.
-            abiFilters.add("arm64-v8a")
+		ndk {
+            // Target all real Android devices (both 64-bit and 32-bit ARM), 
+            // excluding PC emulators (x86, x86_64) to keep APK around ~60 MB.
+            abiFilters.addAll(listOf("arm64-v8a", "armeabi-v7a"))
         }
     }
 
@@ -26,12 +26,16 @@ android {
             val ksFile = file(System.getenv("CLIPHAVEN_KEYSTORE_FILE") ?: "cliphaven-release.jks")
             if (ksFile.exists()) {
                 storeFile = ksFile
-                storePassword = System.getenv("CLIPHAVEN_KEYSTORE_PASSWORD") ?: "cliphaven2026"
+                storePassword = System.getenv("CLIPHAVEN_KEYSTORE_PASSWORD") ?: "ClipHaven2026"
                 keyAlias = System.getenv("CLIPHAVEN_KEY_ALIAS") ?: "cliphaven"
-                keyPassword = System.getenv("CLIPHAVEN_KEY_PASSWORD") ?: "cliphaven2026"
+                keyPassword = System.getenv("CLIPHAVEN_KEY_PASSWORD") ?: "ClipHaven2026"
+                enableV1Signing = true
+                enableV2Signing = true
             }
         }
     }
+
+
 
     buildTypes {
         release {
