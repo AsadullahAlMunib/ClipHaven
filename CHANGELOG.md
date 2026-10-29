@@ -6,11 +6,11 @@ All notable changes to **ClipHaven** are documented in this file.
 ## [[3.1.0](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.1.0)] - 2026-10-29
 
 ### Android & Build Pipeline
-- **Slim APK (~35 MB)**: Reduced APK size from 100+ MB down to ~35 MB via R8/ProGuard shrinking and 64-bit ARM (`arm64-v8a`) focus.
-- **Seamless Updates**: Added persistent release signing (`.jks`) so future APKs update in place without reinstallation.
-- **Storage & Permissions**: Full Scoped Storage / MediaStore integration for Android 11–14 and runtime permission support for Android 7–10.
-- **Folder Picker & Gallery Sync**: Added SAF folder picker (`ACTION_OPEN_DOCUMENT_TREE`) and instant MediaScanner indexing for Gallery/Music apps.
-- **Engine Stability**: Added synchronized Python/FFmpeg startup checks and fixed mobile SSL handshake errors.
+- **Split 64-bit & 32-bit Slim APKs (~35 MB & ~32 MB)**: Replaced the 100+ MB universal APK with dedicated ABI-split builds (`ClipHaven-Android-64bit.apk` for modern 64-bit devices and `ClipHaven-Android-32bit.apk` for legacy 32-bit devices) while keeping R8 minification disabled so `youtubedl-android` runtime libraries never get stripped on launch.
+- **Seamless Updates**: Added persistent release signing (`cliphaven-release.jks`) so future APKs update in place without reinstallation.
+- **Storage & Permissions**: Full Scoped Storage / MediaStore integration (`cacheDir` staging + `MediaStore.Downloads` fallback) for Android 11–14 and runtime permission support for Android 7–10.
+- **Folder Picker & Gallery Sync**: Added SAF folder picker (`ACTION_OPEN_DOCUMENT_TREE`), safe custom subfolder path normalization, and instant `MediaScannerConnection` file indexing for Gallery/Music apps.
+- **Engine Stability**: Mounted `WebView` first in `onCreate`, caught `Throwable` across all background threads/JNI calls, added synchronized Python/FFmpeg startup checks, and fixed mobile SSL handshake errors.
 
 ### Frontend & UX
 - **Duplicate Job Guard**: Blocked accidental double submissions and orphaned downloads on `Enter` keypress.
@@ -18,8 +18,8 @@ All notable changes to **ClipHaven** are documented in this file.
 - **Responsive UI States**: Clear preview error messages, format-aware toggle guards, and live playlist badge sync.
 
 ### Backend & Media Processing
-- **Cover Art & Subtitles**: Fixed thumbnail/subtitle embedding for MP4, M4A, and MP3 using `mutagen` and targeted language codes (`en,bn`).
-- **Live Trimming Progress**: Real-time progress, speed, and ETA calculation during clip cutting.
+- **Cover Art & Subtitles**: Fixed thumbnail/subtitle embedding for MP4, M4A, and MP3 using `mutagen`, `--convert-thumbnails jpg`, `--convert-subs srt`, and targeted language codes (`en,bn,en-orig`).
+- **Live Trimming Progress**: Real-time progress, speed, and ETA calculation during clip cutting (`--downloader-args "ffmpeg:-stats -v warning"`).
 - **Playlist & Concurrent Safety**: Accurate single-video playlist previews and stem-scoped cleanup for cancelled downloads.
 - **Expanded Support**: Added native handling for `threads.com` and `snd.sc`.
 
