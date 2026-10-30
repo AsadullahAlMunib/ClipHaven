@@ -11,8 +11,8 @@ android {
         applicationId = "com.asadullah.cliphaven"
         minSdk = 24
         targetSdk = 34
-        versionCode = 311
-        versionName = "3.1.1"
+        versionCode = 312
+        versionName = "3.1.2"
     }
 
     splits {
