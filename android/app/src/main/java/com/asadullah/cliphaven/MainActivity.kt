@@ -1095,7 +1095,6 @@ class MainActivity : AppCompatActivity() {
                 val expectSrtSubs = subtitles && fmt in setOf("mp4", "mkv")
                 val subWatcherRunning = AtomicBoolean(true)
                 val subSyncLock = Any()
-                @Volatile
                 var mediaPhaseStarted = false
 
                 fun trySyncSubs() {
