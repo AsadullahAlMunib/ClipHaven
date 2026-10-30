@@ -68,7 +68,7 @@ def test_config_logo_and_validation_endpoints(tmp_path):
             assert resp.status == 200
             data = json.loads(resp.read().decode("utf-8"))
             assert data["ok"] is True
-            assert data["version"] == "3.1.0"
+            assert data["version"] == "3.1.1"
             assert "default_folder" in data
             assert "ffmpeg" in data
 
