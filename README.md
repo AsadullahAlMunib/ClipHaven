@@ -16,6 +16,39 @@
 ClipHaven is a modern, high-speed, 100% local video and audio downloader developed by [**Md Asadullah Al Munib**](https://github.com/AsadullahAlMunib) and powered by [`yt-dlp`](https://github.com/yt-dlp/yt-dlp). Available across **Windows, macOS, Linux (`x64` & `ARM64`), and Android (`64-bit` & `32-bit`)**, it runs privately on your device (`127.0.0.1:8765`) — **no ads, no tracking, no external server relays, and zero telemetry**.
 </div>
 
+<details>
+<summary align="center"><h3>✨ Click here to view all ClipHaven features at a glance (Dropdown)</h3></summary>
+
+- **🌐 Supported Platforms:** YouTube, Facebook, Instagram, Threads, TikTok, X (Twitter), Reddit, Vimeo, Dailymotion, Twitch, Pinterest, SoundCloud
+
+- **🎯 Video Resolutions:** Best Available, 2160p (4K), 1440p (2K), 1080p (Full HD), 720p (HD), 480p, 360p
+
+- **🎬 Video Formats:** MP4, MKV, WEBM
+
+- **🎵 Audio Formats:** MP3, M4A, WAV
+
+- **💻📱 Supported OS:** Windows, macOS, Linux (x64 & ARM64), Android (64-bit & 32-bit)
+
+- **✂️ Video Clip Cutter:** Cut specific video/audio sections (Start Time – End Time)
+
+- **💬 Multi-Language Subtitles (CC):** Auto & manual subtitle embedding (Bangla & English, synced with clips)
+
+- **🖼️ Cover Art Embedding:** Permanent video thumbnail embedding (MP4, MKV, MP3, M4A)
+
+- **📑 Playlist Downloader:** Full or single-video mode with live counter
+
+- **🔍 Instant Link Preview:** Auto-loads title, channel, duration, and thumbnail on paste
+
+- **📲 Android Share Support:** Direct download via Android "Share to ClipHaven" menu
+
+- **📁 Custom Save Folder:** Native OS & Android folder picker (Browse)
+
+- **📊 Live Progress & Controls:** Real-time %, speed (MB/s), ETA, and instant cancel
+
+- **🔒 100% Local & Private:** Runs locally on device with zero ads, zero tracking, and bundled FFmpeg
+</details>
+
+
 
 ## ⚡ Quick Downloads
 
