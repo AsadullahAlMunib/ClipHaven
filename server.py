@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local-only backend for ClipHaven Video & Audio Downloader (v3.1.1).
+"""Local-only backend for ClipHaven Video & Audio Downloader (v3.1.2).
 Developed by Md Asadullah Al Munib (https://github.com/AsadullahAlMunib/ClipHaven/)."""
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
@@ -17,7 +17,7 @@ import time
 import webbrowser
 import logging
 
-VERSION = "3.1.1"
+VERSION = "3.1.2"
 AUTHOR = "Md Asadullah Al Munib"
 REPO_URL = "https://github.com/AsadullahAlMunib/ClipHaven/"
 IS_FROZEN = getattr(sys, "frozen", False)
@@ -40,6 +40,10 @@ ALLOWED = {
 VALID_FORMATS = {"mp4", "mkv", "webm", "mp3", "m4a", "wav"}
 VALID_QUALITIES = {"best", "2160", "1440", "1080", "720", "480", "360"}
 SUB_OR_THUMB_EXTS = {".vtt", ".srt", ".ass", ".ssa", ".ttml", ".srv1", ".srv2", ".srv3", ".json3", ".webp", ".jpg", ".jpeg", ".png"}
+SUB_TEXT_EXTS = {".vtt", ".srt"}
+SUB_SHIFT_MARKER = "\u2060"
+_SUB_TS_LINE_RE = re.compile(r"((?:\d{1,2}:)?\d{2}:\d{2}[.,]\d{3})\s*-->\s*((?:\d{1,2}:)?\d{2}:\d{2}[.,]\d{3})(.*)")
+_SUB_INLINE_TS_RE = re.compile(r"<((?:\d{1,2}:)?\d{2}:\d{2}[.,]\d{3})>")
 MAX_JOBS = 40
 
 lock = threading.Lock()
@@ -196,6 +200,195 @@ def format_seconds(sec: int) -> str:
     return f"{h:02d}:{m:02d}:{s:02d}" if h > 0 else f"{m:02d}:{s:02d}"
 
 
+def parse_sub_timestamp_ms(ts: str) -> int:
+    clean = str(ts).strip().replace(",", ".")
+    parts = clean.split(":")
+    if len(parts) == 3:
+        h, m, s = int(parts[0]), int(parts[1]), float(parts[2])
+    elif len(parts) == 2:
+        h, m, s = 0, int(parts[0]), float(parts[1])
+    else:
+        return 0
+    return int(round((h * 3600 + m * 60 + s) * 1000))
+
+
+def format_sub_timestamp_ms(ms: int, sep: str = ".") -> str:
+    clean = max(0, int(ms))
+    h, rem = divmod(clean, 3600000)
+    m, rem = divmod(rem, 60000)
+    s, millis = divmod(rem, 1000)
+    return f"{h:02d}:{m:02d}:{s:02d}{sep}{millis:03d}"
+
+
+def trim_and_shift_subtitle_text(content: str, start_sec: float, end_sec: float | None, is_vtt: bool = True) -> str:
+    """Trim subtitle cues to [start_sec, end_sec] and shift timestamps back by start_sec so clips start at 00:00:00."""
+    if not content or SUB_SHIFT_MARKER in content:
+        return content
+    start_ms = max(0, int(round((start_sec or 0) * 1000)))
+    end_ms = int(round(end_sec * 1000)) if end_sec is not None else None
+    if start_ms == 0 and end_ms is None:
+        return content
+
+    sep = "." if is_vtt else ","
+    blocks = re.split(r"\r?\n\r?\n+", content.lstrip("\ufeff").strip())
+    header_blocks: list[str] = []
+    cue_blocks: list[tuple[int, int, str, list[str]]] = []
+
+    def _shift_inline(match: re.Match) -> str:
+        raw_ms = parse_sub_timestamp_ms(match.group(1))
+        shifted = max(0, raw_ms - start_ms)
+        if end_ms is not None:
+            shifted = min(shifted, max(0, end_ms - start_ms))
+        return f"<{format_sub_timestamp_ms(shifted, sep)}>"
+
+    for block in blocks:
+        lines = [ln.rstrip("\r") for ln in block.split("\n")]
+        ts_idx = None
+        for idx, ln in enumerate(lines):
+            if "-->" in ln and _SUB_TS_LINE_RE.search(ln):
+                ts_idx = idx
+                break
+        if ts_idx is None:
+            if is_vtt and not cue_blocks and lines and (
+                lines[0].startswith("WEBVTT")
+                or lines[0].startswith("Kind:")
+                or lines[0].startswith("Language:")
+                or lines[0].startswith("NOTE")
+                or lines[0].startswith("STYLE")
+            ):
+                header_blocks.append("\n".join(lines))
+            continue
+
+        m = _SUB_TS_LINE_RE.search(lines[ts_idx])
+        if not m:
+            continue
+        c_start = parse_sub_timestamp_ms(m.group(1))
+        c_end = parse_sub_timestamp_ms(m.group(2))
+        settings = m.group(3) or ""
+        if c_end <= start_ms:
+            continue
+        if end_ms is not None and c_start >= end_ms:
+            continue
+
+        new_start = max(0, c_start - start_ms)
+        new_end = (min(c_end, end_ms) if end_ms is not None else c_end) - start_ms
+        if new_end <= new_start:
+            continue
+
+        payload = [_SUB_INLINE_TS_RE.sub(_shift_inline, ln) for ln in lines[ts_idx + 1:] if ln.strip()]
+        if not payload:
+            continue
+        cue_blocks.append((new_start, new_end, settings, payload))
+
+    if not cue_blocks:
+        cue_blocks.append((0, 100, "", ["\u200b"]))
+
+    first_s, first_e, first_set, first_pay = cue_blocks[0]
+    first_pay = list(first_pay)
+    first_pay[-1] = first_pay[-1] + SUB_SHIFT_MARKER
+    cue_blocks[0] = (first_s, first_e, first_set, first_pay)
+
+    out_blocks: list[str] = []
+    if is_vtt:
+        out_blocks.extend(header_blocks if header_blocks else ["WEBVTT"])
+    for idx, (ns, ne, settings, payload) in enumerate(cue_blocks, 1):
+        ts_line = f"{format_sub_timestamp_ms(ns, sep)} --> {format_sub_timestamp_ms(ne, sep)}{settings}"
+        if is_vtt:
+            out_blocks.append(ts_line + "\n" + "\n".join(payload))
+        else:
+            out_blocks.append(f"{idx}\n{ts_line}\n" + "\n".join(payload))
+    return "\n\n".join(out_blocks) + "\n"
+
+
+def trim_and_shift_subtitle_file(sub_path: Path, start_sec: float, end_sec: float | None) -> bool:
+    """Trim and time-shift a .vtt or .srt file atomically in-place if not already shifted."""
+    try:
+        if not sub_path.is_file() or sub_path.stat().st_size == 0:
+            return False
+        ext = sub_path.suffix.lower()
+        if ext not in SUB_TEXT_EXTS:
+            return False
+        raw = sub_path.read_text(encoding="utf-8", errors="replace")
+        if SUB_SHIFT_MARKER in raw:
+            return False
+        shifted = trim_and_shift_subtitle_text(raw, start_sec, end_sec, is_vtt=(ext == ".vtt"))
+        if shifted == raw:
+            return False
+        tmp_path = sub_path.with_name(f"{sub_path.name}.{os.getpid()}.cliphaven.tmp")
+        tmp_path.write_text(shifted, encoding="utf-8")
+        os.replace(tmp_path, sub_path)
+        return True
+    except Exception:
+        return False
+
+
+def _has_active_video_file_in_dir(folder: Path, started_at: float, clip_suffix: str) -> bool:
+    """Check if yt-dlp/ffmpeg has started creating the clipped video stream file on disk (which happens only after before_dl finishes)."""
+    try:
+        for f in folder.iterdir():
+            if not f.is_file():
+                continue
+            name_low = f.name.lower()
+            if name_low.endswith(".cliphaven.tmp") or name_low.endswith(".ytdl"):
+                continue
+            if clip_suffix and clip_suffix not in f.name:
+                continue
+            st = f.stat()
+            if max(st.st_mtime, st.st_ctime) < started_at - 5:
+                continue
+            # Strip .part or .temp to inspect the media extension
+            clean_name = re.sub(r"\.(?:part|temp)(?:-\w+)?$", "", name_low)
+            ext = Path(clean_name).suffix.lower()
+            if ext in {".mp4", ".mkv", ".webm", ".m4a"}:
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def sync_clip_subtitles_in_dir(
+    folder: Path,
+    started_at: float,
+    start_sec: float,
+    end_sec: float | None,
+    clip_suffix: str = "",
+    expect_srt: bool = False,
+) -> int:
+    """Trim and time-shift all completed subtitle files for a clip job before FFmpeg embeds them."""
+    count = 0
+    try:
+        entries = list(folder.iterdir())
+        if expect_srt:
+            # Wait until SubtitlesConvertor (before_dl) has finished converting and deleting all .vtt files for this job
+            for f in entries:
+                if not f.is_file() or f.suffix.lower() != ".vtt":
+                    continue
+                if clip_suffix and clip_suffix not in f.name:
+                    continue
+                st = f.stat()
+                if max(st.st_mtime, st.st_ctime) >= started_at - 5:
+                    return 0
+
+        for f in entries:
+            if not f.is_file():
+                continue
+            ext = f.suffix.lower()
+            if ext not in SUB_TEXT_EXTS or f.name.endswith(".cliphaven.tmp"):
+                continue
+            if expect_srt and ext != ".srt":
+                continue
+            st = f.stat()
+            if max(st.st_mtime, st.st_ctime) < started_at - 5:
+                continue
+            if clip_suffix and clip_suffix not in f.name:
+                continue
+            if trim_and_shift_subtitle_file(f, start_sec, end_sec):
+                count += 1
+    except Exception:
+        pass
+    return count
+
+
 def terminate_process(proc: subprocess.Popen):
     if not proc:
         return
@@ -348,6 +541,8 @@ def download(
     proc, started_at, out = None, time.time(), validate_folder(folder)
     saved_file = ""
     is_clip_job = False
+    sub_watcher_stop = threading.Event()
+    sub_sync_lock = threading.Lock()
     try:
         if out is None:
             raise ValueError("Invalid or inaccessible save folder.")
@@ -406,11 +601,13 @@ def download(
                 "--download-sections",
                 f"*{s_sec or 0}-{e_sec if e_sec is not None else 'inf'}",
                 "--force-keyframes-at-cuts",
+                "--no-embed-chapters",
                 "--downloader-args",
                 "ffmpeg:-stats -v warning",
             ])
             clip_suffix = f" [clip {(start_time or '0').replace(':', '-')}_to_{(end_time or 'end').replace(':', '-')}]"
 
+        expect_srt_subs = bool(subtitles and has_ffmpeg and fmt_choice in {"mp4", "mkv"})
         if subtitles and fmt_choice in {"mp4", "mkv", "webm"}:
             # Use specific language codes (en, bn, en-orig) rather than broad regexes to avoid YouTube HTTP 429 rate limits,
             # convert WebVTT captions to SRT for clean MP4/MKV muxing, and prevent missing/rate-limited subs from aborting the video download.
@@ -426,6 +623,8 @@ def download(
             if has_ffmpeg:
                 if fmt_choice in {"mp4", "mkv"}:
                     cmd.extend(["--convert-subs", "srt"])
+                if is_clip_job and clip_duration > 0:
+                    cmd.extend(["--postprocessor-args", f"EmbedSubtitle+ffmpeg_o:-t {clip_duration}"])
                 cmd.append("--embed-subs")
 
         if embed_thumbnail and has_ffmpeg and fmt_choice in {"mp4", "mkv", "mp3", "m4a"}:
@@ -451,7 +650,9 @@ def download(
             stage="Cutting clip" if is_clip_job else "Preparing",
         )
 
-        popen_kwargs = dict(stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", cwd=str(APP_DIR), bufsize=1)
+        child_env = os.environ.copy()
+        child_env["PYTHONUNBUFFERED"] = "1"
+        popen_kwargs = dict(stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", cwd=str(APP_DIR), bufsize=1, env=child_env)
         if os.name == "nt":
             popen_kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
         else:
@@ -467,6 +668,30 @@ def download(
         recent, stream_count = [], 0
         pl_idx, pl_total = 0, 0
         clip_started_ts = time.time()
+        media_phase_started = False
+
+        def _try_sync_subs():
+            if not (is_clip_job and subtitles):
+                return
+            if not media_phase_started and not _has_active_video_file_in_dir(out, started_at, clip_suffix):
+                return
+            with sub_sync_lock:
+                sync_clip_subtitles_in_dir(
+                    out,
+                    started_at,
+                    float(s_sec or 0),
+                    float(e_sec) if e_sec is not None else None,
+                    clip_suffix,
+                    expect_srt=expect_srt_subs,
+                )
+
+        if is_clip_job and subtitles:
+            def _sub_watcher():
+                while not sub_watcher_stop.wait(0.08):
+                    _try_sync_subs()
+
+            threading.Thread(target=_sub_watcher, daemon=True).start()
+
         for raw in proc.stdout:
             with lock:
                 if jobs.get(jid, {}).get("state") == "Cancelled":
@@ -481,6 +706,7 @@ def download(
             if m_pl:
                 pl_idx, pl_total = int(m_pl.group(1)), int(m_pl.group(2))
                 stream_count = 0
+                media_phase_started = False
                 update(
                     jid,
                     playlist_index=pl_idx,
@@ -509,6 +735,7 @@ def download(
                     candidate_file = m.group(1).strip().strip('"')
                     if Path(candidate_file).suffix.lower() not in SUB_OR_THUMB_EXTS:
                         saved_file = candidate_file
+                        media_phase_started = True
                         stream_count += inc
                         if inc > 0:
                             clip_started_ts = time.time()
@@ -522,6 +749,21 @@ def download(
                 line,
             )
             ff_prog = re.search(r"time=(\d{2}):(\d{2}):(\d{2}(?:\.\d+)?)", line)
+            if (
+                ff_prog
+                or dl_elapsed
+                or "Input #0," in line
+                or "Output #0," in line
+                or "Downloading 1 time ranges" in line
+                or "[Merger]" in line
+                or "Merging formats" in line
+                or "[EmbedSubtitle]" in line
+            ):
+                media_phase_started = True
+
+            if is_clip_job and subtitles:
+                _try_sync_subs()
+
             kw = {"detail": line[:600]}
 
             if prog:
@@ -603,6 +845,7 @@ def download(
             update(jid, **kw)
 
         rc = proc.wait()
+        sub_watcher_stop.set()
         with lock:
             procs.pop(jid, None)
             job_snapshot = dict(jobs.get(jid, {}))
@@ -645,10 +888,12 @@ def download(
             raw_err = next((x for x in reversed(recent) if "ERROR:" in x), recent[-1] if recent else "Download failed.").replace("ERROR:", "").strip()
             update(jid, state="Error", title="Download failed", detail=raw_err[:600], percent=0, indeterminate=False, speed="", eta="", stage="Error")
     except Exception as e:
+        sub_watcher_stop.set()
         with lock:
             procs.pop(jid, None)
         update(jid, state="Error", title="Download failed", detail=str(e)[:600], percent=0, indeterminate=False, speed="", eta="", stage="Error")
     finally:
+        sub_watcher_stop.set()
         prune_jobs()
 
 

@@ -3,6 +3,13 @@
 All notable changes to **ClipHaven** are documented in this file.
 
 
+## [[3.1.2](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.1.2)] - 2026-10-30
+
+### Fixed & Improved
+- **Clipped Video Subtitle Sync & Time-Shifting**: Automatically trims `.vtt`/`.srt` subtitle cues (including inline word-level auto-caption timestamps) to the exact `[Start Time, End Time]` clip window and shifts all timestamps back by `-Start Time` so subtitles start at `00:00` in sync with the cut video.
+- **Exact Clipped Container Duration**: Clamps boundary subtitle cues at the clip end timestamp, passes `--postprocessor-args "EmbedSubtitle+ffmpeg_o:-t <clip_duration>"`, and disables full-video chapter embedding (`--no-embed-chapters`) on clip jobs so embedded subtitle tracks never stretch the output `.mp4`/`.mkv`/`.webm` duration to the original full video length.
+
+
 ## [[3.1.1](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.1.1)] - 2026-10-30
 
 ### Fixed & Improved
