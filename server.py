@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local-only backend for ClipHaven Video & Audio Downloader (v3.1.0).
+"""Local-only backend for ClipHaven Video & Audio Downloader (v3.1.1).
 Developed by Md Asadullah Al Munib (https://github.com/AsadullahAlMunib/ClipHaven/)."""
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
@@ -17,7 +17,7 @@ import time
 import webbrowser
 import logging
 
-VERSION = "3.1.0"
+VERSION = "3.1.1"
 AUTHOR = "Md Asadullah Al Munib"
 REPO_URL = "https://github.com/AsadullahAlMunib/ClipHaven/"
 IS_FROZEN = getattr(sys, "frozen", False)
@@ -155,9 +155,17 @@ def validate_folder(folder) -> Path | None:
     if re.match(r"^[a-zA-Z]:[\\/]*$", raw) or raw in {"/", "\\"}:
         return None
     try:
-        p = Path(raw).expanduser()
-        if not p.is_absolute():
-            p = (APP_DIR / p).resolve()
+        raw_low = raw.lower()
+        if raw_low.startswith("downloads/") or raw_low == "downloads":
+            sub = raw[10:].lstrip("/\\") if raw_low.startswith("downloads/") else ""
+            p = (Path.home() / "Downloads" / sub) if (Path.home() / "Downloads").exists() else (APP_DIR / "downloads" / sub)
+        elif raw_low.startswith("internal storage/") or raw_low == "internal storage":
+            sub = raw[17:].lstrip("/\\") if raw_low.startswith("internal storage/") else ""
+            p = (Path.home() / "Downloads" / sub) if (Path.home() / "Downloads").exists() else (APP_DIR / "downloads" / sub)
+        else:
+            p = Path(raw).expanduser()
+            if not p.is_absolute():
+                p = (APP_DIR / p).resolve()
         resolved = str(p.resolve()).lower().rstrip("\\/")
         blocked = {str(x).lower().rstrip("\\/") for x in (Path.home().anchor, "C:\\", "D:\\", "/") if x}
         if resolved in blocked:
@@ -290,7 +298,7 @@ def fetch_video_info(url: str) -> dict:
     # When a link points to a specific video inside a playlist (watch?v=...&list=...),
     # fetch the single video's accurate title/duration with --no-playlist while flagging is_playlist=True.
     playlist_flags = ["--no-playlist"] if has_video_and_list else ["--flat-playlist", "--playlist-end", "50"]
-    cmd = get_ytdlp_cmd() + ["--dump-single-json", *playlist_flags, "--no-warnings", "--", clean_url]
+    cmd = get_ytdlp_cmd() + ["--dump-single-json", *playlist_flags, "--extractor-args", "youtube:player_client=default,ios,mweb", "--no-warnings", "--", clean_url]
     res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", timeout=25, cwd=str(APP_DIR))
     if res.returncode != 0 or not res.stdout.strip():
         err_lines = [line.strip() for line in res.stderr.splitlines() if line.strip()]
@@ -354,6 +362,8 @@ def download(
             "--progress",
             "--no-mtime",
             "--windows-filenames",
+            "--extractor-args",
+            "youtube:player_client=default,ios,mweb",
         ]
         if allow_playlist:
             cmd.append("--ignore-errors")

@@ -20,6 +20,17 @@ window.__onAndroidApiResult = (reqId, data) => {
   }
 };
 
+function formatDisplayFolder(path) {
+  if (!path) return "";
+  let p = String(path).trim();
+  // Only format internal storage paths on Android; keep full desktop drive paths (C:\..., D:\..., /home/...) completely untouched
+  if (!window.ClipHavenAndroid) return p;
+  // Replace the leading storage root prefix with empty string ""
+  p = p.replace(/^\/(?:storage\/emulated\/\d+|storage\/sdcard\d+|sdcard)\/?/i, "");
+  p = p.replace(/^Internal Storage\/?/i, "");
+  return p || "Download/ClipHaven";
+}
+
 function normalizeInputUrl(raw) {
   if (!raw) return "";
   const s = String(raw).trim();
@@ -217,7 +228,8 @@ $("format").onchange();
 
 // Save folder persistence & Browse button
 $("folder").addEventListener("change", () => {
-  const val = $("folder").value.trim();
+  const val = formatDisplayFolder($("folder").value);
+  $("folder").value = val;
   if (val) localStorage.setItem("cliphaven_folder", val);
 });
 
@@ -232,8 +244,9 @@ $("browse-folder-btn").onclick = async () => {
       body: JSON.stringify({ current: $("folder").value.trim() }),
     });
     if (!d.cancelled && d.folder) {
-      $("folder").value = d.folder;
-      localStorage.setItem("cliphaven_folder", d.folder);
+      const displayPath = formatDisplayFolder(d.folder);
+      $("folder").value = displayPath;
+      localStorage.setItem("cliphaven_folder", displayPath);
     }
   } catch (e) {
     status("Could not open folder picker", e.message, 0, "Error", "error");
@@ -567,7 +580,7 @@ $("form").onsubmit = async (e) => {
   currentJobId = null;
 
   const chosenFolder = $("folder").value.trim();
-  if (chosenFolder) localStorage.setItem("cliphaven_folder", chosenFolder);
+  if (chosenFolder) localStorage.setItem("cliphaven_folder", formatDisplayFolder(chosenFolder));
 
   const fmt = $("format").value;
   const isAudio = ["mp3", "m4a", "wav"].includes(fmt);
@@ -619,14 +632,16 @@ $("form").onsubmit = async (e) => {
 // Startup initialization: load config, FFmpeg check, folder memory, and active job recovery
 (async function init() {
   renderHistory();
-  const savedFolder = localStorage.getItem("cliphaven_folder");
+  const savedFolder = formatDisplayFolder(
+    localStorage.getItem("cliphaven_folder") || "",
+  );
   if (savedFolder) {
     $("folder").value = savedFolder;
   }
   try {
     const cfg = await api("/api/config");
     if (!savedFolder && cfg.default_folder) {
-      $("folder").value = cfg.default_folder;
+      $("folder").value = formatDisplayFolder(cfg.default_folder);
     }
     if (cfg.ffmpeg === false) {
       $("ffmpeg-warning").style.display = "block";

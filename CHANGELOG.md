@@ -3,11 +3,21 @@
 All notable changes to **ClipHaven** are documented in this file.
 
 
+## [[3.1.1](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.1.1)] - 2026-10-30
+
+### Fixed & Improved
+- **YouTube Bot & Sign-In Bypass**: Added `--extractor-args "youtube:player_client=default,ios,mweb"` across Android and Desktop to eliminate `Precondition check failed (HTTP 400)` and `Please sign in` bot attestation blocks.
+- **Runtime yt-dlp Auto-Sync**: Added background `updateYoutubeDL` engine sync in Android to ensure mobile extraction stays continually updated with YouTube API changes.
+- **Clean Storage Path Display**: Stripped the raw internal Linux `/storage/emulated/0/` prefix across the mobile UI, folder picker, and toast messages while keeping full desktop drive paths (`C:\...`, `D:\...`) untouched.
+- **Dedicated 64-bit & 32-bit APK Builds**: Generated separate slim APKs (`ClipHaven-Android-64bit.apk` and `ClipHaven-Android-32bit.apk`) with disabled R8 minification to prevent native startup crashes.
+
 ## [[3.1.0](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.1.0)] - 2026-10-29
 
 ### Android & Build Pipeline
 - **Split 64-bit & 32-bit Slim APKs (~35 MB & ~32 MB)**: Replaced the 100+ MB universal APK with dedicated ABI-split builds (`ClipHaven-Android-64bit.apk` for modern 64-bit devices and `ClipHaven-Android-32bit.apk` for legacy 32-bit devices) while keeping R8 minification disabled so `youtubedl-android` runtime libraries never get stripped on launch.
 - **Seamless Updates**: Added persistent release signing (`cliphaven-release.jks`) so future APKs update in place without reinstallation.
+- **Clean Storage Path Display**: Replaced raw Linux `/storage/emulated/0/` with user-friendly `Internal Storage/` and `Downloads/` across the mobile UI and picker.
+- **YouTube Anti-Bot & Sign-In Bypass**: Added `--extractor-args "youtube:player_client=default,ios,mweb"` and runtime `updateYoutubeDL` auto-sync to eliminate YouTube "Precondition check failed" and "Please sign in" errors.
 - **Storage & Permissions**: Full Scoped Storage / MediaStore integration (`cacheDir` staging + `MediaStore.Downloads` fallback) for Android 11–14 and runtime permission support for Android 7–10.
 - **Folder Picker & Gallery Sync**: Added SAF folder picker (`ACTION_OPEN_DOCUMENT_TREE`), safe custom subfolder path normalization, and instant `MediaScannerConnection` file indexing for Gallery/Music apps.
 - **Engine Stability**: Mounted `WebView` first in `onCreate`, caught `Throwable` across all background threads/JNI calls, added synchronized Python/FFmpeg startup checks, and fixed mobile SSL handshake errors.
