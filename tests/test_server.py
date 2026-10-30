@@ -1,5 +1,6 @@
 import sys
 import json
+import time
 import threading
 import urllib.request
 import urllib.error
@@ -50,6 +51,73 @@ def test_parse_timestamp():
     assert server.parse_timestamp("") is None
 
 
+def test_trim_and_shift_subtitle_text_and_file(tmp_path):
+    raw_vtt = """WEBVTT
+Kind: captions
+Language: bn
+
+00:00:00.500 --> 00:00:04.200
+আজকের ক্লাসে সবাইকে স্বাগতম
+
+00:30:14.000 --> 00:30:18.000 align:start position:0%
+Boundary cue across 30:15
+
+00:30:20.000 --> 00:30:25.000 align:start position:0%
+এখন<00:30:21.500><c> আমরা</c><00:30:23.000><c> ত্বরণ</c> নিয়ে আলোচনা করব
+
+00:32:46.000 --> 00:32:54.000
+এই অংশটি ৩২:৫০ এ শেষ হবে
+
+00:59:58.000 --> 01:00:02.000
+ধন্যবাদ সবাইকে
+"""
+    # Trim from 30:15 (1815s) to 32:50 (1970s) -> expected clip duration 02:35 (155s)
+    shifted = server.trim_and_shift_subtitle_text(raw_vtt, 1815, 1970, is_vtt=True)
+    assert "আজকের ক্লাসে সবাইকে স্বাগতম" not in shifted
+    assert "ধন্যবাদ সবাইকে" not in shifted
+    assert "00:00:00.000 --> 00:00:03.000" in shifted
+    assert "00:00:05.000 --> 00:00:10.000" in shifted
+    assert "<00:00:06.500><c> আমরা</c><00:00:08.000><c> ত্বরণ</c>" in shifted
+    # End boundary cue must be clamped at 00:02:35.000 so it never stretches container duration past 02:35
+    assert "00:02:31.000 --> 00:02:35.000" in shifted
+
+    # Calling a second time must be idempotent (never double-shift)
+    assert server.trim_and_shift_subtitle_text(shifted, 1815, 1970, is_vtt=True) == shifted
+
+    # Verify expect_srt=True waits while .vtt sibling still exists (mid SubtitlesConvertor)
+    vtt_file = tmp_path / "video [LNTpTCX1Crk] [clip 30-15_to_32-50].bn.vtt"
+    srt_file = tmp_path / "video [LNTpTCX1Crk] [clip 30-15_to_32-50].bn.srt"
+    raw_srt = """1
+00:00:00,500 --> 00:00:04,200
+আজকের ক্লাসে সবাইকে স্বাগতম
+
+2
+00:30:20,000 --> 00:30:25,000
+এখন আমরা ত্বরণ নিয়ে আলোচনা করব
+
+3
+00:32:46,000 --> 00:32:54,000
+এই অংশটি ৩২:৫০ এ শেষ হবে
+"""
+    vtt_file.write_text(raw_vtt, encoding="utf-8")
+    srt_file.write_text(raw_srt, encoding="utf-8")
+    started = time.time() - 1
+
+    # While .vtt still exists alongside .srt and expect_srt=True, sync must wait for SubtitlesConvertor to finish
+    assert server.sync_clip_subtitles_in_dir(tmp_path, started, 1815, 1970, " [clip 30-15_to_32-50]", expect_srt=True) == 0
+
+    # Once SubtitlesConvertor deletes .vtt, sync trims and shifts .srt
+    vtt_file.unlink()
+    count = server.sync_clip_subtitles_in_dir(tmp_path, started, 1815, 1970, " [clip 30-15_to_32-50]", expect_srt=True)
+    assert count == 1
+    srt_out = srt_file.read_text(encoding="utf-8")
+    assert "আজকের ক্লাসে সবাইকে স্বাগতম" not in srt_out
+    assert "00:00:05,000 --> 00:00:10,000" in srt_out
+    assert "00:02:31,000 --> 00:02:35,000" in srt_out
+    # Second sync must skip already-shifted file
+    assert server.sync_clip_subtitles_in_dir(tmp_path, started, 1815, 1970, " [clip 30-15_to_32-50]", expect_srt=True) == 0
+
+
 def test_cancel_state_protection():
     server.jobs["test_cancel_jid"] = {"state": "Cancelled", "title": "Download cancelled"}
     server.update("test_cancel_jid", state="Downloading", title="Should not overwrite")
@@ -68,7 +136,7 @@ def test_config_logo_and_validation_endpoints(tmp_path):
             assert resp.status == 200
             data = json.loads(resp.read().decode("utf-8"))
             assert data["ok"] is True
-            assert data["version"] == "3.1.1"
+            assert data["version"] == "3.1.2"
             assert "default_folder" in data
             assert "ffmpeg" in data
 
