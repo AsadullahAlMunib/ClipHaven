@@ -5,6 +5,7 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.DownloadManager
 import android.content.ContentValues
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.MediaScannerConnection
@@ -44,6 +45,9 @@ class MainActivity : AppCompatActivity() {
         private const val REQ_STORAGE_PERMISSION = 1001
         private const val REQ_OPEN_DOCUMENT_TREE = 1002
         private const val MAX_JOBS = 40
+        private const val PREFS_NAME = "cliphaven_engine_prefs"
+        private const val KEY_YTDLP_UPDATED_AT = "ytdlp_updated_at_v311"
+        private const val UPDATE_INTERVAL_MS = 12L * 3600L * 1000L
 
         private val ALLOWED_DOMAINS = setOf(
             "youtube.com", "youtu.be", "youtube-nocookie.com", "facebook.com", "fb.watch", "fb.com", "fb.gg",
@@ -58,6 +62,7 @@ class MainActivity : AppCompatActivity() {
 
     private var webView: WebView? = null
     private val jobsLock = Any()
+    private val updateLock = Any()
     private val jobs = LinkedHashMap<String, JSONObject>()
 
     private val initLatch = CountDownLatch(1)
@@ -128,7 +133,7 @@ class MainActivity : AppCompatActivity() {
         wv.addJavascriptInterface(ClipHavenBridge(), "ClipHavenAndroid")
         wv.loadUrl("file:///android_asset/index.html")
 
-        // 2. Unpack embedded Python/yt-dlp & FFmpeg in background catching Throwable (so Error never kills the process)
+        // 2. Unpack embedded Python/yt-dlp & FFmpeg in background and ensure yt-dlp is updated before first command
         thread {
             try {
                 initEngines()
@@ -150,6 +155,20 @@ class MainActivity : AppCompatActivity() {
         return try {
             YoutubeDL.getInstance().init(applicationContext)
             FFmpeg.getInstance().init(applicationContext)
+
+            val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val lastUpdated = prefs.getLong(KEY_YTDLP_UPDATED_AT, 0L)
+            val now = System.currentTimeMillis()
+            if (lastUpdated == 0L) {
+                // First run after install/upgrade: update yt-dlp synchronously before releasing initLatch
+                // so the very first YouTube preview/download uses the latest yt-dlp extractor without race conditions.
+                syncUpdateYtDlp(YoutubeDL.UpdateChannel.STABLE)
+            } else if (now - lastUpdated > UPDATE_INTERVAL_MS) {
+                thread {
+                    syncUpdateYtDlp(YoutubeDL.UpdateChannel.STABLE)
+                }
+            }
+
             isEngineReady = true
             initErrorMsg = null
             true
@@ -159,10 +178,36 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun syncUpdateYtDlp(channel: YoutubeDL.UpdateChannel): Boolean {
+        synchronized(updateLock) {
+            return try {
+                YoutubeDL.getInstance().updateYoutubeDL(applicationContext, channel)
+                getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                    .edit()
+                    .putLong(KEY_YTDLP_UPDATED_AT, System.currentTimeMillis())
+                    .apply()
+                true
+            } catch (_: Throwable) {
+                false
+            }
+        }
+    }
+
+    private fun isYouTubeClientBlockError(msg: String?): Boolean {
+        if (msg.isNullOrBlank()) return false
+        val m = msg.lowercase()
+        return m.contains("precondition check failed") ||
+            m.contains("please sign in") ||
+            m.contains("sign in to confirm") ||
+            m.contains("http error 400") ||
+            m.contains("http error 403") ||
+            m.contains("nsig extraction failed")
+    }
+
     private fun ensureEnginesInitialized() {
         if (!isEngineReady) {
             try {
-                initLatch.await(45, TimeUnit.SECONDS)
+                initLatch.await(60, TimeUnit.SECONDS)
             } catch (_: Throwable) {
             }
             if (!isEngineReady && !initEngines()) {
@@ -286,23 +331,55 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun formatDisplayFolder(path: String?): String {
+        if (path.isNullOrBlank()) return "Download/ClipHaven"
+        val p = path.trim()
+        val extRoot = try { Environment.getExternalStorageDirectory().absolutePath } catch (_: Throwable) { "/storage/emulated/0" }
+        return when {
+            p.startsWith("$extRoot/", ignoreCase = true) -> p.substring(extRoot.length + 1)
+            p.equals(extRoot, ignoreCase = true) -> "Download/ClipHaven"
+            p.startsWith("/storage/emulated/0/", ignoreCase = true) -> p.substring("/storage/emulated/0/".length)
+            p.equals("/storage/emulated/0", ignoreCase = true) -> "Download/ClipHaven"
+            else -> {
+                p.replaceFirst(Regex("""^/(?:storage/emulated/\d+|storage/sdcard\d+|sdcard)/?""", RegexOption.IGNORE_CASE), "")
+                    .replaceFirst(Regex("""^Internal Storage/?""", RegexOption.IGNORE_CASE), "")
+                    .ifEmpty { "Download/ClipHaven" }
+            }
+        }
+    }
+
     private fun normalizeAndroidFolder(rawFolder: String?): File {
         return try {
-            val raw = (rawFolder ?: "").trim()
-            if (raw.isEmpty() || raw.equals("Downloads", ignoreCase = true)) {
+            val rawTrimmed = (rawFolder ?: "").trim()
+            val cleanRel = rawTrimmed
+                .replaceFirst(Regex("""^/(?:storage/emulated/\d+|storage/sdcard\d+|sdcard)/?""", RegexOption.IGNORE_CASE), "")
+                .replaceFirst(Regex("""^Internal Storage/?""", RegexOption.IGNORE_CASE), "")
+                .trimStart('/', '\\')
+
+            if (cleanRel.isEmpty() || cleanRel.equals("Downloads", ignoreCase = true) || cleanRel.equals("Download/ClipHaven", ignoreCase = true) || cleanRel.equals("Downloads/ClipHaven", ignoreCase = true)) {
                 return defaultDownloadDir
             }
-            val candidate = if (raw.startsWith("/")) {
-                val f = File(raw)
-                val extRoot = Environment.getExternalStorageDirectory().absolutePath
-                val appRoot = applicationContext.filesDir.parent ?: "/data"
-                if (f.absolutePath.startsWith(extRoot) || f.absolutePath.startsWith(appRoot)) {
-                    f
-                } else {
-                    File(downloadsRootDir, raw.trimStart('/'))
-                }
+            if (cleanRel.equals("Download", ignoreCase = true)) {
+                return downloadsRootDir
+            }
+            if (cleanRel.startsWith("Downloads/", ignoreCase = true)) {
+                val sub = cleanRel.substring("Downloads/".length).trimStart('/', '\\')
+                val target = File(downloadsRootDir, sub)
+                target.mkdirs()
+                return if (target.exists() && target.isDirectory) target else defaultDownloadDir
+            }
+            if (cleanRel.startsWith("Download/", ignoreCase = true)) {
+                val sub = cleanRel.substring("Download/".length).trimStart('/', '\\')
+                val target = File(downloadsRootDir, sub)
+                target.mkdirs()
+                return if (target.exists() && target.isDirectory) target else defaultDownloadDir
+            }
+
+            val extRoot = Environment.getExternalStorageDirectory()
+            val candidate = if (rawTrimmed.startsWith("/storage/") && !rawTrimmed.startsWith("/storage/emulated/")) {
+                File(rawTrimmed)
             } else {
-                File(downloadsRootDir, raw)
+                File(extRoot, cleanRel)
             }
             if (!candidate.exists()) {
                 candidate.mkdirs()
@@ -374,12 +451,12 @@ class MainActivity : AppCompatActivity() {
             dlRoot.absolutePath
         )
         val labels = arrayOf(
-            "📁 Downloads/ClipHaven (Default)",
-            "🎬 Downloads/ClipHaven/Videos",
-            "🎵 Downloads/ClipHaven/Audio",
-            "📥 Downloads (Root)",
+            "📁 Download/ClipHaven (Default)",
+            "🎬 Download/ClipHaven/Videos",
+            "🎵 Download/ClipHaven/Audio",
+            "📥 Download (Root)",
             "📂 Browse Device Folders…",
-            "✏️ Custom Subfolder in Downloads…"
+            "✏️ Custom Subfolder…"
         )
         runOnUiThread {
             try {
@@ -388,7 +465,7 @@ class MainActivity : AppCompatActivity() {
                     .setItems(labels) { _, which ->
                         when {
                             which < 4 -> {
-                                selectedPath = presetPaths[which]
+                                selectedPath = formatDisplayFolder(presetPaths[which])
                                 latch.countDown()
                             }
                             which == 4 -> {
@@ -404,7 +481,7 @@ class MainActivity : AppCompatActivity() {
                                     thread {
                                         try {
                                             treeLatch.await(120, TimeUnit.SECONDS)
-                                            selectedPath = folderTreeResult
+                                            selectedPath = folderTreeResult?.let { formatDisplayFolder(it) }
                                         } catch (_: Throwable) {
                                         } finally {
                                             latch.countDown()
@@ -415,23 +492,20 @@ class MainActivity : AppCompatActivity() {
                                 }
                             }
                             else -> {
-                                val relDefault = currentFolder
-                                    .removePrefix(dlRoot.absolutePath)
-                                    .trimStart('/', '\\')
-                                    .ifEmpty { "ClipHaven" }
+                                val relDefault = formatDisplayFolder(currentFolder).ifEmpty { "Download/ClipHaven" }
                                 val input = EditText(this@MainActivity).apply {
-                                    hint = "e.g. ClipHaven/MyClips"
+                                    hint = "e.g. Download/MyClips or C programing/Web"
                                     setText(relDefault)
                                 }
                                 AlertDialog.Builder(this@MainActivity)
-                                    .setTitle("Subfolder inside Downloads")
+                                    .setTitle("Enter Folder Path")
                                     .setView(input)
                                     .setPositiveButton("OK") { _, _ ->
-                                        val entered = input.text.toString().trim()
+                                        val entered = input.text.toString().trim().trimStart('/', '\\')
                                         selectedPath = if (entered.isNotEmpty()) {
-                                            normalizeAndroidFolder(entered).absolutePath
+                                            entered
                                         } else {
-                                            defaultDownloadDir.absolutePath
+                                            "Download/ClipHaven"
                                         }
                                         latch.countDown()
                                     }
@@ -507,6 +581,23 @@ class MainActivity : AppCompatActivity() {
         return exported
     }
 
+    private fun buildInfoRequest(url: String, hasVideoAndList: Boolean, useFallbackClient: Boolean): YoutubeDLRequest {
+        return YoutubeDLRequest(url).apply {
+            addOption("--dump-single-json")
+            if (hasVideoAndList) {
+                addOption("--no-playlist")
+            } else {
+                addOption("--flat-playlist")
+                addOption("--playlist-end", "50")
+            }
+            if (useFallbackClient) {
+                addOption("--extractor-args", "youtube:player_client=default,ios,mweb")
+            }
+            addOption("--no-check-certificates")
+            addOption("--no-warnings")
+        }
+    }
+
     inner class ClipHavenBridge {
         @JavascriptInterface
         fun requestAsync(reqId: String, path: String, method: String, bodyRaw: String) {
@@ -545,10 +636,11 @@ class MainActivity : AppCompatActivity() {
                         }
                         JSONObject()
                             .put("ok", true)
-                            .put("version", "3.1.0")
+                            .put("version", "3.1.1")
                             .put("author", "Md Asadullah Al Munib")
                             .put("repo_url", "https://github.com/AsadullahAlMunib/ClipHaven/")
-                            .put("default_folder", defaultDownloadDir.absolutePath)
+                            .put("default_folder", formatDisplayFolder(defaultDownloadDir.absolutePath))
+                            .put("raw_folder", defaultDownloadDir.absolutePath)
                             .put("ffmpeg", true)
                             .put("jobs", arr)
                             .toString()
@@ -573,18 +665,15 @@ class MainActivity : AppCompatActivity() {
                         val hasVideoAndList = !parsedUri.getQueryParameter("list").isNullOrEmpty() &&
                             (!parsedUri.getQueryParameter("v").isNullOrEmpty() || parsedUri.host?.lowercase() == "youtu.be")
 
-                        val req = YoutubeDLRequest(url).apply {
-                            addOption("--dump-single-json")
-                            if (hasVideoAndList) {
-                                addOption("--no-playlist")
-                            } else {
-                                addOption("--flat-playlist")
-                                addOption("--playlist-end", "50")
+                        val res = try {
+                            YoutubeDL.getInstance().execute(buildInfoRequest(url, hasVideoAndList, false))
+                        } catch (t: Throwable) {
+                            if (isYouTubeClientBlockError(t.message)) {
+                                syncUpdateYtDlp(YoutubeDL.UpdateChannel.NIGHTLY)
                             }
-                            addOption("--no-check-certificates")
-                            addOption("--no-warnings")
+                            YoutubeDL.getInstance().execute(buildInfoRequest(url, hasVideoAndList, true))
                         }
-                        val res = YoutubeDL.getInstance().execute(req)
+
                         val rawOut = res.out.trim()
                         val jsonLine = rawOut.lineSequence().lastOrNull { it.trim().startsWith("{") } ?: rawOut
                         val data = JSONObject(jsonLine)
@@ -653,7 +742,7 @@ class MainActivity : AppCompatActivity() {
                                 startActivity(Intent(DownloadManager.ACTION_VIEW_DOWNLOADS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                             } catch (_: Throwable) {
                             }
-                            Toast.makeText(this@MainActivity, "Saved in: $resolvedTarget", Toast.LENGTH_LONG).show()
+                            Toast.makeText(this@MainActivity, "Saved in: ${formatDisplayFolder(resolvedTarget)}", Toast.LENGTH_LONG).show()
                         }
                         JSONObject().put("ok", true).toString()
                     }
@@ -664,13 +753,86 @@ class MainActivity : AppCompatActivity() {
                             JSONObject().put("ok", true).put("cancelled", true).put("folder", "").toString()
                         } else {
                             val dir = normalizeAndroidFolder(chosen)
-                            JSONObject().put("ok", true).put("cancelled", false).put("folder", dir.absolutePath).toString()
+                            JSONObject()
+                                .put("ok", true)
+                                .put("cancelled", false)
+                                .put("folder", formatDisplayFolder(dir.absolutePath))
+                                .put("raw_folder", dir.absolutePath)
+                                .toString()
                         }
                     }
                     else -> JSONObject().put("ok", false).put("error", "Not found.").toString()
                 }
             } catch (t: Throwable) {
                 JSONObject().put("ok", false).put("error", t.message ?: "Request failed").toString()
+            }
+        }
+
+        private fun createDownloadRequest(
+            url: String,
+            allowPlaylist: Boolean,
+            fmt: String,
+            quality: String,
+            isClipJob: Boolean,
+            sSec: Int?,
+            eSec: Int?,
+            startTime: String,
+            endTime: String,
+            subtitles: Boolean,
+            embedThumb: Boolean,
+            workDir: File,
+            useFallbackClient: Boolean
+        ): YoutubeDLRequest {
+            return YoutubeDLRequest(url).apply {
+                addOption(if (allowPlaylist) "--yes-playlist" else "--no-playlist")
+                if (allowPlaylist) addOption("--ignore-errors")
+                if (useFallbackClient) {
+                    addOption("--extractor-args", "youtube:player_client=default,ios,mweb")
+                }
+                addOption("--no-mtime")
+                addOption("--no-check-certificates")
+                addOption("--windows-filenames")
+                if (fmt in setOf("mp3", "m4a", "wav")) {
+                    addOption("-x")
+                    addOption("--audio-format", fmt)
+                    addOption("--audio-quality", "0")
+                } else {
+                    val fExpr = if (fmt == "mp4") {
+                        if (quality == "best") {
+                            "bv*[ext=mp4]+ba[ext=m4a]/bv*+ba/b[ext=mp4]/b"
+                        } else {
+                            "bv*[ext=mp4][height<=$quality]+ba[ext=m4a]/bv*[height<=$quality]+ba/b[height<=$quality]/b"
+                        }
+                    } else {
+                        if (quality == "best") "bv*+ba/b" else "bv*[height<=$quality]+ba/b[height<=$quality]/b"
+                    }
+                    addOption("--format", fExpr)
+                    addOption("--merge-output-format", fmt)
+                }
+                var clipSuffix = ""
+                if (isClipJob) {
+                    val endPart = eSec?.toString() ?: "inf"
+                    addOption("--download-sections", "*${sSec ?: 0}-$endPart")
+                    addOption("--force-keyframes-at-cuts")
+                    addOption("--downloader-args", "ffmpeg:-stats -v warning")
+                    clipSuffix = " [clip ${(startTime.ifEmpty { "0" }).replace(":", "-")}_to_${(endTime.ifEmpty { "end" }).replace(":", "-")}]"
+                }
+                if (subtitles && fmt in setOf("mp4", "mkv", "webm")) {
+                    addOption("--write-subs")
+                    addOption("--write-auto-subs")
+                    addOption("--sub-langs", "en,bn,en-orig")
+                    addOption("--compat-options", "no-keep-subs")
+                    addOption("--ignore-errors")
+                    if (fmt in setOf("mp4", "mkv")) {
+                        addOption("--convert-subs", "srt")
+                    }
+                    addOption("--embed-subs")
+                }
+                if (embedThumb && fmt in setOf("mp4", "mkv", "mp3", "m4a")) {
+                    addOption("--convert-thumbnails", "jpg")
+                    addOption("--embed-thumbnail")
+                }
+                addOption("-o", File(workDir, "%(title).160B [%(id)s]$clipSuffix.%(ext)s").absolutePath)
             }
         }
 
@@ -732,7 +894,7 @@ class MainActivity : AppCompatActivity() {
                 .put("playlist_total", 0)
                 .put("playlist_done", 0)
                 .put("playlist_left", 0)
-                .put("folder", outDir.absolutePath)
+                .put("folder", formatDisplayFolder(outDir.absolutePath))
                 .put("file_path", outDir.absolutePath)
 
             synchronized(jobsLock) {
@@ -744,56 +906,7 @@ class MainActivity : AppCompatActivity() {
                 try {
                     ensureEnginesInitialized()
 
-                    val req = YoutubeDLRequest(url).apply {
-                        addOption(if (allowPlaylist) "--yes-playlist" else "--no-playlist")
-                        if (allowPlaylist) addOption("--ignore-errors")
-                        addOption("--no-mtime")
-                        addOption("--no-check-certificates")
-                        addOption("--windows-filenames")
-                        if (fmt in setOf("mp3", "m4a", "wav")) {
-                            addOption("-x")
-                            addOption("--audio-format", fmt)
-                            addOption("--audio-quality", "0")
-                        } else {
-                            val fExpr = if (fmt == "mp4") {
-                                if (quality == "best") {
-                                    "bv*[ext=mp4]+ba[ext=m4a]/bv*+ba/b[ext=mp4]/b"
-                                } else {
-                                    "bv*[ext=mp4][height<=$quality]+ba[ext=m4a]/bv*[height<=$quality]+ba/b[height<=$quality]/b"
-                                }
-                            } else {
-                                if (quality == "best") "bv*+ba/b" else "bv*[height<=$quality]+ba/b[height<=$quality]/b"
-                            }
-                            addOption("--format", fExpr)
-                            addOption("--merge-output-format", fmt)
-                        }
-                        var clipSuffix = ""
-                        if (isClipJob) {
-                            val endPart = eSec?.toString() ?: "inf"
-                            addOption("--download-sections", "*${sSec ?: 0}-$endPart")
-                            addOption("--force-keyframes-at-cuts")
-                            addOption("--downloader-args", "ffmpeg:-stats -v warning")
-                            clipSuffix = " [clip ${(startTime.ifEmpty { "0" }).replace(":", "-")}_to_${(endTime.ifEmpty { "end" }).replace(":", "-")}]"
-                        }
-                        if (subtitles && fmt in setOf("mp4", "mkv", "webm")) {
-                            addOption("--write-subs")
-                            addOption("--write-auto-subs")
-                            addOption("--sub-langs", "en,bn,en-orig")
-                            addOption("--compat-options", "no-keep-subs")
-                            addOption("--ignore-errors")
-                            if (fmt in setOf("mp4", "mkv")) {
-                                addOption("--convert-subs", "srt")
-                            }
-                            addOption("--embed-subs")
-                        }
-                        if (embedThumb && fmt in setOf("mp4", "mkv", "mp3", "m4a")) {
-                            addOption("--convert-thumbnails", "jpg")
-                            addOption("--embed-thumbnail")
-                        }
-                        addOption("-o", File(workDir, "%(title).160B [%(id)s]$clipSuffix.%(ext)s").absolutePath)
-                    }
-
-                    YoutubeDL.getInstance().execute(req, jid) { progress, etaInSeconds, line ->
+                    val progressCallback: (Float, Long, String) -> Unit = { progress, etaInSeconds, line ->
                         val cleanLine = line.trim()
                         val updates = mutableMapOf<String, Any?>()
 
@@ -871,6 +984,22 @@ class MainActivity : AppCompatActivity() {
                         updateJob(jid, updates)
                     }
 
+                    val primaryReq = createDownloadRequest(url, allowPlaylist, fmt, quality, isClipJob, sSec, eSec, startTime, endTime, subtitles, embedThumb, workDir, false)
+                    try {
+                        YoutubeDL.getInstance().execute(primaryReq, jid, progressCallback)
+                    } catch (firstErr: Throwable) {
+                        val isCancelledNow = getJobSnapshot(jid)?.optString("state") == "Cancelled"
+                        val alreadyExported = exportStagedFilesToTargetDir(workDir, outDir)
+                        if (!isCancelledNow && alreadyExported.isEmpty() && isYouTubeClientBlockError(firstErr.message)) {
+                            updateJob(jid, mapOf("title" to "Updating extractor & retrying…", "detail" to "Syncing latest YouTube extractor…", "indeterminate" to true))
+                            syncUpdateYtDlp(YoutubeDL.UpdateChannel.NIGHTLY)
+                            val fallbackReq = createDownloadRequest(url, allowPlaylist, fmt, quality, isClipJob, sSec, eSec, startTime, endTime, subtitles, embedThumb, workDir, true)
+                            YoutubeDL.getInstance().execute(fallbackReq, jid, progressCallback)
+                        } else if (alreadyExported.isEmpty()) {
+                            throw firstErr
+                        }
+                    }
+
                     val isCancelled = getJobSnapshot(jid)?.optString("state") == "Cancelled"
                     if (!isCancelled) {
                         val exportedFiles = exportStagedFilesToTargetDir(workDir, outDir)
@@ -887,13 +1016,13 @@ class MainActivity : AppCompatActivity() {
                         val finalUpdates = mutableMapOf<String, Any?>(
                             "state" to "Complete",
                             "title" to "Download complete!",
-                            "detail" to if (exportedFiles.size > 1) "Saved ${exportedFiles.size} files to ${outDir.absolutePath}" else "Saved: ${firstSaved.name}",
+                            "detail" to if (exportedFiles.size > 1) "Saved ${exportedFiles.size} files to ${formatDisplayFolder(outDir.absolutePath)}" else "Saved: ${firstSaved.name}",
                             "percent" to 100,
                             "indeterminate" to false,
                             "speed" to "",
                             "eta" to "",
                             "stage" to "Complete",
-                            "folder" to outDir.absolutePath,
+                            "folder" to formatDisplayFolder(outDir.absolutePath),
                             "file_path" to if (exportedFiles.size > 1) outDir.absolutePath else firstSaved.absolutePath
                         )
                         if (cleanTitle.isNotEmpty() && exportedFiles.size == 1 && (!allowPlaylist || snapshot?.optBoolean("video_title_locked") != true)) {
@@ -925,7 +1054,7 @@ class MainActivity : AppCompatActivity() {
                                     "speed" to "",
                                     "eta" to "",
                                     "stage" to "Complete",
-                                    "folder" to outDir.absolutePath,
+                                    "folder" to formatDisplayFolder(outDir.absolutePath),
                                     "file_path" to firstSaved.absolutePath
                                 )
                             )
@@ -954,7 +1083,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            return JSONObject().put("ok", true).put("id", jid).put("folder", outDir.absolutePath).toString()
+            return JSONObject().put("ok", true).put("id", jid).put("folder", formatDisplayFolder(outDir.absolutePath)).toString()
         }
     }
 }
