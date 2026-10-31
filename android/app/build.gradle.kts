@@ -74,8 +74,26 @@ tasks.register<Copy>("syncWebAssets") {
     into("src/main/assets")
 }
 
+tasks.register("ensureXmlResources") {
+    doLast {
+        val xmlDir = file("src/main/res/xml")
+        xmlDir.mkdirs()
+        val filePaths = file("src/main/res/xml/file_paths.xml")
+        if (!filePaths.exists()) {
+            filePaths.writeText(
+                """<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <cache-path name="updates" path="." />
+    <files-path name="internal_files" path="." />
+</paths>
+""".trimIndent()
+            )
+        }
+    }
+}
+
 tasks.named("preBuild") {
-    dependsOn("syncWebAssets")
+    dependsOn("syncWebAssets", "ensureXmlResources")
 }
 
 dependencies {
