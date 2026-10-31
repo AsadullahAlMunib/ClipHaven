@@ -822,7 +822,7 @@ def download(
                 clip_duration = max(1, e_sec - (s_sec or 0))
             elif duration_hint and duration_hint > (s_sec or 0):
                 clip_duration = max(1, int(duration_hint) - (s_sec or 0))
-            ff_dl_args = "ffmpeg_o:-preset ultrafast;ffmpeg:-stats -v warning" if fmt_choice in {"mp4", "mkv", "webm"} else "ffmpeg:-stats -v warning"
+            ff_dl_args = "ffmpeg:-preset ultrafast -stats -v warning" if fmt_choice in {"mp4", "mkv", "webm"} else "ffmpeg:-stats -v warning"
             cmd.extend([
                 "--download-sections",
                 f"*{s_sec or 0}-{e_sec if e_sec is not None else 'inf'}",
