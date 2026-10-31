@@ -835,13 +835,13 @@ def download(
 
         expect_srt_subs = bool(subtitles and has_ffmpeg and fmt_choice in {"mp4", "mkv"})
         if subtitles and fmt_choice in {"mp4", "mkv", "webm"}:
-            # Download the video's exact original spoken language caption (*-orig) plus manual BN/EN captions while skipping
+            # Download the video's exact original spoken language caption (.*-orig) plus manual BN/EN captions while skipping
             # machine-translated tracks (skip=translated_subs), matching YouTube's native CC button behavior for any language.
             cmd.extend([
                 "--write-subs",
                 "--write-auto-subs",
                 "--sub-langs",
-                "*-orig,bn,en",
+                ".*-orig,bn,en",
                 "--compat-options",
                 "no-keep-subs",
                 "--ignore-errors",
