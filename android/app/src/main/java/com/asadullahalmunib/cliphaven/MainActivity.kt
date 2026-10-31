@@ -1458,13 +1458,11 @@ class MainActivity : AppCompatActivity() {
                         addOption("--playlist-items", playlistItems)
                     }
                 }
-                val ytClients = when {
-                    isClipJob && !useFallbackClient -> "youtube:player_client=ios,web_safari,android,web,default;skip=translated_subs"
-                    isClipJob && useFallbackClient -> "youtube:player_client=web_safari,android,default;skip=translated_subs"
-                    useFallbackClient -> "youtube:player_client=android,default;skip=translated_subs"
-                    else -> "youtube:player_client=android,web,default;skip=translated_subs"
+                if (useFallbackClient) {
+                    addOption("--extractor-args", "youtube:player_client=android,default;skip=translated_subs")
+                } else {
+                    addOption("--extractor-args", "youtube:player_client=android,web,default;skip=translated_subs")
                 }
-                addOption("--extractor-args", ytClients)
                 addOption("--force-ipv4")
                 addOption("--concurrent-fragments", "4")
                 addOption("--newline")
@@ -1477,18 +1475,15 @@ class MainActivity : AppCompatActivity() {
                 addOption("--file-access-retries", "5")
                 addOption("--socket-timeout", "20")
                 if (fmt in setOf("mp3", "m4a", "wav")) {
-                    if (isClipJob) {
-                        addOption("--format", "ba[protocol^=m3u8]/ba/b")
-                    }
                     addOption("-x")
                     addOption("--audio-format", fmt)
                     addOption("--audio-quality", "0")
                 } else {
                     val hFilter = if (quality == "best") "" else "[height<=$quality]"
-                    val fExpr = when {
-                        isClipJob -> "bv*${hFilter}[protocol^=m3u8]+ba[protocol^=m3u8]/b${hFilter}[protocol^=m3u8]/bv*${hFilter}[ext=mp4]+ba[ext=m4a]/bv*${hFilter}+ba/b${hFilter}"
-                        fmt == "mp4" -> "bv*${hFilter}[ext=mp4]+ba[ext=m4a]/bv*${hFilter}+ba/b${hFilter}[ext=mp4]/b"
-                        else -> "bv*${hFilter}+ba/b${hFilter}/b"
+                    val fExpr = if (fmt == "mp4") {
+                        "bv*${hFilter}[ext=mp4]+ba[ext=m4a]/bv*${hFilter}+ba/b${hFilter}[ext=mp4]/b"
+                    } else {
+                        "bv*${hFilter}+ba/b${hFilter}/b"
                     }
                     addOption("--format", fExpr)
                     addOption("--merge-output-format", fmt)
@@ -1496,9 +1491,6 @@ class MainActivity : AppCompatActivity() {
                 var clipSuffix = ""
                 if (isClipJob) {
                     val endPart = eSec?.toString() ?: "inf"
-                    // Prefer HLS (m3u8) streams during clip cutting (-S proto:m3u8) to bypass YouTube's ~32 KiB/s
-                    // throttling on open-ended FFmpeg HTTPS range requests (yt-dlp issue #17612).
-                    addOption("-S", "proto:m3u8")
                     addOption("--download-sections", "*${sSec ?: 0}-$endPart")
                     addOption("--no-embed-chapters")
                     addOption("--downloader-args", "ffmpeg:-stats -v warning")
@@ -1508,7 +1500,6 @@ class MainActivity : AppCompatActivity() {
                     val isYt = url.lowercase().let { it.contains("youtube.com") || it.contains("youtu.be") || it.contains("youtube-nocookie.com") }
                     addOption("--write-subs")
                     addOption("--write-auto-subs")
-                    addOption("--sub-format", "srt/vtt/best")
                     addOption("--sub-langs", if (isYt) ".*-orig" else ".*-orig,bn.*,en.*")
                     addOption("--compat-options", "no-keep-subs")
                     addOption("--ignore-errors")
