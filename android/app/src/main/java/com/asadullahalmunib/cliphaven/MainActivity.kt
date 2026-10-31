@@ -1497,7 +1497,7 @@ class MainActivity : AppCompatActivity() {
                 if (subtitles && fmt in setOf("mp4", "mkv", "webm")) {
                     addOption("--write-subs")
                     addOption("--write-auto-subs")
-                    addOption("--sub-langs", "*-orig,bn,en")
+                    addOption("--sub-langs", ".*-orig,bn,en")
                     addOption("--compat-options", "no-keep-subs")
                     addOption("--ignore-errors")
                     if (fmt in setOf("mp4", "mkv")) {
