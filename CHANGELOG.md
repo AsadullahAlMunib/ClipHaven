@@ -3,6 +3,25 @@
 All notable changes to **ClipHaven** are documented in this file.
 
 
+## [[3.2.0](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.2.0)] - 2026-10-31
+
+### Added & Improved
+- **In-App Update Checker & Android Auto-Updater (`FileProvider` + Release Notes Modal)**: Automatically checks GitHub Releases on startup (with 4-hour caching to prevent rate limits), displays an interactive update popup with expandable release notes, and on Android downloads the architecture-matched `.apk` in the background and launches the native package installer directly.
+- **Direct Device Folder Picker on Android**: Eliminated confusing intermediate selection dialogs—tapping `📁 Browse` now directly opens the native device folder picker (SAF), grants persistent tree permissions, supports SD cards, and seamlessly writes to any chosen directory via DocumentsContract.
+- **Android Package Identifier Renamed**: Updated package name and application ID to `com.asadullahalmunib.cliphaven` across Gradle build configurations, manifest, ProGuard rules, action intents, and directory structure.
+- **Auto-Default Playlist Download & Interactive Video Selector Dropdown (`--playlist-items`)**: Automatically enables full playlist download when a playlist link is pasted and displays a collapsible dropdown listing all videos in the playlist with checkboxes (`✅ Select All` / `🎬 Single Video Only` / custom video selection).
+- **Instant Sub-Second Video Previews (`oEmbed` + Direct Thumbnail + In-Memory Cache)**: Added lightweight `oEmbed` metadata resolution (~0.2s) for YouTube, TikTok, Vimeo, Dailymotion, SoundCloud, and Reddit alongside instant client-side YouTube thumbnail rendering and a 64-entry LRU preview cache, reducing preview load times from 1.5–2 minutes to under 1 second.
+- **High-Speed Downloads & Clip Cutting (`--force-ipv4`, `--concurrent-fragments 4`, `-preset ultrafast`)**: Forced IPv4 routing (`-4`) to eliminate 25-second IPv6 blackhole timeouts, enabled 4-thread parallel DASH/HLS fragment downloads, used in-process `yt_dlp` on Desktop to avoid cold subprocess spawns, made Android engine updates non-blocking on startup/preview, and added `-preset ultrafast` for 3x–5x faster video clip cutting.
+- **LinkedIn Video & Post Support**: Added native URL validation and extraction support for `linkedin.com` and `lnkd.in` share links across Desktop and Android.
+- **YouTube-Style Native Original CC (`*-orig,bn,en` + `skip=translated_subs`)**: Automatically embeds the exact original language spoken in the video (`*-orig` — whether Bangla, English, Hindi, Arabic, or any other language) and skips robotic machine-translated subtitle tracks (`skip=translated_subs`), matching YouTube's native CC button behavior.
+- **Android Background Downloads & Foreground Service**: Added `DownloadForegroundService` with live notification progress, `PARTIAL_WAKE_LOCK`, and Android 14 `dataSync` foreground service type so downloads and video conversions continue reliably when the screen turns off or the app is minimized.
+- **Double Storage Elimination & Incremental Playlist Export**: Completed files are moved out of internal cache immediately upon completion, and playlist items are exported incrementally to `Downloads/ClipHaven` rather than waiting for the entire playlist to finish.
+- **Mobile Connection Resilience**: Added `--retries 10`, `--fragment-retries 10`, `--file-access-retries 5`, and `--socket-timeout 30` to prevent mobile network dropouts or signal fluctuations from killing downloads.
+- **Back Button Navigation Protection**: Added `OnBackPressedCallback` in `MainActivity` to minimize to background (`moveTaskToBack(true)`) during active downloads instead of terminating the app and cancelling progress.
+- **Battery & CPU Optimization**: Tuned subtitle sync watcher polling from 80ms to 400ms to reduce mobile CPU load and flash storage I/O wakeups.
+
+
+
 ## [[3.1.2](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.1.2)] - 2026-10-30
 
 ### Fixed & Improved

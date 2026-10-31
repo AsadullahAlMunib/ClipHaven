@@ -5,7 +5,7 @@
 **Catch, keep, and enjoy your clips — locally, safely, and effortlessly.**
 
 ![CI Status](https://img.shields.io/badge/CI-passing-brightgreen)
-[![Release](https://img.shields.io/badge/version-v3.1.2-blue)](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.1.2)
+[![Release](https://img.shields.io/badge/version-v3.2.0-blue)](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.2.0)
 ![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-lightgrey)
 [![Developer](https://img.shields.io/badge/developer-Md%20Asadullah%20Al%20Munib-8b5cf6)](https://github.com/AsadullahAlMunib)
@@ -16,39 +16,30 @@
 ClipHaven is a modern, high-speed, 100% local video and audio downloader developed by [**Md Asadullah Al Munib**](https://github.com/AsadullahAlMunib) and powered by [`yt-dlp`](https://github.com/yt-dlp/yt-dlp). Available across **Windows, macOS, Linux (`x64` & `ARM64`), and Android (`64-bit` & `32-bit`)**, it runs privately on your device (`127.0.0.1:8765`) — **no ads, no tracking, no external server relays, and zero telemetry**.
 </div>
 
+
 <details>
 <summary align="center"><h3>✨ Click here to view all ClipHaven features at a glance (Dropdown)</h3></summary>
+<br />
 
-- **🌐 Supported Platforms:** YouTube, Facebook, Instagram, Threads, TikTok, X (Twitter), Reddit, Vimeo, Dailymotion, Twitch, Pinterest, SoundCloud
-
+- **🌐 Supported Platforms:** YouTube, Meta (Facebook, Instagram, Threads), LinkedIn, TikTok, X / Twitter, Reddit, Vimeo, Dailymotion, Twitch, Pinterest, SoundCloud
 - **🎯 Video Resolutions:** Best Available, 2160p (4K), 1440p (2K), 1080p (Full HD), 720p (HD), 480p, 360p
-
 - **🎬 Video Formats:** MP4, MKV, WEBM
-
 - **🎵 Audio Formats:** MP3, M4A, WAV
-
 - **💻📱 Supported OS:** Windows, macOS, Linux (x64 & ARM64), Android (64-bit & 32-bit)
-
-- **✂️ Video Clip Cutter:** Cut specific video/audio sections (Start Time – End Time)
-
-- **💬 Multi-Language Subtitles (CC):** Auto & manual subtitle embedding (Bangla & English, synced with clips)
-
+- **✂️ Video Clip Cutter:** Cut specific video/audio sections (Start Time – End Time) with `-preset ultrafast`
+- **💬 Multi-Language Subtitles (CC):** Original native spoken language captions (`*-orig`, YouTube-style CC) & manual captions (Bangla, English, etc.), synced with trimmed clips
 - **🖼️ Cover Art Embedding:** Permanent video thumbnail embedding (MP4, MKV, MP3, M4A)
-
-- **📑 Playlist Downloader:** Full or single-video mode with live counter
-
-- **🔍 Instant Link Preview:** Auto-loads title, channel, duration, and thumbnail on paste
-
-- **📲 Android Share Support:** Direct download via Android "Share to ClipHaven" menu
-
-- **📁 Custom Save Folder:** Native OS & Android folder picker (Browse)
-
-- **📊 Live Progress & Controls:** Real-time %, speed (MB/s), ETA, and instant cancel
-
-- **🔒 100% Local & Private:** Runs locally on device with zero ads, zero tracking, and bundled FFmpeg
+- **📑 Playlist Downloader:** Auto-default full playlist mode, interactive 5-item scrollable video selector dropdown (`--playlist-items`), and live playlist counter
+- **🔍 Instant Link Preview:** Sub-second metadata loading via lightweight `oEmbed` (~0.2s) & instant client-side thumbnail rendering on paste
+- **🤖 Android Background Service:** Uninterrupted screen-off downloads powered by Android Foreground Service (`dataSync`), `WakeLock`, and status bar progress
+- **🔄 In-App Auto-Updates:** In-app release checker with direct APK auto-installer on Android and update notifications on Desktop
+- **📲 Android Share Support:** Direct one-click download via Android "Share to ClipHaven" menu
+- **📁 Custom Save Folder:** Direct native OS & Android device folder picker (`Browse`) with persistent Scoped Storage permissions
+- **📊 Live Progress & Controls:** Real-time %, speed (MB/s), ETA, and instant cancellation
+- **🔒 100% Local & Private:** Runs locally on device with zero ads, zero tracking, bundled FFmpeg, and zero telemetry
 </details>
 
-
+<br />
 
 ## ⚡ Quick Downloads
 
@@ -57,54 +48,54 @@ ClipHaven is a modern, high-speed, 100% local video and audio downloader develop
   <br />
 
   * **🪟 Windows:**
-    * ⭐ [**`ClipHaven-Windows-All.zip`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.1.2/ClipHaven-Windows-All.zip) — *Full Windows Bundle with `FFmpeg` & all dependencies included (Recommended)*
-    * 📦 [**`ClipHaven-Windows.exe`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.1.2/ClipHaven-Windows.exe) — *Standalone single-file portable Windows executable*
+    * ⭐ [**`ClipHaven-Windows-All.zip`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.0/ClipHaven-Windows-All.zip) — *Full Windows Bundle with `FFmpeg` & all dependencies included (Recommended)*
+    * 📦 [**`ClipHaven-Windows.exe`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.0/ClipHaven-Windows.exe) — *Standalone single-file portable Windows executable*
   * **🐧 Linux (x64 &amp; ARM64):**
-    * ⭐ [**`ClipHaven-Linux-x64-All.zip`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.1.2/ClipHaven-Linux-x64-All.zip) — *Full Linux x64 Bundle with `FFmpeg` & all dependencies included*
-    * 📦 [**`ClipHaven-Linux-x64`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.1.2/ClipHaven-Linux-x64) — *Standalone single-file Linux x64 binary*
-    * ⭐ [**`ClipHaven-Linux-ARM64-All.zip`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.1.2/ClipHaven-Linux-ARM64-All.zip) — *Full Linux ARM64 Bundle with `FFmpeg` & all dependencies included*
-    * 📦 [**`ClipHaven-Linux-ARM64`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.1.2/ClipHaven-Linux-ARM64) — *Standalone single-file Linux ARM64 binary*
+    * ⭐ [**`ClipHaven-Linux-x64-All.zip`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.0/ClipHaven-Linux-x64-All.zip) — *Full Linux x64 Bundle with `FFmpeg` & all dependencies included*
+    * 📦 [**`ClipHaven-Linux-x64`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.0/ClipHaven-Linux-x64) — *Standalone single-file Linux x64 binary*
+    * ⭐ [**`ClipHaven-Linux-ARM64-All.zip`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.0/ClipHaven-Linux-ARM64-All.zip) — *Full Linux ARM64 Bundle with `FFmpeg` & all dependencies included*
+    * 📦 [**`ClipHaven-Linux-ARM64`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.0/ClipHaven-Linux-ARM64) — *Standalone single-file Linux ARM64 binary*
   * **🍎 macOS:**
-    * ⭐ [**`ClipHaven-macOS-All.zip`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.1.2/ClipHaven-macOS-All.zip) — *Full macOS Bundle with `FFmpeg` & all dependencies included*
-    * 📦 [**`ClipHaven-macOS`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.1.2/ClipHaven-macOS) — *Standalone single-file macOS binary*
+    * ⭐ [**`ClipHaven-macOS-All.zip`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.0/ClipHaven-macOS-All.zip) — *Full macOS Bundle with `FFmpeg` & all dependencies included*
+    * 📦 [**`ClipHaven-macOS`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.0/ClipHaven-macOS) — *Standalone single-file macOS binary*
   * **🤖 Android (64-bit &amp; 32-bit):**
-    * ⭐ [**`ClipHaven-Android-64bit.apk`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.1.2/ClipHaven-Android-64bit.apk) — *For modern 64-bit Android phones (`arm64-v8a`, Recommended)*
-    * 📱 [**`ClipHaven-Android-32bit.apk`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.1.2/ClipHaven-Android-32bit.apk) — *For older 32-bit Android phones &amp; TV boxes (`armeabi-v7a`)*
+    * ⭐ [**`ClipHaven-Android-64bit.apk`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.0/ClipHaven-Android-64bit.apk) — *For modern 64-bit Android phones (`arm64-v8a`, Recommended)*
+    * 📱 [**`ClipHaven-Android-32bit.apk`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.0/ClipHaven-Android-32bit.apk) — *For older 32-bit Android phones &amp; TV boxes (`armeabi-v7a`)*
   * **⚡ Source Code + Launcher (`.bat`):**
-    * 🛠️ [**`ClipHaven-Source-Bat.zip`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.1.2/ClipHaven-Source-Bat.zip) — *Lightweight source bundle with one-click `setup-and-run.bat`*
+    * 🛠️ [**`ClipHaven-Source-Bat.zip`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.0/ClipHaven-Source-Bat.zip) — *Lightweight source bundle with one-click `setup-and-run.bat`*
 </details>
 
 <br />
 
 | Platform | All-in-One Bundle (`-All.zip`) ⭐ | Standalone Single App |
 | :--- | :--- | :--- |
-| **🪟 Windows** | [⬇️ `ClipHaven-Windows-All.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.1.2/ClipHaven-Windows-All.zip) | [⬇️ `ClipHaven-Windows.exe`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.1.2/ClipHaven-Windows.exe) |
-| **🍎 macOS** | [⬇️ `ClipHaven-macOS-All.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.1.2/ClipHaven-macOS-All.zip) | [⬇️ `ClipHaven-macOS`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.1.2/ClipHaven-macOS) |
-| **🐧 Linux (x64)** | [⬇️ `ClipHaven-Linux-x64-All.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.1.2/ClipHaven-Linux-x64-All.zip) | [⬇️ `ClipHaven-Linux-x64`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.1.2/ClipHaven-Linux-x64) |
-| **🐧 Linux (ARM64)** | [⬇️ `ClipHaven-Linux-ARM64-All.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.1.2/ClipHaven-Linux-ARM64-All.zip) | [⬇️ `ClipHaven-Linux-ARM64`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.1.2/ClipHaven-Linux-ARM64) |
-| **🤖 Android (64-bit)** | *(Self-contained inside `.apk`)* | [⬇️ `ClipHaven-Android-64bit.apk`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.1.2/ClipHaven-Android-64bit.apk) *(Recommended)* |
-| **🤖 Android (32-bit)** | *(Self-contained inside `.apk`)* | [⬇️ `ClipHaven-Android-32bit.apk`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.1.2/ClipHaven-Android-32bit.apk) |
-| **⚡ Source + `.bat`** | [⬇️ `ClipHaven-Source-Bat.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.1.2/ClipHaven-Source-Bat.zip) | [📦 All Releases](https://github.com/AsadullahAlMunib/ClipHaven/releases/latest) |
+| **🪟 Windows** | [⬇️ `ClipHaven-Windows-All.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.0/ClipHaven-Windows-All.zip) | [⬇️ `ClipHaven-Windows.exe`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.0/ClipHaven-Windows.exe) |
+| **🍎 macOS** | [⬇️ `ClipHaven-macOS-All.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.0/ClipHaven-macOS-All.zip) | [⬇️ `ClipHaven-macOS`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.0/ClipHaven-macOS) |
+| **🐧 Linux (x64)** | [⬇️ `ClipHaven-Linux-x64-All.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.0/ClipHaven-Linux-x64-All.zip) | [⬇️ `ClipHaven-Linux-x64`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.0/ClipHaven-Linux-x64) |
+| **🐧 Linux (ARM64)** | [⬇️ `ClipHaven-Linux-ARM64-All.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.0/ClipHaven-Linux-ARM64-All.zip) | [⬇️ `ClipHaven-Linux-ARM64`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.0/ClipHaven-Linux-ARM64) |
+| **🤖 Android (64-bit)** | *(Self-contained inside `.apk`)* | [⬇️ `ClipHaven-Android-64bit.apk`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.0/ClipHaven-Android-64bit.apk) *(Recommended)* |
+| **🤖 Android (32-bit)** | *(Self-contained inside `.apk`)* | [⬇️ `ClipHaven-Android-32bit.apk`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.0/ClipHaven-Android-32bit.apk) |
+| **⚡ Source + `.bat`** | [⬇️ `ClipHaven-Source-Bat.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.0/ClipHaven-Source-Bat.zip) | [📦 All Releases](https://github.com/AsadullahAlMunib/ClipHaven/releases/latest) |
 
 
 ## ✨ Key Features
 
 ### 💻 Multi-Platform Ready
 * **Desktop (`-All.zip` & Standalone Binaries):** Full pre-packaged bundles and portable single-file apps for **Windows, macOS, Linux x64, and Linux ARM64** with `FFmpeg` pre-included.
-* **Android (`ClipHaven-Android-64bit.apk` & `ClipHaven-Android-32bit.apk`):** Lightweight, architecture-specific `.apk` builds (~35 MB)—Python, `yt-dlp`, and `FFmpeg` unpack and run inside the app's private internal storage with zero external setup, saving directly to `Downloads/ClipHaven`.
+* **Android (`ClipHaven-Android-64bit.apk` & `ClipHaven-Android-32bit.apk`):** Lightweight, architecture-specific `.apk` builds with Foreground Service & WakeLock for uninterrupted background downloads, incremental playlist export, network retry resilience, and zero-setup local execution saving directly to `Downloads/ClipHaven`.
 * **Source Launcher (`setup-and-run.bat`):** Creates an isolated `.venv`, installs/updates `yt-dlp` and `imageio-ffmpeg`, and launches the dashboard.
 
 ### 🌐 Wide Multi-Platform Extraction
 Cleanly extracts video and audio from popular media platforms:
 * **YouTube:** Full Videos, Shorts, and complete Playlists
 * **Meta:** Facebook Videos & Reels, Instagram Reels, Posts & Threads (`threads.net` & `threads.com`)
-* **Others:** TikTok, X / Twitter (including `t.co` share links), Reddit, Vimeo, Dailymotion, Twitch, Pinterest (`pin.it`), and SoundCloud (`snd.sc`)
+* **Others:** LinkedIn (`linkedin.com` & `lnkd.in`), TikTok, X / Twitter (including `t.co` share links), Reddit, Vimeo, Dailymotion, Twitch, Pinterest (`pin.it`), and SoundCloud (`snd.sc`)
 
 ### 🎯 Precision Tools & Media Options
 * **📁 Native Folder Picker (`Browse`):** Pick your download folder using your OS's native folder selection dialog or type any path directly.
 * **✂️ Video Trimming & Clip Cutter with Live Progress:** Download specific time ranges (`Start Time` to `End Time` in `MM:SS` or `HH:MM:SS`) with real-time FFmpeg percentage (`%`), encoding speed, and remaining `ETA`.
 * **📑 Playlist Downloads:** Download entire video playlists in batch with visual badge (`📑 3/15 • 2 done • 12 left`) showing which playlist video is downloading, how many are finished, and how many remain.
-* **💬 Multi-Language Subtitles (CC):** Automatically detects and embeds English (`en`, `en-orig`) and Bangla (`bn`) subtitles converted to `SRT` without triggering rate limits.
+* **💬 Multi-Language Subtitles (CC):** Automatically detects and embeds the video's exact original spoken language caption (`*-orig`, just like YouTube's CC button) alongside manual Bangla (`bn`) and English (`en`) subtitles while skipping robotic auto-translations (`skip=translated_subs`).
 * **🖼️ Embed Cover Art / Thumbnail:** Embeds video thumbnails as permanent cover art into `MP4`, `MKV`, `MP3`, and `M4A` files.
 * **⚡ Multiple Formats & 4K Quality:**
   * **Video Formats:** `MP4` *(Recommended)*, `MKV`, `WEBM`
@@ -120,12 +111,12 @@ Cleanly extracts video and audio from popular media platforms:
 2. Extract the archive and launch **`ClipHaven`** (`ClipHaven.exe` on Windows). Your browser will open `http://127.0.0.1:8765/`.
 
 ### Method 2: Android App (`ClipHaven-Android-64bit.apk` / `ClipHaven-Android-32bit.apk`)
-1. Download [`ClipHaven-Android-64bit.apk`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.1.2/ClipHaven-Android-64bit.apk) *(for modern 64-bit phones)* or [`ClipHaven-Android-32bit.apk`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.1.2/ClipHaven-Android-32bit.apk) *(for older 32-bit devices)* and install it.
-2. Open **ClipHaven** (or share any video link directly to ClipHaven from YouTube, Facebook, Instagram, or TikTok).
+1. Download [`ClipHaven-Android-64bit.apk`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.0/ClipHaven-Android-64bit.apk) *(for modern 64-bit phones)* or [`ClipHaven-Android-32bit.apk`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.0/ClipHaven-Android-32bit.apk) *(for older 32-bit devices)* and install it.
+2. Open **ClipHaven** (or share any video link directly to ClipHaven from YouTube, Facebook, Instagram, LinkedIn, or TikTok).
 
 ### Method 3: One-Click Script (`setup-and-run.bat`)
 1. Ensure **Python 3.10+** is installed with **"Add Python to PATH"** enabled.
-2. Download and extract [`ClipHaven-Source-Bat.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.1.2/ClipHaven-Source-Bat.zip) (or clone the repository):
+2. Download and extract [`ClipHaven-Source-Bat.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.0/ClipHaven-Source-Bat.zip) (or clone the repository):
    ```bash
    git clone https://github.com/AsadullahAlMunib/ClipHaven.git
    cd ClipHaven

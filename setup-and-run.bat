@@ -3,7 +3,7 @@ setlocal
 cd /d "%~dp0"
 
 echo ===================================================
-echo   ClipHaven v3.1.2 — Local Video ^& Audio Downloader
+echo   ClipHaven v3.2.0 — Local Video ^& Audio Downloader
 echo   Developed by Md Asadullah Al Munib
 echo   https://github.com/AsadullahAlMunib/ClipHaven/
 echo ===================================================

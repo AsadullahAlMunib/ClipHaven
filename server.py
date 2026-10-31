@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Local-only backend for ClipHaven Video & Audio Downloader (v3.1.2).
+"""Local-only backend for ClipHaven Video & Audio Downloader (v3.2.0).
 Developed by Md Asadullah Al Munib (https://github.com/AsadullahAlMunib/ClipHaven/)."""
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, quote
+import urllib.request
 from pathlib import Path
 import threading
 import subprocess
@@ -17,7 +18,7 @@ import time
 import webbrowser
 import logging
 
-VERSION = "3.1.2"
+VERSION = "3.2.0"
 AUTHOR = "Md Asadullah Al Munib"
 REPO_URL = "https://github.com/AsadullahAlMunib/ClipHaven/"
 IS_FROZEN = getattr(sys, "frozen", False)
@@ -26,16 +27,13 @@ APP_DIR = Path(sys.executable).resolve().parent if IS_FROZEN else Path(__file__)
 HTML_FILE = BUNDLE_DIR / "index.html"
 DEFAULT_FOLDER = (Path.home() / "Downloads" / "ClipHaven") if (Path.home() / "Downloads").exists() else (APP_DIR / "downloads")
 
-try:
-    logging.basicConfig(filename=str(APP_DIR / "app.log"), level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-except Exception:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 ALLOWED = {
     "youtube.com", "youtu.be", "youtube-nocookie.com", "facebook.com", "fb.watch", "fb.com", "fb.gg",
-    "instagram.com", "instagr.am", "threads.net", "threads.com", "tiktok.com", "twitter.com", "x.com", "t.co",
-    "reddit.com", "redd.it", "vimeo.com", "dailymotion.com", "dai.ly", "twitch.tv",
-    "pinterest.com", "pin.it", "soundcloud.com", "snd.sc",
+    "instagram.com", "instagr.am", "threads.net", "threads.com", "linkedin.com", "lnkd.in",
+    "tiktok.com", "twitter.com", "x.com", "t.co", "reddit.com", "redd.it", "vimeo.com",
+    "dailymotion.com", "dai.ly", "twitch.tv", "pinterest.com", "pin.it", "soundcloud.com", "snd.sc",
 }
 VALID_FORMATS = {"mp4", "mkv", "webm", "mp3", "m4a", "wav"}
 VALID_QUALITIES = {"best", "2160", "1440", "1080", "720", "480", "360"}
@@ -479,50 +477,265 @@ def prune_jobs():
             jobs.pop(k, None)
 
 
+_update_cache: dict = {"checked_at": 0.0, "data": None}
+UPDATE_CACHE_TTL = 4 * 3600  # 4 hours to respect GitHub API rate limits
+GITHUB_LATEST_RELEASE_API = "https://api.github.com/repos/AsadullahAlMunib/ClipHaven/releases/latest"
+
+
+def parse_semver(ver: str) -> tuple[int, ...]:
+    nums = re.findall(r"\d+", str(ver or ""))
+    return tuple(int(x) for x in nums[:4]) if nums else (0, 0, 0)
+
+
+def is_newer_version(latest: str, current: str = VERSION) -> bool:
+    return parse_semver(latest) > parse_semver(current)
+
+
+def check_github_update(force: bool = False) -> dict:
+    now = time.time()
+    with lock:
+        cached = _update_cache.get("data")
+        if not force and cached and (now - _update_cache.get("checked_at", 0.0) < UPDATE_CACHE_TTL):
+            return dict(cached)
+
+    try:
+        req = urllib.request.Request(
+            GITHUB_LATEST_RELEASE_API,
+            headers={
+                "User-Agent": f"ClipHaven/{VERSION}",
+                "Accept": "application/vnd.github+json",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            if resp.status != 200:
+                raise RuntimeError(f"GitHub API HTTP {resp.status}")
+            rel = json.loads(resp.read().decode("utf-8", errors="replace"))
+
+        tag = str(rel.get("tag_name") or "").strip().lstrip("vV")
+        if not tag:
+            raise RuntimeError("Missing release tag")
+        notes = str(rel.get("body") or "Bug fixes and performance improvements.").strip()
+        html_url = str(rel.get("html_url") or f"{REPO_URL.rstrip('/')}/releases/latest").strip()
+        result = {
+            "ok": True,
+            "update_available": is_newer_version(tag, VERSION),
+            "current_version": VERSION,
+            "latest_version": tag,
+            "release_title": str(rel.get("name") or f"ClipHaven v{tag}").strip(),
+            "release_notes": notes[:4000],
+            "release_url": html_url,
+            "is_android": False,
+        }
+        with lock:
+            _update_cache["checked_at"] = now
+            _update_cache["data"] = dict(result)
+        return result
+    except Exception:
+        with lock:
+            if _update_cache.get("data"):
+                return dict(_update_cache["data"])
+        return {
+            "ok": True,
+            "update_available": False,
+            "current_version": VERSION,
+            "latest_version": VERSION,
+            "release_title": "",
+            "release_notes": "",
+            "release_url": f"{REPO_URL.rstrip('/')}/releases/latest",
+            "is_android": False,
+        }
+
+
+_info_cache: dict[str, dict] = {}
+_YT_ID_RE = re.compile(r"(?:v=|youtu\.be/|/shorts/|/live/|/embed/)([A-Za-z0-9_-]{11})")
+
+
+def _extract_yt_id(url: str) -> str:
+    m = _YT_ID_RE.search(url or "")
+    return m.group(1) if m else ""
+
+
+def _fetch_fast_oembed_info(clean_url: str, parsed, has_video_and_list: bool) -> dict | None:
+    """Instant (~200ms) lightweight preview via official oEmbed APIs before falling back to yt-dlp."""
+    host = (parsed.hostname or "").lower().rstrip(".")
+    oembed_url = ""
+    yt_id = ""
+    is_playlist = has_video_and_list or "/playlist" in (parsed.path or "")
+
+    if any(host == d or host.endswith("." + d) for d in ("youtube.com", "youtu.be", "youtube-nocookie.com")):
+        yt_id = _extract_yt_id(clean_url)
+        target = f"https://www.youtube.com/watch?v={yt_id}" if yt_id else clean_url
+        oembed_url = f"https://www.youtube.com/oembed?url={quote(target, safe='')}&format=json"
+    elif host == "tiktok.com" or host.endswith(".tiktok.com"):
+        oembed_url = f"https://www.tiktok.com/oembed?url={quote(clean_url, safe='')}"
+    elif host == "vimeo.com" or host.endswith(".vimeo.com"):
+        oembed_url = f"https://vimeo.com/api/oembed.json?url={quote(clean_url, safe='')}"
+    elif any(host == d or host.endswith("." + d) for d in ("dailymotion.com", "dai.ly")):
+        oembed_url = f"https://www.dailymotion.com/services/oembed?url={quote(clean_url, safe='')}&format=json"
+    elif any(host == d or host.endswith("." + d) for d in ("soundcloud.com", "snd.sc")):
+        oembed_url = f"https://soundcloud.com/oembed?format=json&url={quote(clean_url, safe='')}"
+    elif any(host == d or host.endswith("." + d) for d in ("reddit.com", "redd.it")):
+        oembed_url = f"https://www.reddit.com/oembed?url={quote(clean_url, safe='')}"
+
+    if not oembed_url:
+        return None
+
+    try:
+        req = urllib.request.Request(
+            oembed_url,
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0 Safari/537.36", "Accept": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=3.5) as resp:
+            if resp.status != 200:
+                return None
+            data = json.loads(resp.read().decode("utf-8", errors="replace"))
+        title = (data.get("title") or "").strip()
+        if not title:
+            return None
+        thumb = (data.get("thumbnail_url") or "").strip()
+        if not thumb and yt_id:
+            thumb = f"https://i.ytimg.com/vi/{yt_id}/hqdefault.jpg"
+        dur = data.get("duration")
+        dur_sec = int(dur) if isinstance(dur, (int, float)) and dur > 0 else 0
+        return {
+            "title": title,
+            "uploader": (data.get("author_name") or data.get("provider_name") or "Video").strip(),
+            "duration": format_seconds(dur_sec) if dur_sec > 0 else "",
+            "duration_seconds": dur_sec,
+            "thumbnail": thumb,
+            "is_playlist": is_playlist,
+            "playlist_count": 2 if is_playlist else 1,
+            "webpage_url": clean_url,
+        }
+    except Exception:
+        return None
+
+
 def fetch_video_info(url: str) -> dict:
     clean_url = extract_url(url)
     if not valid_url(clean_url):
-        raise ValueError("Enter a valid HTTPS video URL (YouTube, Facebook, Instagram, TikTok, etc.).")
+        raise ValueError("Enter a valid HTTPS video URL (YouTube, Facebook, Instagram, LinkedIn, TikTok, X, etc.).")
+
+    with lock:
+        if clean_url in _info_cache:
+            return dict(_info_cache[clean_url])
 
     parsed = urlparse(clean_url)
     qs = parse_qs(parsed.query)
+    has_list_param = bool(qs.get("list")) or "/playlist" in (parsed.path or "")
     has_video_and_list = bool(qs.get("list")) and bool(qs.get("v") or parsed.hostname in {"youtu.be"})
 
-    # When a link points to a specific video inside a playlist (watch?v=...&list=...),
-    # fetch the single video's accurate title/duration with --no-playlist while flagging is_playlist=True.
-    playlist_flags = ["--no-playlist"] if has_video_and_list else ["--flat-playlist", "--playlist-end", "50"]
-    cmd = get_ytdlp_cmd() + ["--dump-single-json", *playlist_flags, "--extractor-args", "youtube:player_client=default,ios,mweb", "--no-warnings", "--", clean_url]
-    res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", timeout=25, cwd=str(APP_DIR))
-    if res.returncode != 0 or not res.stdout.strip():
-        err_lines = [line.strip() for line in res.stderr.splitlines() if line.strip()]
-        err_msg = next((x for x in reversed(err_lines) if "ERROR:" in x), err_lines[-1] if err_lines else "Could not fetch video details.")
-        raise RuntimeError(err_msg.replace("ERROR:", "").strip()[:300])
+    # 1. Fast-path: try lightweight oEmbed API (~0.2s) for single videos (when not a playlist URL)
+    if not has_list_param:
+        fast_info = _fetch_fast_oembed_info(clean_url, parsed, False)
+        if fast_info:
+            fast_info["entries"] = []
+            with lock:
+                if len(_info_cache) >= 64:
+                    _info_cache.pop(next(iter(_info_cache)), None)
+                _info_cache[clean_url] = dict(fast_info)
+            return fast_info
 
-    raw_out = res.stdout.strip()
+    # 2. Extract flat playlist entries (up to 100 items) or single video metadata via in-process yt_dlp or subprocess
+    data = None
     try:
-        data = json.loads(raw_out)
-    except json.JSONDecodeError:
-        json_line = next((ln.strip() for ln in reversed(raw_out.splitlines()) if ln.strip().startswith("{")), raw_out.splitlines()[-1])
-        data = json.loads(json_line)
+        import yt_dlp  # type: ignore
+        ydl_opts = {
+            "quiet": True,
+            "no_warnings": True,
+            "noplaylist": False if has_list_param else True,
+            "extract_flat": "in_playlist",
+            "playlistend": 100,
+            "socket_timeout": 10,
+            "source_address": "0.0.0.0",
+            "extractor_args": {"youtube": {"player_client": ["ios", "web"], "player_skip": ["webpage", "configs"]}},
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            data = ydl.extract_info(clean_url, download=False)
+    except Exception:
+        data = None
 
-    entries = data.get("entries") or []
-    is_playlist = has_video_and_list or data.get("_type") == "playlist" or bool(entries)
+    if not isinstance(data, dict):
+        playlist_flags = ["--yes-playlist", "--flat-playlist", "--playlist-end", "100"] if has_list_param else ["--no-playlist"]
+        cmd = get_ytdlp_cmd() + [
+            "--dump-single-json",
+            "--force-ipv4",
+            "--socket-timeout",
+            "10",
+            *playlist_flags,
+            "--extractor-args",
+            "youtube:player_client=ios,web;player_skip=webpage,configs",
+            "--no-warnings",
+            "--",
+            clean_url,
+        ]
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", timeout=18, cwd=str(APP_DIR))
+        if res.returncode != 0 or not res.stdout.strip():
+            # If playlist extraction failed on a watch?v=...&list=... link (e.g. private Mix), fall back to fast single-video oEmbed
+            if has_video_and_list:
+                fast_info = _fetch_fast_oembed_info(clean_url, parsed, True)
+                if fast_info:
+                    fast_info["entries"] = []
+                    return fast_info
+            err_lines = [line.strip() for line in res.stderr.splitlines() if line.strip()]
+            err_msg = next((x for x in reversed(err_lines) if "ERROR:" in x), err_lines[-1] if err_lines else "Could not fetch video details.")
+            raise RuntimeError(err_msg.replace("ERROR:", "").strip()[:300])
+
+        raw_out = res.stdout.strip()
+        try:
+            data = json.loads(raw_out)
+        except json.JSONDecodeError:
+            json_line = next((ln.strip() for ln in reversed(raw_out.splitlines()) if ln.strip().startswith("{")), raw_out.splitlines()[-1])
+            data = json.loads(json_line)
+
+    raw_entries = [e for e in (data.get("entries") or []) if isinstance(e, dict)]
+    playlist_entries = []
+    for idx, entry in enumerate(raw_entries, 1):
+        edur = entry.get("duration")
+        playlist_entries.append({
+            "index": idx,
+            "id": str(entry.get("id") or ""),
+            "title": str(entry.get("title") or f"Video {idx}"),
+            "duration": format_seconds(int(edur)) if isinstance(edur, (int, float)) and edur > 0 else "",
+        })
+
+    is_playlist = has_list_param or data.get("_type") == "playlist" or bool(playlist_entries)
     dur = data.get("duration")
     thumb = data.get("thumbnail") or (data["thumbnails"][-1].get("url", "") if data.get("thumbnails") else "")
-    if not thumb and is_playlist and entries:
-        first = entries[0] or {}
+    if not thumb and is_playlist and raw_entries:
+        first = raw_entries[0]
         thumb = first.get("thumbnail") or (first["thumbnails"][-1].get("url", "") if first.get("thumbnails") else "")
+    if not thumb:
+        yt_id = _extract_yt_id(clean_url)
+        if yt_id:
+            thumb = f"https://i.ytimg.com/vi/{yt_id}/hqdefault.jpg"
 
-    return {
+    result = {
         "title": data.get("title") or "Untitled video",
-        "uploader": data.get("uploader") or data.get("channel") or data.get("extractor_key") or "Video",
+        "uploader": data.get("uploader") or data.get("channel") or data.get("creator") or data.get("extractor_key") or "Video",
         "duration": format_seconds(int(dur)) if isinstance(dur, (int, float)) and dur > 0 else "",
         "duration_seconds": int(dur) if isinstance(dur, (int, float)) else 0,
         "thumbnail": thumb,
         "is_playlist": is_playlist,
-        "playlist_count": data.get("playlist_count") or (len(entries) if entries else (2 if has_video_and_list else 1)),
+        "playlist_count": len(playlist_entries) if playlist_entries else (data.get("playlist_count") or (2 if is_playlist else 1)),
+        "entries": playlist_entries,
         "webpage_url": data.get("webpage_url") or clean_url,
     }
+    with lock:
+        if len(_info_cache) >= 64:
+            _info_cache.pop(next(iter(_info_cache)), None)
+        _info_cache[clean_url] = dict(result)
+    return result
+
+
+_PLAYLIST_ITEMS_RE = re.compile(r"^\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*$")
+
+
+def validate_playlist_items(raw: str) -> str | None:
+    if not raw or not str(raw).strip():
+        return ""
+    cleaned = re.sub(r"\s+", "", str(raw))
+    return cleaned if _PLAYLIST_ITEMS_RE.match(cleaned) else None
 
 
 def download(
@@ -537,6 +750,7 @@ def download(
     embed_thumbnail: bool = False,
     allow_playlist: bool = False,
     duration_hint: int = 0,
+    playlist_items: str = "",
 ):
     proc, started_at, out = None, time.time(), validate_folder(folder)
     saved_file = ""
@@ -553,15 +767,26 @@ def download(
         has_ffmpeg = ffmpeg_bin is not None
         cmd = get_ytdlp_cmd() + [
             "--yes-playlist" if allow_playlist else "--no-playlist",
+            "--force-ipv4",
+            "--concurrent-fragments",
+            "4",
+            "--retries",
+            "10",
+            "--fragment-retries",
+            "10",
+            "--socket-timeout",
+            "20",
             "--newline",
             "--progress",
             "--no-mtime",
             "--windows-filenames",
             "--extractor-args",
-            "youtube:player_client=default,ios,mweb",
+            "youtube:player_client=ios,web,mweb;skip=translated_subs",
         ]
         if allow_playlist:
             cmd.append("--ignore-errors")
+            if playlist_items:
+                cmd.extend(["--playlist-items", playlist_items])
         if ffmpeg_bin:
             cmd.extend(["--ffmpeg-location", ffmpeg_bin])
 
@@ -597,25 +822,26 @@ def download(
                 clip_duration = max(1, e_sec - (s_sec or 0))
             elif duration_hint and duration_hint > (s_sec or 0):
                 clip_duration = max(1, int(duration_hint) - (s_sec or 0))
+            ff_dl_args = "ffmpeg_o:-preset ultrafast;ffmpeg:-stats -v warning" if fmt_choice in {"mp4", "mkv", "webm"} else "ffmpeg:-stats -v warning"
             cmd.extend([
                 "--download-sections",
                 f"*{s_sec or 0}-{e_sec if e_sec is not None else 'inf'}",
                 "--force-keyframes-at-cuts",
                 "--no-embed-chapters",
                 "--downloader-args",
-                "ffmpeg:-stats -v warning",
+                ff_dl_args,
             ])
             clip_suffix = f" [clip {(start_time or '0').replace(':', '-')}_to_{(end_time or 'end').replace(':', '-')}]"
 
         expect_srt_subs = bool(subtitles and has_ffmpeg and fmt_choice in {"mp4", "mkv"})
         if subtitles and fmt_choice in {"mp4", "mkv", "webm"}:
-            # Use specific language codes (en, bn, en-orig) rather than broad regexes to avoid YouTube HTTP 429 rate limits,
-            # convert WebVTT captions to SRT for clean MP4/MKV muxing, and prevent missing/rate-limited subs from aborting the video download.
+            # Download the video's exact original spoken language caption (*-orig) plus manual BN/EN captions while skipping
+            # machine-translated tracks (skip=translated_subs), matching YouTube's native CC button behavior for any language.
             cmd.extend([
                 "--write-subs",
                 "--write-auto-subs",
                 "--sub-langs",
-                "en,bn,en-orig",
+                "*-orig,bn,en",
                 "--compat-options",
                 "no-keep-subs",
                 "--ignore-errors",
@@ -1009,6 +1235,9 @@ class Handler(SimpleHTTPRequestHandler):
             return self.json(200, {"ok": True, "version": VERSION, "author": AUTHOR, "repo_url": REPO_URL, "default_folder": str(DEFAULT_FOLDER), "ffmpeg": ffmpeg_available(), "jobs": recent_list})
         if p.path == "/api/ffmpeg":
             return self.json(200, {"ok": True, "available": ffmpeg_available()})
+        if p.path == "/api/check-update":
+            force = parse_qs(p.query).get("force", ["0"])[0] == "1"
+            return self.json(200, check_github_update(force=force))
         if p.path == "/api/status":
             jid = parse_qs(p.query).get("id", [""])[0]
             with lock:
@@ -1037,7 +1266,7 @@ class Handler(SimpleHTTPRequestHandler):
         if req_path == "/api/info":
             url = extract_url(str(body.get("url", "")))
             if not valid_url(url):
-                return self.json(400, {"ok": False, "error": "Enter a valid HTTPS link (YouTube, Facebook, Instagram, TikTok, X, etc.)."})
+                return self.json(400, {"ok": False, "error": "Enter a valid HTTPS link (YouTube, Facebook, Instagram, LinkedIn, TikTok, X, etc.)."})
             try:
                 return self.json(200, {"ok": True, "info": fetch_video_info(url)})
             except Exception as e:
@@ -1049,7 +1278,7 @@ class Handler(SimpleHTTPRequestHandler):
             if not validated_folder:
                 return self.json(400, {"ok": False, "error": "Invalid save folder. Please enter an accessible folder path."})
             if not valid_url(url):
-                return self.json(400, {"ok": False, "error": "Enter a valid HTTPS link (YouTube, Facebook, Instagram, TikTok, X, etc.)."})
+                return self.json(400, {"ok": False, "error": "Enter a valid HTTPS link (YouTube, Facebook, Instagram, LinkedIn, TikTok, X, etc.)."})
             fmt_choice = str(body.get("format", "mp4")).lower().strip()
             quality = str(body.get("quality", "best")).strip()
             if fmt_choice not in VALID_FORMATS or (fmt_choice in {"mp4", "mkv", "webm"} and quality not in VALID_QUALITIES):
@@ -1066,6 +1295,9 @@ class Handler(SimpleHTTPRequestHandler):
             subtitles = bool(body.get("subtitles", False))
             embed_thumbnail = bool(body.get("embed_thumbnail", False))
             allow_playlist = bool(body.get("allow_playlist", False))
+            playlist_items = validate_playlist_items(str(body.get("playlist_items", "")))
+            if playlist_items is None:
+                return self.json(400, {"ok": False, "error": "Invalid playlist video selection."})
             raw_hint = str(body.get("title_hint", "")).strip()
             try:
                 duration_hint = int(body.get("duration_hint", 0) or 0)
@@ -1101,7 +1333,7 @@ class Handler(SimpleHTTPRequestHandler):
                 }
             threading.Thread(
                 target=download,
-                args=(jid, url, str(validated_folder), quality, fmt_choice, start_time, end_time, subtitles, embed_thumbnail, allow_playlist, duration_hint),
+                args=(jid, url, str(validated_folder), quality, fmt_choice, start_time, end_time, subtitles, embed_thumbnail, allow_playlist, duration_hint, playlist_items),
                 daemon=True,
             ).start()
             return self.json(202, {"ok": True, "id": jid, "folder": str(validated_folder)})

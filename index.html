@@ -30,7 +30,7 @@
         <div class="head-text">
           <div class="title-row">
             <h1>ClipHaven</h1>
-            <span class="version-pill">v3.1.2</span>
+            <span class="version-pill">v3.2.0</span>
           </div>
           <p class="sub">Paste a link, pick a format, and save your clip in seconds.</p>
         </div>
@@ -42,7 +42,7 @@
       </div>
 
       <form id="form">
-        <label for="url">1. Video Link (YouTube, Facebook, Instagram, TikTok, X)</label>
+        <label for="url">1. Video Link (YouTube, Facebook, Instagram, LinkedIn, TikTok, X)</label>
         <div class="row url-row">
           <div class="input-wrap">
             <input
@@ -88,13 +88,31 @@
                 id="preview-playlist"
                 class="badge-accent clickable-badge"
                 style="display: none"
-                title="Click to toggle full playlist download"
+                title="Click to open playlist video selector"
               >
                 Playlist
               </button>
             </div>
           </div>
         </div>
+
+        <!-- Playlist Video Selector Dropdown (Auto-shown when a playlist link is pasted) -->
+        <details class="playlist-selector" id="playlist-selector" style="display: none">
+          <summary>
+            <span>📑 Select Playlist Videos to Download</span>
+            <span class="summary-badge" id="playlist-selector-badge">All Selected</span>
+          </summary>
+          <div class="playlist-selector-body">
+            <div class="playlist-selector-actions">
+              <div class="playlist-action-btns">
+                <button type="button" class="btn secondary small-btn" id="pl-select-all-btn">✅ Select All</button>
+                <button type="button" class="btn secondary small-btn" id="pl-clear-all-btn">🎬 Single Video Only</button>
+              </div>
+              <span class="playlist-scroll-hint" id="playlist-scroll-hint" style="display: none">↕ Scroll list</span>
+            </div>
+            <div class="playlist-items-list" id="playlist-items-list"></div>
+          </div>
+        </details>
 
         <div class="grid-2">
           <div>
@@ -240,6 +258,33 @@
           <a href="https://github.com/AsadullahAlMunib/ClipHaven/" target="_blank" rel="noopener noreferrer">GitHub Repository</a>
         </div>
       </footer>
+      <!-- In-App Update Notification Modal -->
+      <div class="update-modal-backdrop" id="update-modal" style="display: none" role="dialog" aria-modal="true" aria-labelledby="update-modal-title">
+        <div class="update-modal-card">
+          <div class="update-modal-head">
+            <span class="update-badge-icon">🚀</span>
+            <div>
+              <h2 id="update-modal-title">New Update Available!</h2>
+              <div class="update-version-line" id="update-version-line">v3.2.0 → v3.3.0</div>
+            </div>
+          </div>
+          <p class="update-modal-desc" id="update-modal-desc">
+            A newer version of ClipHaven is available with latest improvements and extractor fixes.
+          </p>
+          <details class="update-notes-box" id="update-notes-details">
+            <summary>📜 View Release Notes</summary>
+            <pre class="update-notes-content" id="update-notes-content"></pre>
+          </details>
+          <div class="update-progress-wrap" id="update-progress-wrap" style="display: none">
+            <progress id="update-progress-bar" max="100" value="0"></progress>
+            <div class="update-progress-text" id="update-progress-text">Downloading update…</div>
+          </div>
+          <div class="update-modal-actions">
+            <button type="button" class="btn primary update-now-btn" id="update-now-btn">🚀 Update Now</button>
+            <button type="button" class="btn secondary" id="update-later-btn">Later</button>
+          </div>
+        </div>
+      </div>
     </main>
     <script src="app.js" defer></script>
   </body>

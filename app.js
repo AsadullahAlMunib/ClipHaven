@@ -8,6 +8,7 @@ let currentTitleHint = "";
 let currentDurationHint = 0;
 let currentPlaylistCount = 0;
 let isCurrentUrlPlaylist = false;
+let currentPlaylistEntries = [];
 let lastCompletedPath = "";
 let androidReqSeq = 0;
 const androidPending = {};
@@ -170,19 +171,107 @@ themeBtn.onclick = () =>
       : "light",
   );
 
+function getSelectedPlaylistIndices() {
+  const boxes = document.querySelectorAll(".pl-item-checkbox");
+  if (!boxes.length) return [];
+  const selected = [];
+  boxes.forEach((b) => {
+    if (b.checked) selected.push(Number(b.value));
+  });
+  return selected;
+}
+
+function getPlaylistItemsParam() {
+  if (!$("allow-playlist").checked || !currentPlaylistEntries.length) return "";
+  const selected = getSelectedPlaylistIndices();
+  if (!selected.length || selected.length === currentPlaylistEntries.length) {
+    return "";
+  }
+  return selected.join(",");
+}
+
+function renderPlaylistSelector(entries) {
+  const selector = $("playlist-selector");
+  const listEl = $("playlist-items-list");
+  const scrollHint = $("playlist-scroll-hint");
+  listEl.innerHTML = "";
+  if (!isCurrentUrlPlaylist || !entries || !entries.length) {
+    selector.style.display = "none";
+    if (scrollHint) scrollHint.style.display = "none";
+    return;
+  }
+  selector.style.display = "block";
+  if (scrollHint) {
+    if (entries.length > 5) {
+      scrollHint.textContent = `↕ Scroll (${entries.length} videos)`;
+      scrollHint.style.display = "inline-block";
+    } else {
+      scrollHint.style.display = "none";
+    }
+  }
+  entries.forEach((item, i) => {
+    const idx = item.index || i + 1;
+    const row = document.createElement("label");
+    row.className = "playlist-item-row";
+
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.className = "pl-item-checkbox";
+    cb.value = String(idx);
+    cb.checked = true;
+    cb.onchange = () => {
+      const sel = getSelectedPlaylistIndices();
+      $("allow-playlist").checked = sel.length > 0;
+      updateExtraOptionsBadge();
+    };
+
+    const idxSpan = document.createElement("span");
+    idxSpan.className = "playlist-item-idx";
+    idxSpan.textContent = `#${idx}`;
+
+    const titleSpan = document.createElement("span");
+    titleSpan.className = "playlist-item-title";
+    titleSpan.textContent = item.title || `Video ${idx}`;
+
+    row.appendChild(cb);
+    row.appendChild(idxSpan);
+    row.appendChild(titleSpan);
+
+    if (item.duration) {
+      const durSpan = document.createElement("span");
+      durSpan.className = "playlist-item-dur";
+      durSpan.textContent = item.duration;
+      row.appendChild(durSpan);
+    }
+    listEl.appendChild(row);
+  });
+}
+
 // Extra Options active badge indicator & playlist badge sync
 function syncPlaylistBadgeText() {
   const badge = $("preview-playlist");
+  const selBadge = $("playlist-selector-badge");
   if (!isCurrentUrlPlaylist) {
     badge.style.display = "none";
+    if ($("playlist-selector")) $("playlist-selector").style.display = "none";
     return;
   }
-  const countStr =
-    currentPlaylistCount > 1 ? ` (${currentPlaylistCount} videos)` : "";
+  const total = currentPlaylistEntries.length || currentPlaylistCount;
+  const selected = getSelectedPlaylistIndices();
   const isAll = $("allow-playlist").checked;
-  badge.textContent = isAll
-    ? `✅ Full Playlist${countStr}`
-    : `📑 Playlist${countStr} • Single`;
+
+  if (!isAll || (currentPlaylistEntries.length > 0 && selected.length === 0)) {
+    const countStr = total > 1 ? ` (${total} videos)` : "";
+    badge.textContent = `📑 Playlist${countStr} • Single`;
+    if (selBadge) selBadge.textContent = "Single Video Only";
+  } else if (currentPlaylistEntries.length > 0 && selected.length < total) {
+    badge.textContent = `✅ ${selected.length}/${total} Videos Selected ▾`;
+    if (selBadge) selBadge.textContent = `${selected.length} of ${total} Selected ▾`;
+  } else {
+    const countStr = total > 1 ? ` (${total} videos)` : "";
+    badge.textContent = `✅ All Playlist Videos${countStr} ▾`;
+    if (selBadge) selBadge.textContent = total > 1 ? `All ${total} Selected ▾` : "All Selected ▾";
+  }
   badge.style.display = "inline-block";
 }
 
@@ -267,12 +356,42 @@ $("browse-folder-btn").onclick = async () => {
   $(id).addEventListener("change", updateExtraOptionsBadge);
 });
 
-// Interactive playlist badge toggles full playlist download
+// Interactive playlist badge & selector buttons
 $("preview-playlist").onclick = () => {
-  const cb = $("allow-playlist");
-  cb.checked = !cb.checked;
+  const selector = $("playlist-selector");
+  if (selector && selector.style.display !== "none") {
+    selector.open = !selector.open;
+  } else {
+    const cb = $("allow-playlist");
+    cb.checked = !cb.checked;
+    updateExtraOptionsBadge();
+  }
+};
+
+$("allow-playlist").addEventListener("change", () => {
+  const checked = $("allow-playlist").checked;
+  const boxes = document.querySelectorAll(".pl-item-checkbox");
+  if (boxes.length) {
+    const sel = getSelectedPlaylistIndices();
+    if (checked && sel.length === 0) {
+      boxes.forEach((b) => (b.checked = true));
+    } else if (!checked) {
+      boxes.forEach((b) => (b.checked = false));
+    }
+  }
   updateExtraOptionsBadge();
-  $("extra-options").open = true;
+});
+
+$("pl-select-all-btn").onclick = () => {
+  document.querySelectorAll(".pl-item-checkbox").forEach((b) => (b.checked = true));
+  $("allow-playlist").checked = true;
+  updateExtraOptionsBadge();
+};
+
+$("pl-clear-all-btn").onclick = () => {
+  document.querySelectorAll(".pl-item-checkbox").forEach((b) => (b.checked = false));
+  $("allow-playlist").checked = false;
+  updateExtraOptionsBadge();
 };
 
 // Hide broken thumbnail images gracefully
@@ -292,14 +411,19 @@ $("clear-url-btn").onclick = () => {
   $("url").focus();
 };
 
-// One-click Clipboard Paste button
+function extractYouTubeId(url) {
+  const m = String(url || "").match(/(?:v=|youtu\.be\/|\/shorts\/|\/live\/|\/embed\/)([A-Za-z0-9_-]{11})/);
+  return m ? m[1] : "";
+}
+
+// One-click Clipboard Paste button (triggers instant 0ms preview)
 $("paste-btn").onclick = async () => {
   try {
     const text = await navigator.clipboard.readText();
     if (text && text.trim()) {
       $("url").value = normalizeInputUrl(text.trim());
       syncClearBtn();
-      triggerPreview();
+      triggerPreview(true);
     }
   } catch {
     $("url").focus();
@@ -311,9 +435,12 @@ function hidePreview() {
   previewSeq++;
   lastPreviewUrl = "";
   $("preview-card").style.display = "none";
+  $("playlist-selector").style.display = "none";
+  $("playlist-items-list").innerHTML = "";
   currentTitleHint = "";
   currentDurationHint = 0;
   currentPlaylistCount = 0;
+  currentPlaylistEntries = [];
   isCurrentUrlPlaylist = false;
 }
 
@@ -330,9 +457,18 @@ async function fetchPreview(rawUrl) {
   currentTitleHint = "";
   currentDurationHint = 0;
   currentPlaylistCount = 0;
+  currentPlaylistEntries = [];
   isCurrentUrlPlaylist = false;
+  $("playlist-selector").style.display = "none";
+  $("playlist-items-list").innerHTML = "";
   $("preview-card").style.display = "flex";
-  $("preview-thumb").style.display = "none";
+  const ytId = extractYouTubeId(clean);
+  if (ytId) {
+    $("preview-thumb").src = `https://i.ytimg.com/vi/${ytId}/hqdefault.jpg`;
+    $("preview-thumb").style.display = "block";
+  } else {
+    $("preview-thumb").style.display = "none";
+  }
   $("preview-title").textContent = "Checking video link…";
   $("preview-uploader").textContent = "Please wait";
   $("preview-dot").style.display = "none";
@@ -350,6 +486,10 @@ async function fetchPreview(rawUrl) {
     currentDurationHint = info.duration_seconds || 0;
     isCurrentUrlPlaylist = Boolean(info.is_playlist);
     currentPlaylistCount = info.playlist_count || 0;
+    currentPlaylistEntries = Array.isArray(info.entries) ? info.entries : [];
+    // Default to downloading all playlist videos automatically when a playlist link is pasted
+    $("allow-playlist").checked = isCurrentUrlPlaylist;
+    renderPlaylistSelector(currentPlaylistEntries);
     $("preview-title").textContent = info.title || "Video ready to download";
     $("preview-uploader").textContent = info.uploader || "";
     if (info.thumbnail) {
@@ -361,7 +501,7 @@ async function fetchPreview(rawUrl) {
       $("preview-duration").textContent = info.duration;
       $("preview-duration").style.display = "inline-block";
     }
-    syncPlaylistBadgeText();
+    updateExtraOptionsBadge();
   } catch (err) {
     if (seq === previewSeq) {
       $("preview-thumb").style.display = "none";
@@ -375,21 +515,25 @@ async function fetchPreview(rawUrl) {
   }
 }
 
-function triggerPreview() {
+function triggerPreview(immediate = false) {
   syncClearBtn();
   if (previewTimer) clearTimeout(previewTimer);
-  previewTimer = setTimeout(() => fetchPreview($("url").value), 450);
+  if (immediate) {
+    fetchPreview($("url").value);
+  } else {
+    previewTimer = setTimeout(() => fetchPreview($("url").value), 180);
+  }
 }
 
-$("url").addEventListener("input", triggerPreview);
+$("url").addEventListener("input", () => triggerPreview(false));
 $("url").addEventListener("paste", () =>
   setTimeout(() => {
     const cleaned = normalizeInputUrl($("url").value);
     if (cleaned && cleaned !== $("url").value) {
       $("url").value = cleaned;
     }
-    triggerPreview();
-  }, 80),
+    triggerPreview(true);
+  }, 20),
 );
 
 // Open folder button
@@ -432,6 +576,7 @@ function addToHistory(item) {
   });
   localStorage.setItem("cliphaven_history", JSON.stringify(list.slice(0, 8)));
   renderHistory();
+  setTimeout(checkForAppUpdates, 700);
 }
 
 function renderHistory() {
@@ -615,6 +760,7 @@ $("form").onsubmit = async (e) => {
         subtitles: !isAudio && $("subtitles").checked,
         embed_thumbnail: canThumb && $("embed-thumbnail").checked,
         allow_playlist: $("allow-playlist").checked,
+        playlist_items: getPlaylistItemsParam(),
         title_hint: currentTitleHint,
         duration_hint: currentDurationHint,
       }),
@@ -628,6 +774,104 @@ $("form").onsubmit = async (e) => {
     currentJobId = null;
   }
 };
+
+
+// In-App Update Check & Self-Updater (Android Auto-Install + Desktop Modal)
+let updatePollTimer = null;
+let latestUpdateInfo = null;
+
+function showUpdateModal(info) {
+  latestUpdateInfo = info;
+  const modal = $("update-modal");
+  if (!modal) return;
+  $("update-version-line").textContent = `v${info.current_version} → v${info.latest_version}`;
+  $("update-notes-content").textContent =
+    info.release_notes || "Performance improvements and updated platform extractors.";
+  const isAndroid = Boolean(window.ClipHavenAndroid || info.is_android);
+  $("update-modal-desc").textContent = isAndroid
+    ? "Tap Update Now to download and install the update directly inside ClipHaven."
+    : "A newer version of ClipHaven is ready. Click below to view and download the update.";
+  $("update-now-btn").textContent = isAndroid ? "🚀 Update Now" : "🌐 View & Download Update";
+  $("update-now-btn").disabled = false;
+  $("update-later-btn").disabled = false;
+  $("update-progress-wrap").style.display = "none";
+  modal.style.display = "grid";
+}
+
+$("update-later-btn").onclick = () => {
+  if (updatePollTimer) {
+    clearInterval(updatePollTimer);
+    updatePollTimer = null;
+  }
+  $("update-modal").style.display = "none";
+};
+
+$("update-now-btn").onclick = async () => {
+  if (!latestUpdateInfo) return;
+  const isAndroid = Boolean(window.ClipHavenAndroid || latestUpdateInfo.is_android);
+  if (!isAndroid) {
+    window.open(
+      latestUpdateInfo.release_url || "https://github.com/AsadullahAlMunib/ClipHaven/releases/latest",
+      "_blank",
+      "noopener,noreferrer",
+    );
+    $("update-modal").style.display = "none";
+    return;
+  }
+
+  const nowBtn = $("update-now-btn");
+  const laterBtn = $("update-later-btn");
+  nowBtn.disabled = true;
+  nowBtn.textContent = "Downloading…";
+  $("update-progress-wrap").style.display = "block";
+  $("update-progress-bar").value = 0;
+  $("update-progress-text").textContent = "Starting background update download…";
+
+  try {
+    await api("/api/self-update", {
+      method: "POST",
+      body: JSON.stringify({ apk_url: latestUpdateInfo.apk_url || "" }),
+    });
+    if (updatePollTimer) clearInterval(updatePollTimer);
+    updatePollTimer = setInterval(async () => {
+      try {
+        const st = await api("/api/self-update-status");
+        $("update-progress-bar").value = Math.max(0, Math.min(100, st.percent || 0));
+        $("update-progress-text").textContent = st.detail || "Downloading update…";
+        if (st.state === "Complete") {
+          clearInterval(updatePollTimer);
+          updatePollTimer = null;
+          nowBtn.disabled = false;
+          nowBtn.textContent = "✅ Install Update";
+          laterBtn.disabled = false;
+        } else if (st.state === "Error") {
+          clearInterval(updatePollTimer);
+          updatePollTimer = null;
+          nowBtn.disabled = false;
+          nowBtn.textContent = "🔄 Retry Update";
+          laterBtn.disabled = false;
+        }
+      } catch {
+        // Ignore transient poll errors
+      }
+    }, 500);
+  } catch (err) {
+    $("update-progress-text").textContent = err.message || "Update failed.";
+    nowBtn.disabled = false;
+    nowBtn.textContent = "🔄 Retry Update";
+  }
+};
+
+async function checkForAppUpdates() {
+  try {
+    const info = await api("/api/check-update");
+    if (info && info.update_available) {
+      showUpdateModal(info);
+    }
+  } catch {
+    // Silent failover if offline or GitHub API unreachable
+  }
+}
 
 // Startup initialization: load config, FFmpeg check, folder memory, and active job recovery
 (async function init() {
