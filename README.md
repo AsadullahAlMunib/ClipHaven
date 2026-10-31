@@ -27,7 +27,7 @@ ClipHaven is a modern, high-speed, 100% local video and audio downloader develop
 - **🎵 Audio Formats:** MP3, M4A, WAV
 - **💻📱 Supported OS:** Windows, macOS, Linux (x64 & ARM64), Android (64-bit & 32-bit)
 - **✂️ Video Clip Cutter:** Cut specific video/audio sections (Start Time – End Time) with `-preset ultrafast`
-- **💬 Multi-Language Subtitles (CC):** Original native spoken language captions (`*-orig`, YouTube-style CC) & manual captions (Bangla, English, etc.), synced with trimmed clips
+- **💬 Multi-Language Subtitles (CC):** Original native spoken language captions (`.*-orig`, YouTube-style CC) & manual captions (Bangla, English, etc.), synced with trimmed clips
 - **🖼️ Cover Art Embedding:** Permanent video thumbnail embedding (MP4, MKV, MP3, M4A)
 - **📑 Playlist Downloader:** Auto-default full playlist mode, interactive 5-item scrollable video selector dropdown (`--playlist-items`), and live playlist counter
 - **🔍 Instant Link Preview:** Sub-second metadata loading via lightweight `oEmbed` (~0.2s) & instant client-side thumbnail rendering on paste
@@ -95,7 +95,7 @@ Cleanly extracts video and audio from popular media platforms:
 * **📁 Native Folder Picker (`Browse`):** Pick your download folder using your OS's native folder selection dialog or type any path directly.
 * **✂️ Video Trimming & Clip Cutter with Live Progress:** Download specific time ranges (`Start Time` to `End Time` in `MM:SS` or `HH:MM:SS`) with real-time FFmpeg percentage (`%`), encoding speed, and remaining `ETA`.
 * **📑 Playlist Downloads:** Download entire video playlists in batch with visual badge (`📑 3/15 • 2 done • 12 left`) showing which playlist video is downloading, how many are finished, and how many remain.
-* **💬 Multi-Language Subtitles (CC):** Automatically detects and embeds the video's exact original spoken language caption (`*-orig`, just like YouTube's CC button) alongside manual Bangla (`bn`) and English (`en`) subtitles while skipping robotic auto-translations (`skip=translated_subs`).
+* **💬 Multi-Language Subtitles (CC):** Automatically detects and embeds the video's exact original spoken language caption (`.*-orig`, just like YouTube's CC button) alongside manual Bangla (`bn`) and English (`en`) subtitles while skipping robotic auto-translations (`skip=translated_subs`).
 * **🖼️ Embed Cover Art / Thumbnail:** Embeds video thumbnails as permanent cover art into `MP4`, `MKV`, `MP3`, and `M4A` files.
 * **⚡ Multiple Formats & 4K Quality:**
   * **Video Formats:** `MP4` *(Recommended)*, `MKV`, `WEBM`
