@@ -21,7 +21,7 @@ ClipHaven is a modern, high-speed, 100% local video and audio downloader develop
 <summary align="center"><h3>✨ Click here to view all ClipHaven features at a glance (Dropdown)</h3></summary>
 <br />
 
-- **🌐 Supported Platforms:** YouTube, Meta (Facebook, Instagram, Threads), LinkedIn, TikTok, X / Twitter, Reddit, Vimeo, Dailymotion, Twitch, Pinterest, SoundCloud
+- **🌐 Supported Platforms:** YouTube, Meta (Facebook, Instagram, Threads), LinkedIn (`linkedin.com` & `lnkd.in`), TikTok, X / Twitter, Reddit, Vimeo, Dailymotion, Twitch, Pinterest, SoundCloud
 - **🎯 Video Resolutions:** Best Available, 2160p (4K), 1440p (2K), 1080p (Full HD), 720p (HD), 480p, 360p
 - **🎬 Video Formats:** MP4, MKV, WEBM
 - **🎵 Audio Formats:** MP3, M4A, WAV

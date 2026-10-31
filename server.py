@@ -648,7 +648,7 @@ def fetch_video_info(url: str) -> dict:
             "playlistend": 100,
             "socket_timeout": 10,
             "source_address": "0.0.0.0",
-            "extractor_args": {"youtube": {"player_client": ["ios", "web"], "player_skip": ["webpage", "configs"]}},
+            "extractor_args": {"youtube": {"player_client": ["android", "web", "default"], "player_skip": ["configs"]}},
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             data = ydl.extract_info(clean_url, download=False)
@@ -664,7 +664,7 @@ def fetch_video_info(url: str) -> dict:
             "10",
             *playlist_flags,
             "--extractor-args",
-            "youtube:player_client=ios,web;player_skip=webpage,configs",
+            "youtube:player_client=android,web,default;player_skip=configs",
             "--no-warnings",
             "--",
             clean_url,
@@ -781,7 +781,7 @@ def download(
             "--no-mtime",
             "--windows-filenames",
             "--extractor-args",
-            "youtube:player_client=ios,web,mweb;skip=translated_subs",
+            "youtube:player_client=android,web,default;skip=translated_subs",
         ]
         if allow_playlist:
             cmd.append("--ignore-errors")

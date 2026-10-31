@@ -3,10 +3,11 @@
 All notable changes to **ClipHaven** are documented in this file.
 
 
-## [[3.2.0](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.2.0)] - 2026-10-31
+## [[3.2.0](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.2.0)] - 2026-10-30
 
 ### Added & Improved
 - **In-App Update Checker & Android Auto-Updater (`FileProvider` + Release Notes Modal)**: Automatically checks GitHub Releases on startup (with 4-hour caching to prevent rate limits), displays an interactive update popup with expandable release notes, and on Android downloads the architecture-matched `.apk` in the background and launches the native package installer directly.
+- **YouTube SABR & GVS PO Token Bypass (`player_client=android,web,default`)**: Switched primary extraction client to Android (`android,web,default`), completely bypassing YouTube's experimental SABR stream blocks on iOS and GVS PO Token requirements on mweb.
 - **Direct Device Folder Picker on Android**: Eliminated confusing intermediate selection dialogs—tapping `📁 Browse` now directly opens the native device folder picker (SAF), grants persistent tree permissions, supports SD cards, and seamlessly writes to any chosen directory via DocumentsContract.
 - **Android Package Identifier Renamed**: Updated package name and application ID to `com.asadullahalmunib.cliphaven` across Gradle build configurations, manifest, ProGuard rules, action intents, and directory structure.
 - **Auto-Default Playlist Download & Interactive Video Selector Dropdown (`--playlist-items`)**: Automatically enables full playlist download when a playlist link is pasted and displays a collapsible dropdown listing all videos in the playlist with checkboxes (`✅ Select All` / `🎬 Single Video Only` / custom video selection).
