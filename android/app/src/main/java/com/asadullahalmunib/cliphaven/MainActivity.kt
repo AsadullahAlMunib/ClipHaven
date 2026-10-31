@@ -1458,11 +1458,13 @@ class MainActivity : AppCompatActivity() {
                         addOption("--playlist-items", playlistItems)
                     }
                 }
-                if (useFallbackClient) {
-                    addOption("--extractor-args", "youtube:player_client=android,default;skip=translated_subs")
-                } else {
-                    addOption("--extractor-args", "youtube:player_client=android,web,default;skip=translated_subs")
+                val ytClients = when {
+                    isClipJob && !useFallbackClient -> "youtube:player_client=ios,web_safari,android,web,default;skip=translated_subs"
+                    isClipJob && useFallbackClient -> "youtube:player_client=web_safari,android,default;skip=translated_subs"
+                    useFallbackClient -> "youtube:player_client=android,default;skip=translated_subs"
+                    else -> "youtube:player_client=android,web,default;skip=translated_subs"
                 }
+                addOption("--extractor-args", ytClients)
                 addOption("--force-ipv4")
                 addOption("--concurrent-fragments", "4")
                 addOption("--newline")
@@ -1475,18 +1477,18 @@ class MainActivity : AppCompatActivity() {
                 addOption("--file-access-retries", "5")
                 addOption("--socket-timeout", "20")
                 if (fmt in setOf("mp3", "m4a", "wav")) {
+                    if (isClipJob) {
+                        addOption("--format", "ba[protocol^=m3u8]/ba/b")
+                    }
                     addOption("-x")
                     addOption("--audio-format", fmt)
                     addOption("--audio-quality", "0")
                 } else {
-                    val fExpr = if (fmt == "mp4") {
-                        if (quality == "best") {
-                            "bv*[ext=mp4]+ba[ext=m4a]/bv*+ba/b[ext=mp4]/b"
-                        } else {
-                            "bv*[ext=mp4][height<=$quality]+ba[ext=m4a]/bv*[height<=$quality]+ba/b[height<=$quality]/b"
-                        }
-                    } else {
-                        if (quality == "best") "bv*+ba/b" else "bv*[height<=$quality]+ba/b[height<=$quality]/b"
+                    val hFilter = if (quality == "best") "" else "[height<=$quality]"
+                    val fExpr = when {
+                        isClipJob -> "bv*${hFilter}[protocol^=m3u8]+ba[protocol^=m3u8]/b${hFilter}[protocol^=m3u8]/bv*${hFilter}[ext=mp4]+ba[ext=m4a]/bv*${hFilter}+ba/b${hFilter}"
+                        fmt == "mp4" -> "bv*${hFilter}[ext=mp4]+ba[ext=m4a]/bv*${hFilter}+ba/b${hFilter}[ext=mp4]/b"
+                        else -> "bv*${hFilter}+ba/b${hFilter}/b"
                     }
                     addOption("--format", fExpr)
                     addOption("--merge-output-format", fmt)
@@ -1494,21 +1496,20 @@ class MainActivity : AppCompatActivity() {
                 var clipSuffix = ""
                 if (isClipJob) {
                     val endPart = eSec?.toString() ?: "inf"
-                    val ffArgs = if (fmt in setOf("mp4", "mkv", "webm")) {
-                        "ffmpeg:-preset ultrafast -stats -v warning"
-                    } else {
-                        "ffmpeg:-stats -v warning"
-                    }
+                    // Prefer HLS (m3u8) streams during clip cutting (-S proto:m3u8) to bypass YouTube's ~32 KiB/s
+                    // throttling on open-ended FFmpeg HTTPS range requests (yt-dlp issue #17612).
+                    addOption("-S", "proto:m3u8")
                     addOption("--download-sections", "*${sSec ?: 0}-$endPart")
-                    addOption("--force-keyframes-at-cuts")
                     addOption("--no-embed-chapters")
-                    addOption("--downloader-args", ffArgs)
+                    addOption("--downloader-args", "ffmpeg:-stats -v warning")
                     clipSuffix = " [clip ${(startTime.ifEmpty { "0" }).replace(":", "-")}_to_${(endTime.ifEmpty { "end" }).replace(":", "-")}]"
                 }
                 if (subtitles && fmt in setOf("mp4", "mkv", "webm")) {
+                    val isYt = url.lowercase().let { it.contains("youtube.com") || it.contains("youtu.be") || it.contains("youtube-nocookie.com") }
                     addOption("--write-subs")
                     addOption("--write-auto-subs")
-                    addOption("--sub-langs", ".*-orig,bn,en")
+                    addOption("--sub-format", "srt/vtt/best")
+                    addOption("--sub-langs", if (isYt) ".*-orig" else ".*-orig,bn.*,en.*")
                     addOption("--compat-options", "no-keep-subs")
                     addOption("--ignore-errors")
                     if (fmt in setOf("mp4", "mkv")) {
@@ -1717,6 +1718,13 @@ class MainActivity : AppCompatActivity() {
                         }
 
                         when {
+                            cleanLine.contains("Downloading 1 time ranges") || (destMatch != null && mediaPhaseStarted) -> {
+                                if (!updates.containsKey("percent")) {
+                                    updates["title"] = if (isClipJob) "Cutting & downloading clip…" else "Downloading media stream…"
+                                    updates["stage"] = if (isClipJob) "Cutting clip" else "Downloading"
+                                    updates["indeterminate"] = isClipJob
+                                }
+                            }
                             cleanLine.contains("Merging formats") || cleanLine.contains("[Merger]") -> {
                                 updates["title"] = "Merging video & audio (almost done)…"
                                 updates["stage"] = "Merging"
@@ -1727,12 +1735,22 @@ class MainActivity : AppCompatActivity() {
                                 updates["stage"] = "Converting audio"
                                 updates["indeterminate"] = true
                             }
-                            cleanLine.contains("Writing video subtitles") || cleanLine.contains("[SubtitlesConvertor]") || cleanLine.contains("[EmbedSubtitle]") -> {
-                                updates["title"] = "Processing & embedding subtitles (CC)…"
+                            cleanLine.contains("Writing video subtitles") || cleanLine.contains("[SubtitlesConvertor]") -> {
+                                updates["title"] = "Preparing subtitles (CC)…"
                                 updates["stage"] = "Subtitles (CC)"
                                 updates["indeterminate"] = true
                             }
-                            cleanLine.contains("Downloading video thumbnail") || cleanLine.contains("[ThumbnailsConvertor]") || cleanLine.contains("[EmbedThumbnail]") -> {
+                            cleanLine.contains("[EmbedSubtitle]") -> {
+                                updates["title"] = "Embedding subtitles (CC)…"
+                                updates["stage"] = "Subtitles (CC)"
+                                updates["indeterminate"] = true
+                            }
+                            cleanLine.contains("Downloading video thumbnail") || cleanLine.contains("[ThumbnailsConvertor]") -> {
+                                updates["title"] = "Preparing cover art…"
+                                updates["stage"] = "Cover art"
+                                updates["indeterminate"] = true
+                            }
+                            cleanLine.contains("[EmbedThumbnail]") -> {
                                 updates["title"] = "Embedding cover art / thumbnail…"
                                 updates["stage"] = "Embedding cover"
                                 updates["indeterminate"] = true
