@@ -18,6 +18,10 @@ def test_extract_and_valid_url():
     assert server.valid_url("https://www.instagram.com/reel/abc123/")
     assert server.valid_url("https://www.threads.net/@user/post/abc123")
     assert server.valid_url("https://www.threads.com/@user/post/abc123")
+    assert server.valid_url("https://www.linkedin.com/posts/user_activity-123456789-abcd")
+    assert server.valid_url("https://www.linkedin.com/feed/update/urn:li:activity:123456789/")
+    assert server.valid_url("https://lnkd.in/dXYZ123")
+    assert server.valid_url("linkedin.com/posts/user_activity-123456789-abcd")
     assert server.valid_url("https://www.tiktok.com/@user/video/123456")
     assert server.valid_url("https://x.com/user/status/123456")
     assert server.valid_url("https://t.co/xyz123")
@@ -29,6 +33,9 @@ def test_extract_and_valid_url():
     assert not server.valid_url("https://example.com/x")
     assert server.extract_url("Watch now https://youtu.be/abc123.") == "https://youtu.be/abc123"
     assert server.extract_url("youtube.com/watch?v=abc123") == "https://youtube.com/watch?v=abc123"
+    assert server._extract_yt_id("https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PL123") == "dQw4w9WgXcQ"
+    assert server._extract_yt_id("https://youtu.be/dQw4w9WgXcQ") == "dQw4w9WgXcQ"
+    assert server._extract_yt_id("https://www.youtube.com/shorts/dQw4w9WgXcQ") == "dQw4w9WgXcQ"
 
 
 def test_validate_folder(tmp_path):
@@ -49,6 +56,12 @@ def test_parse_timestamp():
     assert server.parse_timestamp("01:75") is None
     assert server.parse_timestamp("invalid") is None
     assert server.parse_timestamp("") is None
+    assert server.validate_playlist_items("") == ""
+    assert server.validate_playlist_items("1, 3, 5-8") == "1,3,5-8"
+    assert server.validate_playlist_items("1;rm -rf") is None
+    assert server.is_newer_version("3.3.0", "3.2.0") is True
+    assert server.is_newer_version("3.2.0", "3.2.0") is False
+    assert server.is_newer_version("3.1.9", "3.2.0") is False
 
 
 def test_trim_and_shift_subtitle_text_and_file(tmp_path):
@@ -136,7 +149,7 @@ def test_config_logo_and_validation_endpoints(tmp_path):
             assert resp.status == 200
             data = json.loads(resp.read().decode("utf-8"))
             assert data["ok"] is True
-            assert data["version"] == "3.1.2"
+            assert data["version"] == "3.2.0"
             assert "default_folder" in data
             assert "ffmpeg" in data
 
