@@ -237,19 +237,30 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun extractCleanErrorMessage(raw: String?): String {
+        if (raw.isNullOrBlank()) return "Download failed."
+        val lines = raw.lines().map { it.trim() }.filter { it.isNotEmpty() }
+        val errLine = lines.lastOrNull { it.contains("ERROR:", ignoreCase = true) }
+            ?: lines.lastOrNull { !it.startsWith("WARNING:", ignoreCase = true) }
+            ?: lines.lastOrNull()
+            ?: "Download failed."
+        return errLine.replace(Regex("""^ERROR:\s*""", RegexOption.IGNORE_CASE), "").trim().take(500)
+    }
+
     private fun isYouTubeClientBlockError(msg: String?): Boolean {
         if (msg.isNullOrBlank()) return false
-        val m = msg.lowercase()
-        return m.contains("precondition check failed") ||
-            m.contains("please sign in") ||
-            m.contains("sign in to confirm") ||
-            m.contains("http error 400") ||
-            m.contains("http error 403") ||
-            m.contains("nsig extraction failed") ||
-            m.contains("sabr") ||
-            m.contains("gvs po token") ||
-            m.contains("missing a url") ||
-            m.contains("requested format is not available")
+        val errOnly = msg.lines()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() && !it.startsWith("WARNING:", ignoreCase = true) }
+            .joinToString("\n")
+            .lowercase()
+        return errOnly.contains("precondition check failed") ||
+            errOnly.contains("please sign in") ||
+            errOnly.contains("sign in to confirm") ||
+            errOnly.contains("http error 400") ||
+            errOnly.contains("http error 403") ||
+            errOnly.contains("nsig extraction failed") ||
+            errOnly.contains("requested format is not available")
     }
 
     private fun ensureEnginesInitialized() {
@@ -1418,7 +1429,7 @@ class MainActivity : AppCompatActivity() {
                     else -> JSONObject().put("ok", false).put("error", "Not found.").toString()
                 }
             } catch (t: Throwable) {
-                JSONObject().put("ok", false).put("error", t.message ?: "Request failed").toString()
+                JSONObject().put("ok", false).put("error", extractCleanErrorMessage(t.message)).toString()
             }
         }
 
@@ -1484,7 +1495,7 @@ class MainActivity : AppCompatActivity() {
                 if (isClipJob) {
                     val endPart = eSec?.toString() ?: "inf"
                     val ffArgs = if (fmt in setOf("mp4", "mkv", "webm")) {
-                        "ffmpeg_o:-preset ultrafast;ffmpeg:-stats -v warning"
+                        "ffmpeg:-preset ultrafast -stats -v warning"
                     } else {
                         "ffmpeg:-stats -v warning"
                     }
@@ -1611,7 +1622,7 @@ class MainActivity : AppCompatActivity() {
                         while (subWatcherRunning.get()) {
                             try {
                                 trySyncSubs()
-                                Thread.sleep(400)
+                                Thread.sleep(150)
                             } catch (_: Throwable) {
                                 break
                             }
@@ -1666,8 +1677,6 @@ class MainActivity : AppCompatActivity() {
                         if (
                             ffMatch != null ||
                             elapsedMatch != null ||
-                            cleanLine.contains("Input #0,") ||
-                            cleanLine.contains("Output #0,") ||
                             cleanLine.contains("Downloading 1 time ranges") ||
                             cleanLine.contains("[Merger]") ||
                             cleanLine.contains("Merging formats") ||
@@ -1822,7 +1831,7 @@ class MainActivity : AppCompatActivity() {
                                 mapOf(
                                     "state" to "Error",
                                     "title" to "Download failed",
-                                    "detail" to (t.message ?: "Download failed").take(500),
+                                    "detail" to extractCleanErrorMessage(t.message),
                                     "percent" to 0,
                                     "stage" to "Error",
                                     "indeterminate" to false,
