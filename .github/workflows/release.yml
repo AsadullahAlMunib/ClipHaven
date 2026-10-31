@@ -7,8 +7,8 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: "Release tag (e.g. v3.1.2) - leave blank if just testing build."
-        required: false
+        description: "Release tag (e.g. v3.2.0) - leave blank if just testing build."
+        required: true
         default: ""
 
 permissions:
