@@ -781,7 +781,11 @@ def download(
             "--no-mtime",
             "--windows-filenames",
             "--extractor-args",
-            "youtube:player_client=android,web,default;skip=translated_subs",
+            (
+                "youtube:player_client=ios,web_safari,android,web,default;skip=translated_subs"
+                if bool((parse_timestamp(start_time) if start_time else 0) or (parse_timestamp(end_time) if end_time else None))
+                else "youtube:player_client=android,web,default;skip=translated_subs"
+            ),
         ]
         if allow_playlist:
             cmd.append("--ignore-errors")
@@ -789,23 +793,6 @@ def download(
                 cmd.extend(["--playlist-items", playlist_items])
         if ffmpeg_bin:
             cmd.extend(["--ffmpeg-location", ffmpeg_bin])
-
-        if fmt_choice in {"mp3", "m4a", "wav"}:
-            if not has_ffmpeg and fmt_choice in {"mp3", "wav"}:
-                raise RuntimeError(f"FFmpeg is required to convert audio to {fmt_choice.upper()}. Run setup-and-run.bat or choose M4A / MP4.")
-            cmd.extend(["-x", "--audio-format", fmt_choice, "--audio-quality", "0"])
-        elif has_ffmpeg:
-            if fmt_choice == "mp4":
-                fmt = (
-                    "bv*[ext=mp4]+ba[ext=m4a]/bv*+ba/b[ext=mp4]/b"
-                    if quality == "best"
-                    else f"bv*[ext=mp4][height<={quality}]+ba[ext=m4a]/bv*[height<={quality}]+ba/b[height<={quality}]/b"
-                )
-            else:
-                fmt = "bv*+ba/b" if quality == "best" else f"bv*[height<={quality}]+ba/b[height<={quality}]/b"
-            cmd.extend(["--format", fmt, "--merge-output-format", fmt_choice])
-        else:
-            cmd.extend(["--format", "b" if quality == "best" else f"b[height<={quality}]/b"])
 
         clip_suffix = ""
         clip_duration = 0
@@ -815,6 +802,26 @@ def download(
             raise ValueError("Invalid clip time range. Use MM:SS or HH:MM:SS.")
 
         is_clip_job = bool((s_sec and s_sec > 0) or e_sec is not None)
+
+        if fmt_choice in {"mp3", "m4a", "wav"}:
+            if not has_ffmpeg and fmt_choice in {"mp3", "wav"}:
+                raise RuntimeError(f"FFmpeg is required to convert audio to {fmt_choice.upper()}. Run setup-and-run.bat or choose M4A / MP4.")
+            if is_clip_job:
+                cmd.extend(["--format", "ba[protocol^=m3u8]/ba/b"])
+            cmd.extend(["-x", "--audio-format", fmt_choice, "--audio-quality", "0"])
+        elif has_ffmpeg:
+            h_filter = "" if quality == "best" else f"[height<={quality}]"
+            if is_clip_job:
+                # YouTube m3u8 audio formats (233/234) have ext=mp4 rather than ext=m4a; matching protocol^=m3u8
+                # first ensures both video and audio streams avoid YouTube's 32 KiB/s HTTPS FFmpeg throttle.
+                fmt = f"bv*{h_filter}[protocol^=m3u8]+ba[protocol^=m3u8]/b{h_filter}[protocol^=m3u8]/bv*{h_filter}[ext=mp4]+ba[ext=m4a]/bv*{h_filter}+ba/b{h_filter}"
+            elif fmt_choice == "mp4":
+                fmt = f"bv*{h_filter}[ext=mp4]+ba[ext=m4a]/bv*{h_filter}+ba/b{h_filter}[ext=mp4]/b"
+            else:
+                fmt = f"bv*{h_filter}+ba/b{h_filter}/b"
+            cmd.extend(["--format", fmt, "--merge-output-format", fmt_choice])
+        else:
+            cmd.extend(["--format", "b" if quality == "best" else f"b[height<={quality}]/b"])
         if is_clip_job:
             if not has_ffmpeg:
                 raise RuntimeError("FFmpeg is required for cutting/trimming video clips.")
@@ -822,26 +829,32 @@ def download(
                 clip_duration = max(1, e_sec - (s_sec or 0))
             elif duration_hint and duration_hint > (s_sec or 0):
                 clip_duration = max(1, int(duration_hint) - (s_sec or 0))
-            ff_dl_args = "ffmpeg:-preset ultrafast -stats -v warning" if fmt_choice in {"mp4", "mkv", "webm"} else "ffmpeg:-stats -v warning"
+            # Prefer HLS (m3u8) streams during clip cutting (-S proto:m3u8) to bypass YouTube's ~32 KiB/s
+            # throttling on open-ended FFmpeg HTTPS range requests (see yt-dlp issue #17612).
             cmd.extend([
+                "-S",
+                "proto:m3u8",
                 "--download-sections",
                 f"*{s_sec or 0}-{e_sec if e_sec is not None else 'inf'}",
-                "--force-keyframes-at-cuts",
                 "--no-embed-chapters",
                 "--downloader-args",
-                ff_dl_args,
+                "ffmpeg:-stats -v warning",
             ])
             clip_suffix = f" [clip {(start_time or '0').replace(':', '-')}_to_{(end_time or 'end').replace(':', '-')}]"
 
         expect_srt_subs = bool(subtitles and has_ffmpeg and fmt_choice in {"mp4", "mkv"})
         if subtitles and fmt_choice in {"mp4", "mkv", "webm"}:
-            # Download the video's exact original spoken language caption (.*-orig) plus manual BN/EN captions while skipping
-            # machine-translated tracks (skip=translated_subs), matching YouTube's native CC button behavior for any language.
+            # On YouTube, every original auto-caption track has a <lang>-orig key AND a duplicate <lang> alias.
+            # Using ".*-orig" on YouTube downloads only 1 track (cutting CC download & FFmpeg conversion time in half).
+            is_yt = any(d in clean_url.lower() for d in ("youtube.com", "youtu.be", "youtube-nocookie.com"))
+            sub_langs_expr = ".*-orig" if is_yt else ".*-orig,bn.*,en.*"
             cmd.extend([
                 "--write-subs",
                 "--write-auto-subs",
+                "--sub-format",
+                "srt/vtt/best",
                 "--sub-langs",
-                ".*-orig,bn,en",
+                sub_langs_expr,
                 "--compat-options",
                 "no-keep-subs",
                 "--ignore-errors",
@@ -1057,13 +1070,24 @@ def download(
                         title=f"Cutting clip ({format_seconds(int(cur_sec))} processed)…",
                     )
 
-            if "Merging formats" in line or "[Merger]" in line:
+            if "Downloading 1 time ranges" in line or (
+                "[download] Destination:" in line and saved_file and saved_file in line
+            ):
+                if is_clip_job and "percent" not in kw:
+                    kw.update(title="Cutting & downloading clip…", stage="Cutting clip", indeterminate=True)
+                elif not is_clip_job and "percent" not in kw:
+                    kw.update(title="Downloading media stream…", stage="Downloading", indeterminate=True)
+            elif "Merging formats" in line or "[Merger]" in line:
                 kw.update(title="Merging video & audio (almost done)…", stage="Merging", speed="", eta="", indeterminate=True)
             elif "[ExtractAudio]" in line:
                 kw.update(title="Converting audio format…", stage="Converting audio", speed="", eta="", indeterminate=True)
-            elif "Writing video subtitles" in line or "[SubtitlesConvertor]" in line or "[EmbedSubtitle]" in line:
-                kw.update(title="Processing & embedding subtitles (CC)…", stage="Subtitles (CC)", speed="", eta="", indeterminate=True)
-            elif "Downloading video thumbnail" in line or "[ThumbnailsConvertor]" in line or "[EmbedThumbnail]" in line:
+            elif "Writing video subtitles" in line or "[SubtitlesConvertor]" in line:
+                kw.update(title="Preparing subtitles (CC)…", stage="Subtitles (CC)", speed="", eta="", indeterminate=True)
+            elif "[EmbedSubtitle]" in line:
+                kw.update(title="Embedding subtitles (CC)…", stage="Subtitles (CC)", speed="", eta="", indeterminate=True)
+            elif "Downloading video thumbnail" in line or "[ThumbnailsConvertor]" in line:
+                kw.update(title="Preparing cover art…", stage="Cover art", speed="", eta="", indeterminate=True)
+            elif "[EmbedThumbnail]" in line:
                 kw.update(title="Embedding cover art / thumbnail…", stage="Embedding cover", speed="", eta="", indeterminate=True)
 
             if saved_file:
