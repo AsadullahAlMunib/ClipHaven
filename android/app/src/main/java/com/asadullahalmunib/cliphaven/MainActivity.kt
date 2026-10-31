@@ -245,7 +245,11 @@ class MainActivity : AppCompatActivity() {
             m.contains("sign in to confirm") ||
             m.contains("http error 400") ||
             m.contains("http error 403") ||
-            m.contains("nsig extraction failed")
+            m.contains("nsig extraction failed") ||
+            m.contains("sabr") ||
+            m.contains("gvs po token") ||
+            m.contains("missing a url") ||
+            m.contains("requested format is not available")
     }
 
     private fun ensureEnginesInitialized() {
@@ -1138,9 +1142,9 @@ class MainActivity : AppCompatActivity() {
                 addOption("--no-playlist")
             }
             if (useFallbackClient) {
-                addOption("--extractor-args", "youtube:player_client=ios,web,mweb")
+                addOption("--extractor-args", "youtube:player_client=android,default")
             } else {
-                addOption("--extractor-args", "youtube:player_client=ios,web;player_skip=webpage,configs")
+                addOption("--extractor-args", "youtube:player_client=android,web,default;player_skip=configs")
             }
             addOption("--no-check-certificates")
             addOption("--no-warnings")
@@ -1444,9 +1448,9 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 if (useFallbackClient) {
-                    addOption("--extractor-args", "youtube:player_client=default,ios,mweb;skip=translated_subs")
+                    addOption("--extractor-args", "youtube:player_client=android,default;skip=translated_subs")
                 } else {
-                    addOption("--extractor-args", "youtube:player_client=ios,web,mweb;skip=translated_subs")
+                    addOption("--extractor-args", "youtube:player_client=android,web,default;skip=translated_subs")
                 }
                 addOption("--force-ipv4")
                 addOption("--concurrent-fragments", "4")
