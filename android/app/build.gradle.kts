@@ -4,15 +4,15 @@ plugins {
 }
 
 android {
-    namespace = "com.asadullah.cliphaven"
+    namespace = "com.asadullahalmunib.cliphaven"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.asadullah.cliphaven"
+        applicationId = "com.asadullahalmunib.cliphaven"
         minSdk = 24
         targetSdk = 34
-        versionCode = 312
-        versionName = "3.1.2"
+        versionCode = 320
+        versionName = "3.2.0"
     }
 
     splits {

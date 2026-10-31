@@ -3,8 +3,8 @@
 -keepattributes *Annotation*
 -keepattributes Signature, InnerClasses, EnclosingMethod
 
--keep class com.asadullah.cliphaven.** { *; }
--keepclassmembers class com.asadullah.cliphaven.MainActivity$ClipHavenBridge {
+-keep class com.asadullahalmunib.cliphaven.** { *; }
+-keepclassmembers class com.asadullahalmunib.cliphaven.MainActivity$ClipHavenBridge {
     @android.webkit.JavascriptInterface <methods>;
     public *;
 }
