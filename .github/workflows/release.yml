@@ -8,7 +8,7 @@ on:
     inputs:
       tag_name:
         description: "Release tag (e.g. v3.2.0) - leave blank if just testing build."
-        required: true
+        required: false
         default: ""
 
 permissions:
