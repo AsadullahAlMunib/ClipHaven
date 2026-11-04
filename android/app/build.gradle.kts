@@ -11,8 +11,8 @@ android {
         applicationId = "com.asadullahalmunib.cliphaven"
         minSdk = 24
         targetSdk = 34
-        versionCode = 320
-        versionName = "3.2.0"
+        versionCode = 321
+        versionName = "3.2.1"
     }
 
     splits {
@@ -26,12 +26,15 @@ android {
 
     signingConfigs {
         create("releaseKey") {
-            val ksFile = file(System.getenv("CLIPHAVEN_KEYSTORE_FILE") ?: "cliphaven-release.jks")
-            if (ksFile.exists()) {
-                storeFile = ksFile
-                storePassword = System.getenv("CLIPHAVEN_KEYSTORE_PASSWORD") ?: "cliphaven2026"
-                keyAlias = System.getenv("CLIPHAVEN_KEY_ALIAS") ?: "cliphaven"
-                keyPassword = System.getenv("CLIPHAVEN_KEY_PASSWORD") ?: "cliphaven2026"
+            val ksPath = System.getenv("CLIPHAVEN_KEYSTORE_FILE")
+            val ksPass = System.getenv("CLIPHAVEN_KEYSTORE_PASSWORD")
+            val kAlias = System.getenv("CLIPHAVEN_KEY_ALIAS")
+            val kPass = System.getenv("CLIPHAVEN_KEY_PASSWORD")
+            if (!ksPath.isNullOrBlank() && file(ksPath).exists() && !ksPass.isNullOrBlank() && !kAlias.isNullOrBlank() && !kPass.isNullOrBlank()) {
+                storeFile = file(ksPath)
+                storePassword = ksPass
+                keyAlias = kAlias
+                keyPassword = kPass
                 enableV1Signing = true
                 enableV2Signing = true
             }
