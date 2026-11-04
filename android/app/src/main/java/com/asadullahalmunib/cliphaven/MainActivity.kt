@@ -54,9 +54,9 @@ class MainActivity : AppCompatActivity() {
         private const val REQ_STORAGE_PERMISSION = 1001
         private const val REQ_OPEN_DOCUMENT_TREE = 1002
         private const val MAX_JOBS = 40
-        private const val APP_VERSION = "3.2.0"
+        private const val APP_VERSION = "3.2.1"
         private const val PREFS_NAME = "cliphaven_engine_prefs"
-        private const val KEY_YTDLP_UPDATED_AT = "ytdlp_updated_at_v320"
+        private const val KEY_YTDLP_UPDATED_AT = "ytdlp_updated_at_v321"
         private const val KEY_REL_CHECKED_AT = "github_rel_checked_at"
         private const val KEY_REL_CACHED_JSON = "github_rel_cached_json"
         private const val UPDATE_INTERVAL_MS = 12L * 3600L * 1000L
@@ -123,9 +123,39 @@ class MainActivity : AppCompatActivity() {
             filesDir
         }
 
+    private fun cancelDownloadJob(id: String) {
+        if (id.isBlank()) return
+        updateJob(
+            id,
+            mapOf(
+                "state" to "Cancelled",
+                "title" to "Download cancelled",
+                "detail" to "Download cancelled and temporary files cleaned up.",
+                "stage" to "Cancelled",
+                "percent" to 0,
+                "indeterminate" to false,
+                "speed" to "",
+                "eta" to ""
+            )
+        )
+        try {
+            YoutubeDL.getInstance().destroyProcessById(id)
+        } catch (_: Throwable) {
+        }
+        val hasActive = synchronized(jobsLock) {
+            jobs.values.any { it.optString("state") in setOf("Downloading", "Queued") }
+        }
+        if (!hasActive) {
+            DownloadForegroundService.stop(applicationContext)
+        }
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        DownloadForegroundService.onCancelRequested = { cancelId ->
+            cancelDownloadJob(cancelId)
+        }
 
         // 0. Handle back press: if download is active, minimize to background instead of terminating
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -1200,7 +1230,7 @@ class MainActivity : AppCompatActivity() {
                         }
                         JSONObject()
                             .put("ok", true)
-                            .put("version", "3.2.0")
+                            .put("version", APP_VERSION)
                             .put("author", "Md Asadullah Al Munib")
                             .put("repo_url", "https://github.com/AsadullahAlMunib/ClipHaven/")
                             .put("default_folder", formatDisplayFolder(defaultDownloadDir.absolutePath))
@@ -1237,9 +1267,12 @@ class MainActivity : AppCompatActivity() {
                         if (!isValidUrl(url)) {
                             return JSONObject().put("ok", false).put("error", "Enter a valid HTTPS link (YouTube, Facebook, Instagram, LinkedIn, TikTok, X, etc.).").toString()
                         }
+                        val full = body.optBoolean("full", false)
                         synchronized(jobsLock) {
                             infoCache[url]?.let { cached ->
-                                return JSONObject().put("ok", true).put("info", JSONObject(cached.toString())).toString()
+                                if (!full || cached.optString("duration", "").isNotEmpty()) {
+                                    return JSONObject().put("ok", true).put("info", JSONObject(cached.toString())).toString()
+                                }
                             }
                         }
                         val parsedUri = Uri.parse(url)
@@ -1248,7 +1281,7 @@ class MainActivity : AppCompatActivity() {
                             (!parsedUri.getQueryParameter("v").isNullOrEmpty() || parsedUri.host?.lowercase() == "youtu.be")
 
                         // 1. Instant oEmbed fast-path (~0.2s) for single videos
-                        if (!hasListParam) {
+                        if (!hasListParam && !full) {
                             val fastInfo = fetchFastOembedInfo(url, parsedUri, false)
                             if (fastInfo != null) {
                                 fastInfo.put("entries", JSONArray())
@@ -1264,14 +1297,15 @@ class MainActivity : AppCompatActivity() {
 
                         // 2. Playlist / Fallback extraction via yt-dlp with IPv4 forcing and fast player_client
                         ensureEnginesInitialized()
+                        try { YoutubeDL.getInstance().destroyProcessById("bg_info_dur") } catch (_: Throwable) {}
                         val res = try {
-                            YoutubeDL.getInstance().execute(buildInfoRequest(url, hasListParam, false))
+                            YoutubeDL.getInstance().execute(buildInfoRequest(url, hasListParam, false), "bg_info_dur", null)
                         } catch (t: Throwable) {
                             if (isYouTubeClientBlockError(t.message)) {
                                 thread { syncUpdateYtDlp(YoutubeDL.UpdateChannel.NIGHTLY) }
                             }
                             try {
-                                YoutubeDL.getInstance().execute(buildInfoRequest(url, hasListParam, true))
+                                YoutubeDL.getInstance().execute(buildInfoRequest(url, hasListParam, true), "bg_info_dur", null)
                             } catch (t2: Throwable) {
                                 if (hasVideoAndList) {
                                     val fallbackSingle = fetchFastOembedInfo(url, parsedUri, true)
@@ -1356,29 +1390,7 @@ class MainActivity : AppCompatActivity() {
                     "/api/download" -> startDownloadJob(body)
                     "/api/cancel" -> {
                         val id = body.optString("id", "").trim()
-                        updateJob(
-                            id,
-                            mapOf(
-                                "state" to "Cancelled",
-                                "title" to "Download cancelled",
-                                "detail" to "Download cancelled and temporary files cleaned up.",
-                                "stage" to "Cancelled",
-                                "percent" to 0,
-                                "indeterminate" to false,
-                                "speed" to "",
-                                "eta" to ""
-                            )
-                        )
-                        try {
-                            YoutubeDL.getInstance().destroyProcessById(id)
-                        } catch (_: Throwable) {
-                        }
-                        val hasActive = synchronized(jobsLock) {
-                            jobs.values.any { it.optString("state") in setOf("Downloading", "Queued") }
-                        }
-                        if (!hasActive) {
-                            DownloadForegroundService.stop(applicationContext)
-                        }
+                        cancelDownloadJob(id)
                         JSONObject().put("ok", true).toString()
                     }
                     "/api/open-folder" -> {
@@ -1561,6 +1573,7 @@ class MainActivity : AppCompatActivity() {
                 else -> 0
             }
 
+            try { YoutubeDL.getInstance().destroyProcessById("bg_info_dur") } catch (_: Throwable) {}
             val outDir = normalizeAndroidFolder(folderRaw)
             val jid = UUID.randomUUID().toString().replace("-", "")
             val initialJob = JSONObject()
@@ -1588,10 +1601,18 @@ class MainActivity : AppCompatActivity() {
                 jobs[jid] = initialJob
             }
 
+            val cachedThumb = synchronized(jobsLock) { infoCache[url]?.optString("thumbnail", "") ?: "" }.ifEmpty {
+                val ytId = YT_ID_REGEX.find(url)?.groupValues?.getOrNull(1) ?: ""
+                if (ytId.isNotEmpty()) "https://i.ytimg.com/vi/$ytId/hqdefault.jpg" else ""
+            }
+            var notifVideoTitle = titleHint.ifEmpty { "ClipHaven Download" }
+
             DownloadForegroundService.start(
                 applicationContext,
-                if (isClipJob) "Cutting clip…" else "Starting download…",
-                if (titleHint.isNotEmpty()) titleHint else "Connecting to media stream…"
+                jid,
+                notifVideoTitle,
+                if (isClipJob) "Preparing clip cutter…" else "Connecting to media stream…",
+                cachedThumb
             )
 
             thread {
@@ -1600,6 +1621,14 @@ class MainActivity : AppCompatActivity() {
                 val subWatcherRunning = AtomicBoolean(true)
                 val subSyncLock = Any()
                 var mediaPhaseStarted = false
+                val allExportedFiles = mutableListOf<File>()
+                var lastPct = 0
+                var lastSpeed = ""
+                var lastEta = ""
+                var lastStageLabel = if (isClipJob) "Cutting clip" else "Preparing"
+                var lastFriendlyStatus = if (isClipJob) "Preparing clip cutter…" else "Connecting to media stream…"
+                var curPlIdx = 0
+                var curPlTot = 0
 
                 fun trySyncSubs() {
                     if (!isClipJob || !subtitles) return
@@ -1614,7 +1643,7 @@ class MainActivity : AppCompatActivity() {
                         while (subWatcherRunning.get()) {
                             try {
                                 trySyncSubs()
-                                Thread.sleep(150)
+                                Thread.sleep(350)
                             } catch (_: Throwable) {
                                 break
                             }
@@ -1633,6 +1662,11 @@ class MainActivity : AppCompatActivity() {
                         if (plMatch != null) {
                             val idx = plMatch.groupValues[1].toInt()
                             val tot = plMatch.groupValues[2].toInt()
+                            curPlIdx = idx
+                            curPlTot = tot
+                            lastPct = 0
+                            lastSpeed = ""
+                            lastEta = ""
                             mediaPhaseStarted = false
                             updates["playlist_index"] = idx
                             updates["playlist_total"] = tot
@@ -1641,10 +1675,13 @@ class MainActivity : AppCompatActivity() {
                             updates["percent"] = 0
                             updates["stage"] = "Video $idx/$tot"
                             updates["title"] = "Downloading video $idx of $tot…"
+                            lastStageLabel = "Video $idx/$tot"
+                            lastFriendlyStatus = "Starting video $idx of $tot…"
                             // Incremental playlist export: Export previous completed video immediately to save device storage
                             if (idx > 1) {
                                 val exported = exportStagedFilesToTargetDir(workDir, outDir)
                                 if (exported.isNotEmpty()) {
+                                    allExportedFiles.addAll(exported)
                                     MediaScannerConnection.scanFile(applicationContext, exported.map { it.absolutePath }.toTypedArray(), null, null)
                                 }
                             }
@@ -1653,15 +1690,23 @@ class MainActivity : AppCompatActivity() {
                         val destMatch = Regex("""\[download\] Destination:\s+(.+)$""").find(cleanLine)
                         if (destMatch != null) {
                             val cand = destMatch.groupValues[1].trim().trim('"')
-                            val ext = File(cand).extension.lowercase()
+                            val candFile = File(cand)
+                            val ext = candFile.extension.lowercase()
                             if (ext.isNotEmpty() && ext !in SUB_OR_THUMB_EXTS) {
                                 mediaPhaseStarted = true
+                                val parsedName = candFile.name
+                                    .replace(Regex("""\.(?:f\d+\.)?[A-Za-z0-9]+$"""), "")
+                                    .replace(Regex("""\s*\[[A-Za-z0-9_-]{3,}\](?:\s*\[clip [^\]]+\])?$"""), "")
+                                    .trim()
+                                if (parsedName.isNotEmpty() && (titleHint.isEmpty() || curPlTot > 1)) {
+                                    notifVideoTitle = parsedName
+                                }
                             }
                         }
 
                         val speedMatch = Regex("""at\s+([\d.]+\s*\w+/s)""").find(cleanLine)
                         if (speedMatch != null) {
-                            updates["speed"] = speedMatch.groupValues[1].trim()
+                            updates["speed"] = speedMatch.groupValues[1].trim().replace(Regex("""([KMGTP])iB"""), "$1B")
                         }
 
                         val elapsedMatch = Regex("""\((\d{2}):(\d{2}):(\d{2})\)""").find(cleanLine)
@@ -1748,13 +1793,44 @@ class MainActivity : AppCompatActivity() {
                             }
                         }
 
-                        if (cleanLine.isNotEmpty()) updates["detail"] = cleanLine.take(500)
+                        if (cleanLine.isNotEmpty()) updates["detail"] = cleanLine.replace(Regex("""([KMGTP])iB"""), "$1B").take(500)
                         updateJob(jid, updates)
-                        val notifTitle = updates["title"] as? String ?: (if (isClipJob) "Cutting clip…" else "Downloading…")
-                        val notifDetail = updates["detail"] as? String ?: cleanLine
-                        val notifPct = (updates["percent"] as? Float)?.toInt() ?: (if (progress > 0) progress.toInt() else 0)
-                        val notifIndet = (updates["indeterminate"] as? Boolean) ?: (progress <= 0f)
-                        DownloadForegroundService.update(applicationContext, notifTitle, notifDetail, notifPct, notifIndet)
+
+                        (updates["speed"] as? String)?.let { if (it.isNotEmpty()) lastSpeed = it }
+                        (updates["eta"] as? String)?.let { lastEta = it }
+                        (updates["stage"] as? String)?.let { if (it.isNotEmpty()) lastStageLabel = it }
+                        val newPctVal = (updates["percent"] as? Number)?.toInt()
+                        if (newPctVal != null && newPctVal > 0) {
+                            lastPct = newPctVal.coerceIn(1, 100)
+                        }
+                        val isPostStage = lastStageLabel in setOf("Merging", "Converting audio", "Subtitles (CC)", "Cover art", "Embedding cover")
+                        if (isPostStage) {
+                            lastFriendlyStatus = (updates["title"] as? String) ?: lastStageLabel
+                        } else if (lastPct > 0) {
+                            val actionPrefix = if (isClipJob) "Cutting clip" else if (fmt in setOf("mp3", "m4a", "wav")) "Downloading audio" else "Downloading"
+                            val speedPart = if (lastSpeed.isNotEmpty()) " • ⚡ $lastSpeed" else ""
+                            val etaPart = if (lastEta.isNotEmpty()) " • ⏱ $lastEta left" else ""
+                            lastFriendlyStatus = "$actionPrefix • $lastPct%$speedPart$etaPart"
+                        } else if (updates.containsKey("title")) {
+                            lastFriendlyStatus = updates["title"] as? String ?: lastFriendlyStatus
+                        }
+
+                        val displayHeaderTitle = if (curPlTot > 1) "[$curPlIdx/$curPlTot] $notifVideoTitle" else notifVideoTitle
+                        val subHeader = when {
+                            isPostStage -> lastStageLabel
+                            lastPct > 0 -> if (curPlTot > 1) "Video $curPlIdx/$curPlTot • $lastPct%" else "$lastPct%${if (lastSpeed.isNotEmpty()) " • $lastSpeed" else ""}"
+                            else -> lastStageLabel
+                        }
+                        val notifIndet = isPostStage || lastPct <= 0
+                        DownloadForegroundService.update(
+                            applicationContext,
+                            jid,
+                            displayHeaderTitle,
+                            lastFriendlyStatus,
+                            subHeader,
+                            lastPct,
+                            notifIndet
+                        )
                     }
 
                     val primaryReq = createDownloadRequest(url, allowPlaylist, rawPlaylistItems, fmt, quality, isClipJob, sSec, eSec, clipDuration, startTime, endTime, subtitles, embedThumb, workDir, false)
@@ -1762,14 +1838,15 @@ class MainActivity : AppCompatActivity() {
                         YoutubeDL.getInstance().execute(primaryReq, jid, progressCallback)
                     } catch (firstErr: Throwable) {
                         val isCancelledNow = getJobSnapshot(jid)?.optString("state") == "Cancelled"
-                        val alreadyExported = exportStagedFilesToTargetDir(workDir, outDir)
-                        if (!isCancelledNow && alreadyExported.isEmpty() && isYouTubeClientBlockError(firstErr.message)) {
+                        val newlyExported = exportStagedFilesToTargetDir(workDir, outDir)
+                        allExportedFiles.addAll(newlyExported)
+                        if (!isCancelledNow && allExportedFiles.isEmpty() && isYouTubeClientBlockError(firstErr.message)) {
                             mediaPhaseStarted = false
                             updateJob(jid, mapOf("title" to "Updating extractor & retrying…", "detail" to "Syncing latest YouTube extractor…", "indeterminate" to true))
                             syncUpdateYtDlp(YoutubeDL.UpdateChannel.NIGHTLY)
                             val fallbackReq = createDownloadRequest(url, allowPlaylist, rawPlaylistItems, fmt, quality, isClipJob, sSec, eSec, clipDuration, startTime, endTime, subtitles, embedThumb, workDir, true)
                             YoutubeDL.getInstance().execute(fallbackReq, jid, progressCallback)
-                        } else if (alreadyExported.isEmpty()) {
+                        } else if (allExportedFiles.isEmpty()) {
                             throw firstErr
                         }
                     }
@@ -1777,7 +1854,8 @@ class MainActivity : AppCompatActivity() {
                     subWatcherRunning.set(false)
                     val isCancelled = getJobSnapshot(jid)?.optString("state") == "Cancelled"
                     if (!isCancelled) {
-                        val exportedFiles = exportStagedFilesToTargetDir(workDir, outDir)
+                        allExportedFiles.addAll(exportStagedFilesToTargetDir(workDir, outDir))
+                        val exportedFiles = allExportedFiles.distinctBy { it.absolutePath }
                         if (exportedFiles.isEmpty()) {
                             throw IllegalStateException("Download finished, but output media file could not be saved.")
                         }
@@ -1809,12 +1887,20 @@ class MainActivity : AppCompatActivity() {
                             finalUpdates["playlist_left"] = 0
                         }
                         updateJob(jid, finalUpdates)
+                        val completedTitle = if (exportedFiles.size > 1) {
+                            "${exportedFiles.size} videos saved"
+                        } else {
+                            cleanTitle.ifEmpty { notifVideoTitle }
+                        }
+                        val completedDetail = finalUpdates["detail"] as? String ?: "Saved to ${formatDisplayFolder(outDir.absolutePath)}"
+                        DownloadForegroundService.showCompleted(applicationContext, completedTitle, completedDetail)
                     }
                 } catch (t: Throwable) {
                     subWatcherRunning.set(false)
                     val snapshot = getJobSnapshot(jid)
                     if (snapshot?.optString("state") != "Cancelled") {
-                        val exportedFiles = exportStagedFilesToTargetDir(workDir, outDir)
+                        allExportedFiles.addAll(exportStagedFilesToTargetDir(workDir, outDir))
+                        val exportedFiles = allExportedFiles.distinctBy { it.absolutePath }
                         if (exportedFiles.isNotEmpty()) {
                             val scanPaths = exportedFiles.map { it.absolutePath }.toTypedArray()
                             MediaScannerConnection.scanFile(applicationContext, scanPaths, null, null)
@@ -1834,6 +1920,7 @@ class MainActivity : AppCompatActivity() {
                                     "file_path" to firstSaved.absolutePath
                                 )
                             )
+                            DownloadForegroundService.showCompleted(applicationContext, notifVideoTitle, "Saved: ${firstSaved.name}")
                         } else {
                             updateJob(
                                 jid,
