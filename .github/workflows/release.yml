@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: "Release tag (e.g. v3.2.0) - leave blank if just testing build."
+        description: "Release tag (e.g. v3.2.1) - leave blank if just testing build."
         required: false
         default: ""
 
@@ -311,8 +311,16 @@ jobs:
           gradle-version: "8.5"
 
       - name: Build Signed Release APKs (64-bit arm64-v8a & 32-bit armeabi-v7a)
+        env:
+          CLIPHAVEN_KEYSTORE_BASE64: ${{ secrets.CLIPHAVEN_KEYSTORE_BASE64 }}
+          CLIPHAVEN_KEYSTORE_PASSWORD: ${{ secrets.CLIPHAVEN_KEYSTORE_PASSWORD }}
+          CLIPHAVEN_KEY_ALIAS: ${{ secrets.CLIPHAVEN_KEY_ALIAS }}
+          CLIPHAVEN_KEY_PASSWORD: ${{ secrets.CLIPHAVEN_KEY_PASSWORD }}
+          CLIPHAVEN_KEYSTORE_FILE: /tmp/release.p12
         run: |
+          echo "$CLIPHAVEN_KEYSTORE_BASE64" | tr -d "[:space:]" | base64 --decode > "$CLIPHAVEN_KEYSTORE_FILE"
           gradle -p android assembleRelease
+          rm -f "$CLIPHAVEN_KEYSTORE_FILE"
           mkdir -p release_out
           cp android/app/build/outputs/apk/release/app-arm64-v8a-release.apk release_out/ClipHaven-Android-64bit.apk
           cp android/app/build/outputs/apk/release/app-armeabi-v7a-release.apk release_out/ClipHaven-Android-32bit.apk
