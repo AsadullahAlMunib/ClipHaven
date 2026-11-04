@@ -27,3 +27,8 @@ downloads/
 Thumbs.db
 .vscode/
 .idea/
+
+# Android signing keystores
+*.jks
+*.keystore
+*.p12

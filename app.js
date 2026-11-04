@@ -65,7 +65,7 @@ function status(
   $("status").classList.add("show");
   $("title").textContent = title;
   $("title").className = "status-title " + cls;
-  $("detail").textContent = detail || "";
+  $("detail").textContent = String(detail || "").replace(/([KMGTP])iB/g, "$1B");
 
   const progEl = $("progress");
   if (indeterminate) {
@@ -92,7 +92,7 @@ function status(
   const speedEl = $("speed-pill");
   const etaEl = $("eta-pill");
   if (speed) {
-    speedEl.textContent = "⚡ " + speed;
+    speedEl.textContent = "⚡ " + String(speed).replace(/([KMGTP])iB/g, "$1B");
     speedEl.style.display = "inline-block";
   } else {
     speedEl.style.display = "none";
@@ -182,7 +182,10 @@ function getSelectedPlaylistIndices() {
 }
 
 function getPlaylistItemsParam() {
-  if (!$("allow-playlist").checked || !currentPlaylistEntries.length) return "";
+  if (!currentPlaylistEntries.length) return "";
+  if (!$("allow-playlist").checked) {
+    return /\/playlist\b/i.test($("url").value) ? "1" : "";
+  }
   const selected = getSelectedPlaylistIndices();
   if (!selected.length || selected.length === currentPlaylistEntries.length) {
     return "";
@@ -500,6 +503,19 @@ async function fetchPreview(rawUrl) {
       $("preview-dot").style.display = "inline";
       $("preview-duration").textContent = info.duration;
       $("preview-duration").style.display = "inline-block";
+    } else if (!isCurrentUrlPlaylist && !currentJobId) {
+      api("/api/info", {
+        method: "POST",
+        body: JSON.stringify({ url: clean, full: true }),
+      })
+        .then((res) => {
+          if (seq !== previewSeq || !res || !res.info || !res.info.duration) return;
+          currentDurationHint = res.info.duration_seconds || 0;
+          $("preview-dot").style.display = "inline";
+          $("preview-duration").textContent = res.info.duration;
+          $("preview-duration").style.display = "inline-block";
+        })
+        .catch(() => {});
     }
     updateExtraOptionsBadge();
   } catch (err) {
@@ -759,7 +775,7 @@ $("form").onsubmit = async (e) => {
         end_time: $("end-time").value.trim(),
         subtitles: !isAudio && $("subtitles").checked,
         embed_thumbnail: canThumb && $("embed-thumbnail").checked,
-        allow_playlist: $("allow-playlist").checked,
+        allow_playlist: $("allow-playlist").checked || /\/playlist\b/i.test(cleanUrl),
         playlist_items: getPlaylistItemsParam(),
         title_hint: currentTitleHint,
         duration_hint: currentDurationHint,
@@ -929,4 +945,5 @@ async function checkForAppUpdates() {
       $("folder").value = "Downloads";
     }
   }
+  setTimeout(checkForAppUpdates, 1500);
 })();

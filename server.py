@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local-only backend for ClipHaven Video & Audio Downloader (v3.2.0).
+"""Local-only backend for ClipHaven Video & Audio Downloader (v3.2.1).
 Developed by Md Asadullah Al Munib (https://github.com/AsadullahAlMunib/ClipHaven/)."""
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, quote
@@ -18,7 +18,7 @@ import time
 import webbrowser
 import logging
 
-VERSION = "3.2.0"
+VERSION = "3.2.1"
 AUTHOR = "Md Asadullah Al Munib"
 REPO_URL = "https://github.com/AsadullahAlMunib/ClipHaven/"
 IS_FROZEN = getattr(sys, "frozen", False)
@@ -611,13 +611,13 @@ def _fetch_fast_oembed_info(clean_url: str, parsed, has_video_and_list: bool) ->
         return None
 
 
-def fetch_video_info(url: str) -> dict:
+def fetch_video_info(url: str, full: bool = False) -> dict:
     clean_url = extract_url(url)
     if not valid_url(clean_url):
         raise ValueError("Enter a valid HTTPS video URL (YouTube, Facebook, Instagram, LinkedIn, TikTok, X, etc.).")
 
     with lock:
-        if clean_url in _info_cache:
+        if clean_url in _info_cache and (not full or _info_cache[clean_url].get("duration")):
             return dict(_info_cache[clean_url])
 
     parsed = urlparse(clean_url)
@@ -626,7 +626,7 @@ def fetch_video_info(url: str) -> dict:
     has_video_and_list = bool(qs.get("list")) and bool(qs.get("v") or parsed.hostname in {"youtu.be"})
 
     # 1. Fast-path: try lightweight oEmbed API (~0.2s) for single videos (when not a playlist URL)
-    if not has_list_param:
+    if not has_list_param and not full:
         fast_info = _fetch_fast_oembed_info(clean_url, parsed, False)
         if fast_info:
             fast_info["entries"] = []
@@ -911,7 +911,7 @@ def download(
 
         if is_clip_job and subtitles:
             def _sub_watcher():
-                while not sub_watcher_stop.wait(0.08):
+                while not sub_watcher_stop.wait(0.35):
                     _try_sync_subs()
 
             threading.Thread(target=_sub_watcher, daemon=True).start()
@@ -988,7 +988,8 @@ def download(
             if is_clip_job and subtitles:
                 _try_sync_subs()
 
-            kw = {"detail": line[:600]}
+            line_clean_units = re.sub(r"([KMGTP])iB", r"\1B", line)
+            kw = {"detail": line_clean_units[:600]}
 
             if prog:
                 pct = float(prog.group(1))
@@ -998,16 +999,17 @@ def download(
                     else ("Downloading audio" if fmt_choice in {"mp3", "m4a", "wav"} else ("Downloading video" if stream_count <= 1 else "Downloading audio track"))
                 )
                 stage_label = f"Video {pl_idx}/{pl_total}" if pl_total > 1 else ("Cutting clip" if is_clip_job else base_label)
+                sp_clean = re.sub(r"([KMGTP])iB", r"\1B", (prog.group(2) or "").strip())
                 kw.update(
                     percent=pct,
                     indeterminate=False,
-                    speed=(prog.group(2) or "").strip(),
+                    speed=sp_clean,
                     eta=(prog.group(3) or "").strip(),
                     stage=stage_label,
                     title=f"{base_label} ({pct:.0f}%)" + (f" [{pl_idx}/{pl_total}]" if pl_total > 1 else ""),
                 )
             elif dl_elapsed:
-                sp_str = (dl_elapsed.group(2) or "").strip()
+                sp_str = re.sub(r"([KMGTP])iB", r"\1B", (dl_elapsed.group(2) or "").strip())
                 cur_sec = int(dl_elapsed.group(3)) * 3600 + int(dl_elapsed.group(4)) * 60 + int(dl_elapsed.group(5))
                 if clip_duration > 0 and cur_sec > 0:
                     pct = min(99.0, max(1.0, (cur_sec / clip_duration) * 100.0))
@@ -1277,7 +1279,7 @@ class Handler(SimpleHTTPRequestHandler):
             if not valid_url(url):
                 return self.json(400, {"ok": False, "error": "Enter a valid HTTPS link (YouTube, Facebook, Instagram, LinkedIn, TikTok, X, etc.)."})
             try:
-                return self.json(200, {"ok": True, "info": fetch_video_info(url)})
+                return self.json(200, {"ok": True, "info": fetch_video_info(url, full=bool(body.get("full", False)))})
             except Exception as e:
                 return self.json(400, {"ok": False, "error": str(e)})
 

@@ -3,6 +3,18 @@
 All notable changes to **ClipHaven** are documented in this file.
 
 
+## [[3.2.1](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.2.1)] - 2026-11-04
+
+### Added & Fixed
+- **Rich Android Download Notification (`ic_stat_cliphaven` + Thumbnail + Cancel & Complete)**: Replaced the grey square placeholder icon with a monochrome vector status icon and brand accent color, added video thumbnail (`LargeIcon`) preview, cleaned up raw `yt-dlp` console logs into live `%/Speed/ETA` metrics, added an interactive **`✕ Cancel`** action button during downloads, and added a **`Download complete!`** notification upon finish.
+- **Non-Blocking Background Duration Preview**: Displays video thumbnail, title, and channel instantaneously (~0.2s via `oEmbed`), then resolves and populates the exact video duration (`duration` & `duration_seconds`) asynchronously in the background via `yt-dlp` without delaying link previews or active downloads.
+- **Startup Auto-Update Check**: Triggered `checkForAppUpdates()` automatically after startup initialization (`init()`) in addition to post-download checks so users receive update prompts immediately upon opening the app.
+- **Android Incremental Playlist File Tracking**: Tracked all incrementally exported playlist files (`allExportedFiles`) across playlist items so completed playlist downloads accurately report total saved files and never fail if the final item is skipped.
+- **Single-Video Mode on Direct Playlist Links**: Handled `Single Video Only` selection on direct `/playlist?list=...` URLs by passing `--playlist-items 1` so the first video downloads cleanly.
+- **GitHub Secrets Keystore Integration**: Moved Android release keystore signing (`CLIPHAVEN_KEYSTORE_BASE64`, `CLIPHAVEN_KEYSTORE_PASSWORD`, `CLIPHAVEN_KEY_ALIAS`, `CLIPHAVEN_KEY_PASSWORD`) exclusively to GitHub Actions Secrets and excluded `.jks`/`.keystore` files from version control.
+- **Documentation Language Support**: Added comprehensive bilingual support with English (`README.md`) and Bangla (`README_BN.md`) documentation, complete with cross-language switching badges.
+
+
 ## [[3.2.0](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.2.0)] - 2026-10-30
 
 ### Added & Improved
