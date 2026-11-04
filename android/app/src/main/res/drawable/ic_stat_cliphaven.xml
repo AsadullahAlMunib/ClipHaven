@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Download arrow + play accent + tray (monochrome white for Android status bar) -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12,3a1.2,1.2 0,0 1,1.2 1.2v8.1l3.15,-3.15a1.2,1.2 0,1 1,1.7 1.7l-5.2,5.2a1.2,1.2 0,0 1,-1.7 0l-5.2,-5.2a1.2,1.2 0,1 1,1.7 -1.7l3.15,3.15V4.2A1.2,1.2 0,0 1,12 3z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M5,19.5a1.2,1.2 0,0 1,1.2 -1.2h11.6a1.2,1.2 0,0 1,0 2.4H6.2A1.2,1.2 0,0 1,5 19.5z" />
+</vector>
