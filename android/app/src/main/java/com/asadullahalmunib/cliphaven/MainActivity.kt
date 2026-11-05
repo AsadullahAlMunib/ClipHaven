@@ -1648,6 +1648,7 @@ class MainActivity : AppCompatActivity() {
                 var mediaPhaseStarted = false
                 val allExportedFiles = mutableListOf<File>()
                 var lastPct = 0
+                var lastTotalSize = ""
                 var lastSpeed = ""
                 var lastEta = ""
                 var lastStageLabel = if (isClipJob) "Cutting clip" else "Preparing"
@@ -1749,6 +1750,11 @@ class MainActivity : AppCompatActivity() {
 
                         if (isClipJob && subtitles) {
                             trySyncSubs()
+                        }
+
+                        val sizeMatch = Regex("""\[download\]\s+[\d.]+%(?:\s+of\s+~?\s*([\d.]+\s*\w+))""").find(cleanLine)
+                        if (sizeMatch != null) {
+                            lastTotalSize = sizeMatch.groupValues[1].trim().replace(Regex("""([KMGTP])iB"""), "$1B")
                         }
 
                         if (progress > 0f) {
@@ -1853,12 +1859,13 @@ class MainActivity : AppCompatActivity() {
                             else -> if (lastPct > 0) "📥 Downloading video$etaText" else "📥 Connecting to media stream…"
                         }
 
-                        // 2. Crisp, informative SubText header: [Playlist item •] Percent • Speed
+                        // 2. Crisp, informative SubText header: [Playlist item •] 📥 48% of 29.5 MB • ⚡ 3.5 MB/s
                         val subHeader = when {
                             isPostStage -> if (curPlTot > 1) "📑 $curPlIdx/$curPlTot • $lastStageLabel" else lastStageLabel
                             lastPct > 0 -> {
                                 val plPrefix = if (curPlTot > 1) "📑 $curPlIdx/$curPlTot • " else ""
-                                "$plPrefix$lastPct%$speedText"
+                                val ofSize = if (lastTotalSize.isNotEmpty()) " of $lastTotalSize" else ""
+                                "${plPrefix}📥 $lastPct%$ofSize$speedText"
                             }
                             curPlTot > 1 -> "📑 $curPlIdx/$curPlTot • $lastStageLabel$speedText"
                             lastSpeed.isNotEmpty() -> "$lastStageLabel$speedText"
@@ -1938,7 +1945,8 @@ class MainActivity : AppCompatActivity() {
                             cleanTitle.ifEmpty { notifVideoTitle }
                         }
                         val completedDetail = finalUpdates["detail"] as? String ?: "Saved to ${formatDisplayFolder(outDir.absolutePath)}"
-                        DownloadForegroundService.showCompleted(applicationContext, completedTitle, completedDetail)
+                        val playFilePath = if (exportedFiles.size == 1) firstSaved.absolutePath else ""
+                        DownloadForegroundService.showCompleted(applicationContext, completedTitle, completedDetail, playFilePath)
                     }
                 } catch (t: Throwable) {
                     subWatcherRunning.set(false)
@@ -1965,7 +1973,7 @@ class MainActivity : AppCompatActivity() {
                                     "file_path" to firstSaved.absolutePath
                                 )
                             )
-                            DownloadForegroundService.showCompleted(applicationContext, notifVideoTitle, "Saved: ${firstSaved.name}")
+                            DownloadForegroundService.showCompleted(applicationContext, notifVideoTitle, "Saved: ${firstSaved.name}", firstSaved.absolutePath)
                         } else {
                             updateJob(
                                 jid,
