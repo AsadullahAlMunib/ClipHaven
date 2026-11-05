@@ -4,6 +4,11 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.DownloadManager
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.graphics.BitmapFactory
+import androidx.core.app.NotificationCompat
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
@@ -54,9 +59,10 @@ class MainActivity : AppCompatActivity() {
         private const val REQ_STORAGE_PERMISSION = 1001
         private const val REQ_OPEN_DOCUMENT_TREE = 1002
         private const val MAX_JOBS = 40
-        private const val APP_VERSION = "3.2.2"
+        private const val APP_VERSION = "3.2.3"
         private const val PREFS_NAME = "cliphaven_engine_prefs"
-        private const val KEY_YTDLP_UPDATED_AT = "ytdlp_updated_at_v322"
+        private const val KEY_YTDLP_UPDATED_AT = "ytdlp_updated_at_v323"
+        private const val UPDATE_NOTIF_ID = 9999
         private const val KEY_REL_CHECKED_AT = "github_rel_checked_at"
         private const val KEY_REL_CACHED_JSON = "github_rel_cached_json"
         private const val UPDATE_INTERVAL_MS = 12L * 3600L * 1000L
@@ -1041,6 +1047,41 @@ class MainActivity : AppCompatActivity() {
         }
 
         thread {
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            val channelId = DownloadForegroundService.CHANNEL_ID
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && nm != null) {
+                val channel = NotificationChannel(
+                    channelId,
+                    "ClipHaven Downloads",
+                    NotificationManager.IMPORTANCE_LOW
+                ).apply {
+                    description = "Shows live download and update progress"
+                    setShowBadge(false)
+                }
+                nm.createNotificationChannel(channel)
+            }
+            val largeBmp = try {
+                BitmapFactory.decodeResource(resources, R.mipmap.ic_launcher)
+            } catch (_: Throwable) {
+                null
+            }
+
+            val notifBuilder = NotificationCompat.Builder(this@MainActivity, channelId)
+                .setSmallIcon(R.drawable.ic_stat_cliphaven)
+                .setColor(0xFF8B5CF6.toInt())
+                .setContentTitle("Updating ClipHaven…")
+                .setContentText("Connecting to server…")
+                .setSubText("Update")
+                .setOngoing(true)
+                .setOnlyAlertOnce(true)
+                .setProgress(100, 0, true)
+
+            if (largeBmp != null) {
+                notifBuilder.setLargeIcon(largeBmp)
+            }
+            nm?.notify(UPDATE_NOTIF_ID, notifBuilder.build())
+            var lastNotifPct = -1
+
             var conn: HttpURLConnection? = null
             val tmpFile = File(cacheDir, "ClipHaven-update.apk.tmp")
             val finalApk = File(cacheDir, "ClipHaven-update.apk")
@@ -1084,6 +1125,12 @@ class MainActivity : AppCompatActivity() {
                                             .put("percent", pct)
                                             .put("detail", "Downloading update… $dlMb$totMb ($pct%)")
                                     }
+                                    if (pct != lastNotifPct) {
+                                        lastNotifPct = pct
+                                        notifBuilder.setContentText("$dlMb$totMb ($pct%)")
+                                            .setProgress(100, pct, false)
+                                        nm?.notify(UPDATE_NOTIF_ID, notifBuilder.build())
+                                    }
                                 }
                             }
                         }
@@ -1116,9 +1163,44 @@ class MainActivity : AppCompatActivity() {
                         .put("percent", 100)
                         .put("detail", "Update ready! Launching Android package installer…")
                 }
+                try {
+                    val apkUri = FileProvider.getUriForFile(
+                        this@MainActivity,
+                        "${applicationContext.packageName}.fileprovider",
+                        finalApk
+                    )
+                    val installIntent = Intent(Intent.ACTION_VIEW).apply {
+                        setDataAndType(apkUri, "application/vnd.android.package-archive")
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    val pendingFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                    } else {
+                        PendingIntent.FLAG_UPDATE_CURRENT
+                    }
+                    val installPending = PendingIntent.getActivity(this@MainActivity, 201, installIntent, pendingFlags)
+
+                    val completeNotif = NotificationCompat.Builder(this@MainActivity, channelId)
+                        .setSmallIcon(R.drawable.ic_stat_cliphaven)
+                        .setColor(0xFF16A34A.toInt())
+                        .setContentTitle("ClipHaven update ready!")
+                        .setContentText("Download complete. Tap to install.")
+                        .setSubText("Update")
+                        .setContentIntent(installPending)
+                        .setProgress(0, 0, false)
+                        .setOngoing(false)
+                        .setAutoCancel(true)
+
+                    if (largeBmp != null) {
+                        completeNotif.setLargeIcon(largeBmp)
+                    }
+                    nm?.notify(UPDATE_NOTIF_ID, completeNotif.build())
+                } catch (_: Throwable) {
+                }
                 promptInstallApk(finalApk)
             } catch (t: Throwable) {
                 try { tmpFile.delete() } catch (_: Throwable) {}
+                try { nm?.cancel(UPDATE_NOTIF_ID) } catch (_: Throwable) {}
                 synchronized(selfUpdateLock) {
                     selfUpdateState = JSONObject()
                         .put("state", "Error")
