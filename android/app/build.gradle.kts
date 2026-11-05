@@ -11,8 +11,8 @@ android {
         applicationId = "com.asadullahalmunib.cliphaven"
         minSdk = 24
         targetSdk = 34
-        versionCode = 322
-        versionName = "3.2.2"
+        versionCode = 323
+        versionName = "3.2.3"
     }
 
     splits {
@@ -88,6 +88,8 @@ tasks.register("ensureXmlResources") {
 <paths>
     <cache-path name="updates" path="." />
     <files-path name="internal_files" path="." />
+    <external-path name="external_storage" path="." />
+    <external-files-path name="external_app_files" path="." />
 </paths>
 """.trimIndent()
             )
