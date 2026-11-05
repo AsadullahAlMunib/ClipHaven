@@ -1048,6 +1048,7 @@ class MainActivity : AppCompatActivity() {
                 if (tmpFile.exists()) tmpFile.delete()
                 var success = false
                 var lastErr: Throwable? = null
+                var expectedTotalBytes = -1L
                 for (attempt in 1..3) {
                     try {
                         if (tmpFile.exists()) tmpFile.delete()
@@ -1064,7 +1065,7 @@ class MainActivity : AppCompatActivity() {
                         if (code !in 200..299) {
                             throw IllegalStateException("Download failed (HTTP $code)")
                         }
-                        val totalBytes = conn.contentLengthLong
+                        expectedTotalBytes = conn.contentLengthLong
                         var downloadedBytes = 0L
                         val buf = ByteArray(32 * 1024)
 
@@ -1074,9 +1075,9 @@ class MainActivity : AppCompatActivity() {
                                 while (input.read(buf).also { read = it } != -1) {
                                     output.write(buf, 0, read)
                                     downloadedBytes += read
-                                    val pct = if (totalBytes > 0) ((downloadedBytes * 100L) / totalBytes).toInt().coerceIn(1, 99) else 0
+                                    val pct = if (expectedTotalBytes > 0) ((downloadedBytes * 100L) / expectedTotalBytes).toInt().coerceIn(1, 99) else 0
                                     val dlMb = String.format(Locale.US, "%.1f", downloadedBytes / (1024.0 * 1024.0))
-                                    val totMb = if (totalBytes > 0) String.format(Locale.US, " / %.1f MB", totalBytes / (1024.0 * 1024.0)) else " MB"
+                                    val totMb = if (expectedTotalBytes > 0) String.format(Locale.US, " / %.1f MB", expectedTotalBytes / (1024.0 * 1024.0)) else " MB"
                                     synchronized(selfUpdateLock) {
                                         selfUpdateState = JSONObject()
                                             .put("state", "Downloading")
@@ -1086,7 +1087,7 @@ class MainActivity : AppCompatActivity() {
                                 }
                             }
                         }
-                        if (tmpFile.length() >= 1_000_000L && (totalBytes <= 0 || tmpFile.length() == totalBytes)) {
+                        if (tmpFile.length() >= 1_000_000L && (expectedTotalBytes <= 0 || tmpFile.length() == expectedTotalBytes)) {
                             success = true
                             break
                         }
@@ -1099,7 +1100,7 @@ class MainActivity : AppCompatActivity() {
                     throw (lastErr ?: IllegalStateException("Downloaded update file was incomplete. Please try again."))
                 }
 
-                if (tmpFile.length() < 1_000_000L || (totalBytes > 0 && tmpFile.length() != totalBytes)) {
+                if (tmpFile.length() < 1_000_000L || (expectedTotalBytes > 0 && tmpFile.length() != expectedTotalBytes)) {
                     tmpFile.delete()
                     throw IllegalStateException("Downloaded update file was incomplete. Please try again.")
                 }
