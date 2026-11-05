@@ -412,7 +412,7 @@ class DownloadForegroundService : Service() {
         }
         loadThumbnailAsync(thumbUrl, jobId)
 
-        val notif = buildNotification(jobId, title, detail, subText, percent, indeterminate)
+        val notif = buildNotification(currentJobId, currentTitle, currentDetail, currentSubText, currentPercent, currentIndeterminate)
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 startForeground(NOTIFICATION_ID, notif, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
