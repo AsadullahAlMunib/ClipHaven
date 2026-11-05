@@ -58,6 +58,8 @@ class DownloadForegroundService : Service() {
             try {
                 lastUpdateMs = 0L
                 lastStageSubText = ""
+                hasPendingUpdate = false
+                pendingJobId = jobId
                 val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
                 nm?.cancel(COMPLETE_NOTIFICATION_ID)
                 val intent = Intent(context, DownloadForegroundService::class.java).apply {
@@ -75,8 +77,23 @@ class DownloadForegroundService : Service() {
             }
         }
 
+        @Volatile
+        private var pendingJobId: String = ""
+        @Volatile
+        private var pendingTitle: String = ""
+        @Volatile
+        private var pendingDetail: String = ""
+        @Volatile
+        private var pendingSubText: String = ""
+        @Volatile
+        private var pendingPercent: Int = 0
+        @Volatile
+        private var pendingIndeterminate: Boolean = true
+        @Volatile
+        private var hasPendingUpdate: Boolean = false
+
         fun update(
-            context: Context,
+            @Suppress("UNUSED_PARAMETER") context: Context,
             jobId: String,
             title: String,
             detail: String,
@@ -85,9 +102,17 @@ class DownloadForegroundService : Service() {
             indeterminate: Boolean
         ) {
             try {
+                pendingJobId = jobId
+                pendingTitle = title
+                pendingDetail = detail
+                pendingSubText = subText
+                pendingPercent = percent
+                pendingIndeterminate = indeterminate
+                hasPendingUpdate = true
+
                 val now = System.currentTimeMillis()
                 val stageChanged = subText != lastStageSubText
-                if (!stageChanged && percent in 1..99 && (now - lastUpdateMs) < MIN_UPDATE_INTERVAL_MS) {
+                if (!stageChanged && (now - lastUpdateMs) < MIN_UPDATE_INTERVAL_MS && percent < 100) {
                     return
                 }
                 lastUpdateMs = now
@@ -369,19 +394,22 @@ class DownloadForegroundService : Service() {
 
         acquireWakeLock()
         val jobId = intent?.getStringExtra(EXTRA_JOB_ID) ?: ""
-        val title = intent?.getStringExtra(EXTRA_TITLE) ?: "ClipHaven"
-        val detail = intent?.getStringExtra(EXTRA_DETAIL) ?: "Preparing download…"
-        val subText = intent?.getStringExtra(EXTRA_SUBTEXT) ?: "Starting"
         val thumbUrl = intent?.getStringExtra(EXTRA_THUMB_URL) ?: ""
-        val percent = intent?.getIntExtra(EXTRA_PERCENT, 0) ?: 0
-        val indeterminate = intent?.getBooleanExtra(EXTRA_INDETERMINATE, true) ?: true
-
-        currentJobId = jobId
-        currentTitle = title
-        currentDetail = detail
-        currentSubText = subText
-        currentPercent = percent
-        currentIndeterminate = indeterminate
+        if (hasPendingUpdate && pendingJobId == jobId) {
+            currentJobId = jobId
+            currentTitle = pendingTitle
+            currentDetail = pendingDetail
+            currentSubText = pendingSubText
+            currentPercent = pendingPercent
+            currentIndeterminate = pendingIndeterminate
+        } else {
+            currentJobId = jobId
+            currentTitle = intent?.getStringExtra(EXTRA_TITLE) ?: "ClipHaven"
+            currentDetail = intent?.getStringExtra(EXTRA_DETAIL) ?: "Preparing download…"
+            currentSubText = intent?.getStringExtra(EXTRA_SUBTEXT) ?: "Starting"
+            currentPercent = intent?.getIntExtra(EXTRA_PERCENT, 0) ?: 0
+            currentIndeterminate = intent?.getBooleanExtra(EXTRA_INDETERMINATE, true) ?: true
+        }
         loadThumbnailAsync(thumbUrl, jobId)
 
         val notif = buildNotification(jobId, title, detail, subText, percent, indeterminate)

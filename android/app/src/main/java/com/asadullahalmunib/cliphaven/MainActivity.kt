@@ -54,9 +54,9 @@ class MainActivity : AppCompatActivity() {
         private const val REQ_STORAGE_PERMISSION = 1001
         private const val REQ_OPEN_DOCUMENT_TREE = 1002
         private const val MAX_JOBS = 40
-        private const val APP_VERSION = "3.2.1"
+        private const val APP_VERSION = "3.2.2"
         private const val PREFS_NAME = "cliphaven_engine_prefs"
-        private const val KEY_YTDLP_UPDATED_AT = "ytdlp_updated_at_v321"
+        private const val KEY_YTDLP_UPDATED_AT = "ytdlp_updated_at_v322"
         private const val KEY_REL_CHECKED_AT = "github_rel_checked_at"
         private const val KEY_REL_CACHED_JSON = "github_rel_cached_json"
         private const val UPDATE_INTERVAL_MS = 12L * 3600L * 1000L
@@ -1527,7 +1527,7 @@ class MainActivity : AppCompatActivity() {
                     addOption("--convert-thumbnails", "jpg")
                     addOption("--embed-thumbnail")
                 }
-                addOption("-o", File(workDir, "%(title).160B [%(id)s]$clipSuffix.%(ext)s").absolutePath)
+                addOption("-o", File(workDir, "%(title).160B$clipSuffix.%(ext)s").absolutePath)
             }
         }
 
@@ -1696,7 +1696,7 @@ class MainActivity : AppCompatActivity() {
                                 mediaPhaseStarted = true
                                 val parsedName = candFile.name
                                     .replace(Regex("""\.(?:f\d+\.)?[A-Za-z0-9]+$"""), "")
-                                    .replace(Regex("""\s*\[[A-Za-z0-9_-]{3,}\](?:\s*\[clip [^\]]+\])?$"""), "")
+                                    .replace(Regex("""(?:\s*\[[A-Za-z0-9_-]{3,}\])?(?:\s*\[clip [^\]]+\])?$"""), "")
                                     .trim()
                                 if (parsedName.isNotEmpty() && (titleHint.isEmpty() || curPlTot > 1)) {
                                     notifVideoTitle = parsedName
@@ -1793,7 +1793,12 @@ class MainActivity : AppCompatActivity() {
                             }
                         }
 
-                        if (cleanLine.isNotEmpty()) updates["detail"] = cleanLine.replace(Regex("""([KMGTP])iB"""), "$1B").take(500)
+                        val formattedLine = cleanLine
+                            .replace(workDir.absolutePath + "/", "")
+                            .replace(Regex("""/data/(?:user/\d+|data)/[^/]+/cache/dl_[a-f0-9]+/"""), "")
+                            .replace(Regex("""([KMGTP])iB"""), "$1B")
+                            .trim()
+                        if (formattedLine.isNotEmpty()) updates["detail"] = formattedLine.take(500)
                         updateJob(jid, updates)
 
                         (updates["speed"] as? String)?.let { if (it.isNotEmpty()) lastSpeed = it }
@@ -1804,21 +1809,34 @@ class MainActivity : AppCompatActivity() {
                             lastPct = newPctVal.coerceIn(1, 100)
                         }
                         val isPostStage = lastStageLabel in setOf("Merging", "Converting audio", "Subtitles (CC)", "Cover art", "Embedding cover")
+                        val compactLog = formattedLine
+                            .replace(Regex("""^\[(?:download|info|Merger|ExtractAudio|SubtitlesConvertor|EmbedSubtitle|ThumbnailsConvertor|EmbedThumbnail|VideoRemuxer)\]\s*""", RegexOption.IGNORE_CASE), "")
+                            .trim()
                         if (isPostStage) {
-                            lastFriendlyStatus = (updates["title"] as? String) ?: lastStageLabel
+                            val basePost = (updates["title"] as? String) ?: lastStageLabel
+                            lastFriendlyStatus = if (compactLog.isNotEmpty() && !compactLog.equals(basePost, ignoreCase = true)) {
+                                "$basePost • $compactLog"
+                            } else {
+                                basePost
+                            }
                         } else if (lastPct > 0) {
                             val actionPrefix = if (isClipJob) "Cutting clip" else if (fmt in setOf("mp3", "m4a", "wav")) "Downloading audio" else "Downloading"
                             val speedPart = if (lastSpeed.isNotEmpty()) " • ⚡ $lastSpeed" else ""
                             val etaPart = if (lastEta.isNotEmpty()) " • ⏱ $lastEta left" else ""
-                            lastFriendlyStatus = "$actionPrefix • $lastPct%$speedPart$etaPart"
-                        } else if (updates.containsKey("title")) {
-                            lastFriendlyStatus = updates["title"] as? String ?: lastFriendlyStatus
+                            val logTail = if (compactLog.isNotEmpty() && !compactLog.startsWith( "$lastPct" )) " • $compactLog" else ""
+                            lastFriendlyStatus = "$actionPrefix • $lastPct%$speedPart$etaPart$logTail"
+                        } else {
+                            val baseTitle = (updates["title"] as? String) ?: (if (isClipJob) "Cutting & downloading clip…" else "Downloading…")
+                            val speedPart = if (lastSpeed.isNotEmpty()) " • ⚡ $lastSpeed" else ""
+                            val logPart = if (compactLog.isNotEmpty()) " • $compactLog" else ""
+                            lastFriendlyStatus = "$baseTitle$speedPart$logPart"
                         }
 
                         val displayHeaderTitle = if (curPlTot > 1) "[$curPlIdx/$curPlTot] $notifVideoTitle" else notifVideoTitle
                         val subHeader = when {
                             isPostStage -> lastStageLabel
                             lastPct > 0 -> if (curPlTot > 1) "Video $curPlIdx/$curPlTot • $lastPct%" else "$lastPct%${if (lastSpeed.isNotEmpty()) " • $lastSpeed" else ""}"
+                            lastSpeed.isNotEmpty() -> "$lastStageLabel • ⚡ $lastSpeed"
                             else -> lastStageLabel
                         }
                         val notifIndet = isPostStage || lastPct <= 0
@@ -1863,7 +1881,7 @@ class MainActivity : AppCompatActivity() {
                         MediaScannerConnection.scanFile(applicationContext, scanPaths, null, null)
 
                         val firstSaved = exportedFiles.first()
-                        val cleanTitle = firstSaved.name.replace(Regex("""\s*\[[A-Za-z0-9_-]{3,}\](?:\s*\[clip [^\]]+\])?\.[A-Za-z0-9]+$"""), "")
+                        val cleanTitle = firstSaved.name.replace(Regex("""(?:\s*\[[A-Za-z0-9_-]{3,}\])?(?:\s*\[clip [^\]]+\])?\.[A-Za-z0-9]+$"""), "")
                         val snapshot = getJobSnapshot(jid)
                         val plTot = snapshot?.optInt("playlist_total", 0) ?: 0
                         val finalUpdates = mutableMapOf<String, Any?>(
