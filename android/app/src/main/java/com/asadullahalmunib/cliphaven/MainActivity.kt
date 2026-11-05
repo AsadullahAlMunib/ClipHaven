@@ -1834,40 +1834,38 @@ class MainActivity : AppCompatActivity() {
                             lastPct = newPctVal.coerceIn(1, 100)
                         }
                         val isPostStage = lastStageLabel in setOf("Merging", "Converting audio", "Subtitles (CC)", "Cover art", "Embedding cover")
-                        var cleanLogLine = formattedLine
-                            .replace(Regex("""^\[(?:youtube|facebook|instagram|tiktok|twitter|linkedin|reddit|vimeo|soundcloud|download|info|Merger|ExtractAudio|SubtitlesConvertor|EmbedSubtitle|ThumbnailsConvertor|EmbedThumbnail|VideoRemuxer)(?::[^\]]+)?\]\s*""", RegexOption.IGNORE_CASE), "")
-                            .replace(Regex("""\[[^\]]*quickjs[^\]]*\]\s*""", RegexOption.IGNORE_CASE), "")
-                            .replace(Regex("""Solving JS challenges[^"]*""", RegexOption.IGNORE_CASE), "")
-                            .replace(Regex("""Extracting URL:[^"]*""", RegexOption.IGNORE_CASE), "")
-                            .trim()
-                        val compactLog = if (cleanLogLine.length > 120) cleanLogLine.take(120).trimEnd() + "…" else cleanLogLine
-                        if (isPostStage) {
-                            val basePost = (updates["title"] as? String) ?: lastStageLabel
-                            lastFriendlyStatus = if (compactLog.isNotEmpty() && !compactLog.equals(basePost, ignoreCase = true)) {
-                                "$basePost • $compactLog"
-                            } else {
-                                basePost
+
+                        // 1. Clean human-readable action description for Notification ContentText
+                        val clipRangeStr = if (isClipJob) " (${startTime.ifEmpty { "00:00" }} - ${endTime.ifEmpty { "End" }})" else ""
+                        val etaText = if (lastEta.isNotEmpty()) " • ⏱ $lastEta left" else ""
+                        val speedText = if (lastSpeed.isNotEmpty()) " • ⚡ $lastSpeed" else ""
+
+                        lastFriendlyStatus = when {
+                            isPostStage -> when (lastStageLabel) {
+                                "Merging" -> "🎬 Merging video & audio…"
+                                "Converting audio" -> "🎵 Converting audio to ${fmt.uppercase()}…"
+                                "Subtitles (CC)" -> "💬 Embedding subtitles (CC)…"
+                                "Cover art", "Embedding cover" -> "🖼️ Embedding cover art / thumbnail…"
+                                else -> (updates["title"] as? String) ?: lastStageLabel
                             }
-                        } else if (lastPct > 0) {
-                            val actionPrefix = if (isClipJob) "Cutting clip" else if (fmt in setOf("mp3", "m4a", "wav")) "Downloading audio" else "Downloading"
-                            val speedPart = if (lastSpeed.isNotEmpty()) " • ⚡ $lastSpeed" else ""
-                            val etaPart = if (lastEta.isNotEmpty()) " • ⏱ $lastEta left" else ""
-                            val logTail = if (compactLog.isNotEmpty() && !compactLog.startsWith( "$lastPct" )) " • $compactLog" else ""
-                            lastFriendlyStatus = "$actionPrefix • $lastPct%$speedPart$etaPart$logTail"
-                        } else {
-                            val baseTitle = (updates["title"] as? String) ?: (if (isClipJob) "Cutting & downloading clip…" else "Downloading…")
-                            val speedPart = if (lastSpeed.isNotEmpty()) " • ⚡ $lastSpeed" else ""
-                            val logPart = if (compactLog.isNotEmpty()) " • $compactLog" else ""
-                            lastFriendlyStatus = "$baseTitle$speedPart$logPart"
+                            isClipJob -> if (lastPct > 0) "✂️ Cutting Clip$clipRangeStr$etaText" else "✂️ Preparing clip cutter$clipRangeStr…"
+                            fmt in setOf("mp3", "m4a", "wav") -> if (lastPct > 0) "🎵 Downloading audio (${fmt.uppercase()})$etaText" else "🎵 Preparing audio stream…"
+                            else -> if (lastPct > 0) "📥 Downloading video$etaText" else "📥 Connecting to media stream…"
+                        }
+
+                        // 2. Crisp, informative SubText header: [Playlist item •] Percent • Speed
+                        val subHeader = when {
+                            isPostStage -> if (curPlTot > 1) "📑 $curPlIdx/$curPlTot • $lastStageLabel" else lastStageLabel
+                            lastPct > 0 -> {
+                                val plPrefix = if (curPlTot > 1) "📑 $curPlIdx/$curPlTot • " else ""
+                                "$plPrefix$lastPct%$speedText"
+                            }
+                            curPlTot > 1 -> "📑 $curPlIdx/$curPlTot • $lastStageLabel$speedText"
+                            lastSpeed.isNotEmpty() -> "$lastStageLabel$speedText"
+                            else -> lastStageLabel
                         }
 
                         val displayHeaderTitle = if (curPlTot > 1) "[$curPlIdx/$curPlTot] $notifVideoTitle" else notifVideoTitle
-                        val subHeader = when {
-                            isPostStage -> lastStageLabel
-                            lastPct > 0 -> if (curPlTot > 1) "Video $curPlIdx/$curPlTot • $lastPct%" else "$lastPct%${if (lastSpeed.isNotEmpty()) " • $lastSpeed" else ""}"
-                            lastSpeed.isNotEmpty() -> "$lastStageLabel • ⚡ $lastSpeed"
-                            else -> lastStageLabel
-                        }
                         val notifIndet = isPostStage || lastPct <= 0
                         DownloadForegroundService.update(
                             applicationContext,
