@@ -122,7 +122,7 @@ class DownloadForegroundService : Service() {
             }
         }
 
-        fun showCompleted(context: Context, videoTitle: String, detailText: String) {
+        fun showCompleted(context: Context, videoTitle: String, detailText: String, filePath: String = "") {
             try {
                 val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -149,7 +149,7 @@ class DownloadForegroundService : Service() {
                     ?: try { BitmapFactory.decodeResource(context.resources, R.mipmap.ic_launcher) } catch (_: Throwable) { null }
 
                 val cleanTitle = videoTitle.ifEmpty { "Media saved" }
-                val notif = NotificationCompat.Builder(context, CHANNEL_ID)
+                val notifBuilder = NotificationCompat.Builder(context, CHANNEL_ID)
                     .setSmallIcon(R.drawable.ic_stat_cliphaven)
                     .setColor(COMPLETE_COLOR)
                     .setContentTitle("Download complete!")
@@ -162,9 +162,48 @@ class DownloadForegroundService : Service() {
                     .setAutoCancel(true)
                     .setOnlyAlertOnce(false)
                     .setProgress(0, 0, false)
-                    .build()
 
-                nm.notify(COMPLETE_NOTIFICATION_ID, notif)
+                // 1. [ ▶️ Play ] Action Button (Opens media in user default video/music player)
+                if (filePath.isNotEmpty()) {
+                    val targetFile = java.io.File(filePath)
+                    if (targetFile.isFile && targetFile.length() > 0) {
+                        try {
+                            val mime = when (targetFile.extension.lowercase()) {
+                                "mp4" -> "video/mp4"
+                                "mkv" -> "video/x-matroska"
+                                "webm" -> "video/webm"
+                                "mp3" -> "audio/mpeg"
+                                "m4a" -> "audio/mp4"
+                                "wav" -> "audio/x-wav"
+                                else -> "video/*"
+                            }
+                            val fileUri = androidx.core.content.FileProvider.getUriForFile(
+                                context,
+                                "${context.packageName}.fileprovider",
+                                targetFile
+                            )
+                            val playIntent = Intent(Intent.ACTION_VIEW).apply {
+                                setDataAndType(fileUri, mime)
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            val playPending = PendingIntent.getActivity(context, 101, playIntent, pendingFlags)
+                            notifBuilder.addAction(0, "▶️ Play", playPending)
+                        } catch (_: Throwable) {
+                        }
+                    }
+                }
+
+                // 2. [ 📂 Open Folder ] Action Button (Opens folder in file manager / Downloads)
+                try {
+                    val folderIntent = Intent(android.app.DownloadManager.ACTION_VIEW_DOWNLOADS).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    val folderPending = PendingIntent.getActivity(context, 102, folderIntent, pendingFlags)
+                    notifBuilder.addAction(0, "📂 Open Folder", folderPending)
+                } catch (_: Throwable) {
+                }
+
+                nm.notify(COMPLETE_NOTIFICATION_ID, notifBuilder.build())
             } catch (_: Throwable) {
             }
         }
