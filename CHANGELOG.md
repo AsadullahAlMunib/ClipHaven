@@ -6,6 +6,7 @@ All notable changes to **ClipHaven** are documented in this file.
 ## [[3.2.2](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.2.2)] - 2026-11-05
 
 ### Added & Fixed
+- **Rich Notification Actions & Size Metrics**: Displayed detailed downloaded size in notification header (`📥 48% of 29.5 MB • ⚡ 3.5 MB/s`), and added interactive **`▶️ Play`** (direct video player launch) and **`📂 Open Folder`** action buttons on the completion notification card.
 - **Clean Video Filenames Without Video ID Bracket**: Removed the trailing `[%(id)s]` video ID code from downloaded filenames while preserving `[clip <start>_to_<end>]` on trimmed clips (`%(title).160B{clip_suffix}.%(ext)s`), and stripped internal cache paths from Android status logs.
 - **Smart Playlist Checkbox Guard (`#allow-playlist`)**: Automatically keeps the `Download Entire Playlist` checkbox disabled when a single-video link (or empty URL) is entered, enabling it only when a playlist link is detected.
 - **Premium Info-Centric Android Notification**: Replaced raw engine console logs with clean, structured user-focused indicators: SubText header (`[📑 3/10 •] 48% • ⚡ 3.5 MB/s`), clear video title, and actionable stage descriptions (`✂️ Cutting Clip (05:00 - 15:00) • ⏱ 00:24 left`, `🎬 Merging video & audio…`, `🎵 Converting audio…`).
