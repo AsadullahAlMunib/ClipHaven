@@ -250,6 +250,29 @@ function renderPlaylistSelector(entries) {
   });
 }
 
+function isPlaylistUrlPattern(u) {
+  return /[?&]list=[^&#]+|\/playlist\b/i.test(String(u || ""));
+}
+
+function syncPlaylistCheckboxState(urlHint = "") {
+  const cb = $("allow-playlist");
+  if (!cb) return;
+  const canPlaylist = Boolean(
+    isCurrentUrlPlaylist || isPlaylistUrlPattern(urlHint || $("url").value),
+  );
+  cb.disabled = !canPlaylist;
+  if (!canPlaylist) {
+    cb.checked = false;
+  }
+  if (cb.parentElement) {
+    cb.parentElement.style.opacity = canPlaylist ? "1" : "0.5";
+    cb.parentElement.style.cursor = canPlaylist ? "pointer" : "not-allowed";
+    cb.parentElement.title = canPlaylist
+      ? ""
+      : "Download Entire Playlist is only available for playlist links";
+  }
+}
+
 // Extra Options active badge indicator & playlist badge sync
 function syncPlaylistBadgeText() {
   const badge = $("preview-playlist");
@@ -288,6 +311,7 @@ function updateExtraOptionsBadge() {
     (!isAudio && $("subtitles").checked) ||
     (canThumb && $("embed-thumbnail").checked) ||
     $("allow-playlist").checked;
+  syncPlaylistCheckboxState();
   $("active-options-badge").style.display =
     hasTrim || hasChecks ? "inline-block" : "none";
   syncPlaylistBadgeText();
@@ -445,6 +469,8 @@ function hidePreview() {
   currentPlaylistCount = 0;
   currentPlaylistEntries = [];
   isCurrentUrlPlaylist = false;
+  syncPlaylistCheckboxState("");
+  updateExtraOptionsBadge();
 }
 
 async function fetchPreview(rawUrl) {
@@ -461,7 +487,8 @@ async function fetchPreview(rawUrl) {
   currentDurationHint = 0;
   currentPlaylistCount = 0;
   currentPlaylistEntries = [];
-  isCurrentUrlPlaylist = false;
+  isCurrentUrlPlaylist = isPlaylistUrlPattern(clean);
+  syncPlaylistCheckboxState(clean);
   $("playlist-selector").style.display = "none";
   $("playlist-items-list").innerHTML = "";
   $("preview-card").style.display = "flex";
@@ -524,6 +551,7 @@ async function fetchPreview(rawUrl) {
       $("preview-dot").style.display = "none";
       $("preview-duration").style.display = "none";
       $("preview-playlist").style.display = "none";
+      syncPlaylistCheckboxState(clean);
       $("preview-title").textContent = "Preview unavailable";
       $("preview-uploader").textContent =
         (err && err.message) || "Check link or click Download Now to try directly.";

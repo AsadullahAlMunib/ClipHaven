@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local-only backend for ClipHaven Video & Audio Downloader (v3.2.1).
+"""Local-only backend for ClipHaven Video & Audio Downloader (v3.2.2).
 Developed by Md Asadullah Al Munib (https://github.com/AsadullahAlMunib/ClipHaven/)."""
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, quote
@@ -18,7 +18,7 @@ import time
 import webbrowser
 import logging
 
-VERSION = "3.2.1"
+VERSION = "3.2.2"
 AUTHOR = "Md Asadullah Al Munib"
 REPO_URL = "https://github.com/AsadullahAlMunib/ClipHaven/"
 IS_FROZEN = getattr(sys, "frozen", False)
@@ -855,7 +855,7 @@ def download(
             # Convert WebP thumbnails to JPG first so MP4/M4A/MP3 containers never reject the cover art format.
             cmd.extend(["--convert-thumbnails", "jpg", "--embed-thumbnail"])
 
-        cmd.extend(["--output", str(out / f"%(title).160B [%(id)s]{clip_suffix}.%(ext)s"), "--", clean_url])
+        cmd.extend(["--output", str(out / f"%(title).160B{clip_suffix}.%(ext)s"), "--", clean_url])
 
         with lock:
             if jobs.get(jid, {}).get("state") == "Cancelled":
@@ -1096,7 +1096,7 @@ def download(
             # yt-dlp may exit with non-zero even though the main video file was downloaded and merged cleanly.
             final_name = Path(saved_file).name if saved_file else ""
             if final_name and (not job_snapshot.get("video_title_locked") or not allow_playlist):
-                clean_title = re.sub(r"\s*\[[A-Za-z0-9_-]{3,}\](?:\s*\[clip [^\]]+\])?\.[A-Za-z0-9]+$", "", final_name)
+                clean_title = re.sub(r"(?:\s*\[[A-Za-z0-9_-]{3,}\])?(?:\s*\[clip [^\]]+\])?\.[A-Za-z0-9]+$", "", final_name)
                 if clean_title and pl_total <= 1:
                     update(jid, video_title=clean_title)
             done_overrides = {}

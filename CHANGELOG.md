@@ -3,6 +3,14 @@
 All notable changes to **ClipHaven** are documented in this file.
 
 
+## [[3.2.2](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.2.2)] - 2026-11-05
+
+### Added & Fixed
+- **Clean Video Filenames Without Video ID Bracket**: Removed the trailing `[%(id)s]` video ID code from downloaded filenames while preserving `[clip <start>_to_<end>]` on trimmed clips (`%(title).160B{clip_suffix}.%(ext)s`), and stripped internal cache paths from Android status logs.
+- **Smart Playlist Checkbox Guard (`#allow-playlist`)**: Automatically keeps the `Download Entire Playlist` checkbox disabled when a single-video link (or empty URL) is entered, enabling it only when a playlist link is detected.
+- **Live Notification Log & Speed Display**: Populated the Android notification body and header with live download speed (`⚡ KB/s` / `MB/s`) and cleaned real-time activity logs even during indeterminate clip cutting and post-processing stages.
+
+
 ## [[3.2.1](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.2.1)] - 2026-11-04
 
 ### Added & Fixed
