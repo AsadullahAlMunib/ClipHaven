@@ -315,7 +315,6 @@ class DownloadForegroundService : Service() {
             .setColor(BRAND_COLOR)
             .setContentTitle(title.ifEmpty { "ClipHaven Downloading…" })
             .setContentText(detail)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(detail))
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setOnlyAlertOnce(true)

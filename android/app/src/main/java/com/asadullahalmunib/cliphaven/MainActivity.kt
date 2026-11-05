@@ -153,6 +153,11 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        try {
+            File(cacheDir, "ClipHaven-update.apk").delete()
+            File(cacheDir, "ClipHaven-update.apk.tmp").delete()
+        } catch (_: Throwable) {
+        }
         DownloadForegroundService.onCancelRequested = { cancelId ->
             cancelDownloadJob(cancelId)
         }
@@ -1041,38 +1046,57 @@ class MainActivity : AppCompatActivity() {
             val finalApk = File(cacheDir, "ClipHaven-update.apk")
             try {
                 if (tmpFile.exists()) tmpFile.delete()
-                conn = (URL(apkUrl).openConnection() as HttpURLConnection).apply {
-                    instanceFollowRedirects = true
-                    connectTimeout = 15000
-                    readTimeout = 30000
-                    requestMethod = "GET"
-                    setRequestProperty("User-Agent", "ClipHaven-Android/$APP_VERSION")
-                }
-                val code = conn.responseCode
-                if (code !in 200..299) {
-                    throw IllegalStateException("Download failed (HTTP $code)")
-                }
-                val totalBytes = conn.contentLengthLong
-                var downloadedBytes = 0L
-                val buf = ByteArray(32 * 1024)
+                var success = false
+                var lastErr: Throwable? = null
+                for (attempt in 1..3) {
+                    try {
+                        if (tmpFile.exists()) tmpFile.delete()
+                        conn?.disconnect()
+                        conn = (URL(apkUrl).openConnection() as HttpURLConnection).apply {
+                            instanceFollowRedirects = true
+                            connectTimeout = 20000
+                            readTimeout = 45000
+                            requestMethod = "GET"
+                            setRequestProperty("User-Agent", "ClipHaven-Android/$APP_VERSION")
+                            setRequestProperty("Accept-Encoding", "identity")
+                        }
+                        val code = conn.responseCode
+                        if (code !in 200..299) {
+                            throw IllegalStateException("Download failed (HTTP $code)")
+                        }
+                        val totalBytes = conn.contentLengthLong
+                        var downloadedBytes = 0L
+                        val buf = ByteArray(32 * 1024)
 
-                conn.inputStream.use { input ->
-                    tmpFile.outputStream().use { output ->
-                        var read: Int
-                        while (input.read(buf).also { read = it } != -1) {
-                            output.write(buf, 0, read)
-                            downloadedBytes += read
-                            val pct = if (totalBytes > 0) ((downloadedBytes * 100L) / totalBytes).toInt().coerceIn(1, 99) else 0
-                            val dlMb = String.format(Locale.US, "%.1f", downloadedBytes / (1024.0 * 1024.0))
-                            val totMb = if (totalBytes > 0) String.format(Locale.US, " / %.1f MB", totalBytes / (1024.0 * 1024.0)) else " MB"
-                            synchronized(selfUpdateLock) {
-                                selfUpdateState = JSONObject()
-                                    .put("state", "Downloading")
-                                    .put("percent", pct)
-                                    .put("detail", "Downloading update… $dlMb$totMb ($pct%)")
+                        conn.inputStream.use { input ->
+                            tmpFile.outputStream().use { output ->
+                                var read: Int
+                                while (input.read(buf).also { read = it } != -1) {
+                                    output.write(buf, 0, read)
+                                    downloadedBytes += read
+                                    val pct = if (totalBytes > 0) ((downloadedBytes * 100L) / totalBytes).toInt().coerceIn(1, 99) else 0
+                                    val dlMb = String.format(Locale.US, "%.1f", downloadedBytes / (1024.0 * 1024.0))
+                                    val totMb = if (totalBytes > 0) String.format(Locale.US, " / %.1f MB", totalBytes / (1024.0 * 1024.0)) else " MB"
+                                    synchronized(selfUpdateLock) {
+                                        selfUpdateState = JSONObject()
+                                            .put("state", "Downloading")
+                                            .put("percent", pct)
+                                            .put("detail", "Downloading update… $dlMb$totMb ($pct%)")
+                                    }
+                                }
                             }
                         }
+                        if (tmpFile.length() >= 1_000_000L && (totalBytes <= 0 || tmpFile.length() == totalBytes)) {
+                            success = true
+                            break
+                        }
+                    } catch (e: Throwable) {
+                        lastErr = e
+                        Thread.sleep(1000)
                     }
+                }
+                if (!success) {
+                    throw (lastErr ?: IllegalStateException("Downloaded update file was incomplete. Please try again."))
                 }
 
                 if (tmpFile.length() < 1_000_000L || (totalBytes > 0 && tmpFile.length() != totalBytes)) {
@@ -1809,9 +1833,13 @@ class MainActivity : AppCompatActivity() {
                             lastPct = newPctVal.coerceIn(1, 100)
                         }
                         val isPostStage = lastStageLabel in setOf("Merging", "Converting audio", "Subtitles (CC)", "Cover art", "Embedding cover")
-                        val compactLog = formattedLine
-                            .replace(Regex("""^\[(?:download|info|Merger|ExtractAudio|SubtitlesConvertor|EmbedSubtitle|ThumbnailsConvertor|EmbedThumbnail|VideoRemuxer)\]\s*""", RegexOption.IGNORE_CASE), "")
+                        var cleanLogLine = formattedLine
+                            .replace(Regex("""^\[(?:youtube|facebook|instagram|tiktok|twitter|linkedin|reddit|vimeo|soundcloud|download|info|Merger|ExtractAudio|SubtitlesConvertor|EmbedSubtitle|ThumbnailsConvertor|EmbedThumbnail|VideoRemuxer)(?::[^\]]+)?\]\s*""", RegexOption.IGNORE_CASE), "")
+                            .replace(Regex("""\[[^\]]*quickjs[^\]]*\]\s*""", RegexOption.IGNORE_CASE), "")
+                            .replace(Regex("""Solving JS challenges[^"]*""", RegexOption.IGNORE_CASE), "")
+                            .replace(Regex("""Extracting URL:[^"]*""", RegexOption.IGNORE_CASE), "")
                             .trim()
+                        val compactLog = if (cleanLogLine.length > 120) cleanLogLine.take(120).trimEnd() + "…" else cleanLogLine
                         if (isPostStage) {
                             val basePost = (updates["title"] as? String) ?: lastStageLabel
                             lastFriendlyStatus = if (compactLog.isNotEmpty() && !compactLog.equals(basePost, ignoreCase = true)) {
