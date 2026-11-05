@@ -163,7 +163,7 @@ class DownloadForegroundService : Service() {
                     .setOnlyAlertOnce(false)
                     .setProgress(0, 0, false)
 
-                // 1. [ ▶️ Play ] Action Button (Opens media in user default video/music player)
+                // 1. [ ▶️ Play ] Action Button (Opens media in default video/music player)
                 if (filePath.isNotEmpty()) {
                     val targetFile = java.io.File(filePath)
                     if (targetFile.isFile && targetFile.length() > 0) {
@@ -193,7 +193,7 @@ class DownloadForegroundService : Service() {
                     }
                 }
 
-                // 2. [ 📂 Open Folder ] Action Button (Opens folder in file manager / Downloads)
+                // 2. [ 📂 Open Folder ] Action Button (Opens folder in Downloads / file manager)
                 try {
                     val folderIntent = Intent(android.app.DownloadManager.ACTION_VIEW_DOWNLOADS).apply {
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
