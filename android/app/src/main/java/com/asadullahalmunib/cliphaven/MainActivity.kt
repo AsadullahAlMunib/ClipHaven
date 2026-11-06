@@ -4,11 +4,6 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.DownloadManager
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
-import android.graphics.BitmapFactory
-import androidx.core.app.NotificationCompat
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
@@ -34,7 +29,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
-import android.provider.Settings
 import com.yausername.ffmpeg.FFmpeg
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
@@ -59,10 +53,9 @@ class MainActivity : AppCompatActivity() {
         private const val REQ_STORAGE_PERMISSION = 1001
         private const val REQ_OPEN_DOCUMENT_TREE = 1002
         private const val MAX_JOBS = 40
-        private const val APP_VERSION = "3.2.3"
+        private const val APP_VERSION = "tv3.2.2"
         private const val PREFS_NAME = "cliphaven_engine_prefs"
-        private const val KEY_YTDLP_UPDATED_AT = "ytdlp_updated_at_v323"
-        private const val UPDATE_NOTIF_ID = 9999
+        private const val KEY_YTDLP_UPDATED_AT = "ytdlp_updated_at_v322"
         private const val KEY_REL_CHECKED_AT = "github_rel_checked_at"
         private const val KEY_REL_CACHED_JSON = "github_rel_cached_json"
         private const val UPDATE_INTERVAL_MS = 12L * 3600L * 1000L
@@ -162,6 +155,9 @@ class MainActivity : AppCompatActivity() {
         try {
             File(cacheDir, "ClipHaven-update.apk").delete()
             File(cacheDir, "ClipHaven-update.apk.tmp").delete()
+            getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)?.let { dir ->
+                File(dir, "ClipHaven-update.apk").delete()
+            }
         } catch (_: Throwable) {
         }
         DownloadForegroundService.onCancelRequested = { cancelId ->
@@ -909,7 +905,7 @@ class MainActivity : AppCompatActivity() {
             if (conn.responseCode != 200) throw IllegalStateException("HTTP ${conn.responseCode}")
             val raw = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
             val rel = JSONObject(raw)
-            val tag = rel.optString("tag_name", "").trim().trimStart('v', 'V')
+            val tag = rel.optString("tag_name", "").trim().trimStart('t', 'T', 'v', 'V')
             if (tag.isEmpty()) throw IllegalStateException("Empty tag")
 
             val is64Bit = Build.SUPPORTED_ABIS.any { it.contains("64") }
@@ -982,47 +978,22 @@ class MainActivity : AppCompatActivity() {
     }
 
     @Volatile
-    private var pendingInstallApkFile: File? = null
+    private var activeUpdateDownloadId: Long = -1L
 
-    override fun onResume() {
-        super.onResume()
-        val pending = pendingInstallApkFile
-        if (pending != null && pending.isFile && (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || packageManager.canRequestPackageInstalls())) {
-            pendingInstallApkFile = null
-            promptInstallApk(pending)
-        }
-    }
-
-    private fun promptInstallApk(apkFile: File) {
+    private fun openSystemDownloadsScreen() {
         runOnUiThread {
             try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !packageManager.canRequestPackageInstalls()) {
-                    pendingInstallApkFile = apkFile
-                    Toast.makeText(
-                        this@MainActivity,
-                        "Please allow 'Install unknown apps' for ClipHaven—installation will start automatically.",
-                        Toast.LENGTH_LONG
-                    ).show()
-                    val settingsIntent = Intent(
-                        Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                        Uri.parse("package:$packageName")
-                    )
-                    startActivity(settingsIntent)
-                    return@runOnUiThread
+                val dmIntent = Intent(DownloadManager.ACTION_VIEW_DOWNLOADS).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
-                pendingInstallApkFile = null
-                val apkUri = FileProvider.getUriForFile(
+                startActivity(dmIntent)
+                Toast.makeText(
                     this@MainActivity,
-                    "${applicationContext.packageName}.fileprovider",
-                    apkFile
-                )
-                val installIntent = Intent(Intent.ACTION_VIEW).apply {
-                    setDataAndType(apkUri, "application/vnd.android.package-archive")
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                startActivity(installIntent)
+                    "Update downloaded! Tap ClipHaven-update.apk at the top to install.",
+                    Toast.LENGTH_LONG
+                ).show()
             } catch (t: Throwable) {
-                Toast.makeText(this@MainActivity, "Could not launch installer: ${t.message}", Toast.LENGTH_LONG).show()
+                Toast.makeText(this@MainActivity, "Update saved to Downloads.", Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -1031,184 +1002,110 @@ class MainActivity : AppCompatActivity() {
         if (apkUrl.isBlank() || !apkUrl.startsWith("https://")) {
             return JSONObject().put("ok", false).put("error", "Invalid update package URL.")
         }
-        val cachedApk = File(cacheDir, "ClipHaven-update.apk")
         synchronized(selfUpdateLock) {
             if (selfUpdateState.optString("state") == "Downloading") {
                 return JSONObject().put("ok", true).put("state", "Downloading")
             }
-            if (selfUpdateState.optString("state") == "Complete" && cachedApk.isFile && cachedApk.length() > 1_000_000L) {
-                promptInstallApk(cachedApk)
+            if (selfUpdateState.optString("state") == "Complete" && activeUpdateDownloadId > 0L) {
+                openSystemDownloadsScreen()
                 return JSONObject().put("ok", true).put("state", "Complete")
             }
             selfUpdateState = JSONObject()
                 .put("state", "Downloading")
                 .put("percent", 0)
-                .put("detail", "Connecting to GitHub release server…")
+                .put("detail", "Starting Android Download Manager…")
         }
 
         thread {
-            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
-            val channelId = DownloadForegroundService.CHANNEL_ID
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && nm != null) {
-                val channel = NotificationChannel(
-                    channelId,
-                    "ClipHaven Downloads",
-                    NotificationManager.IMPORTANCE_LOW
-                ).apply {
-                    description = "Shows live download and update progress"
-                    setShowBadge(false)
-                }
-                nm.createNotificationChannel(channel)
-            }
-            val largeBmp = try {
-                BitmapFactory.decodeResource(resources, R.mipmap.ic_launcher)
-            } catch (_: Throwable) {
-                null
-            }
-
-            val notifBuilder = NotificationCompat.Builder(this@MainActivity, channelId)
-                .setSmallIcon(R.drawable.ic_stat_cliphaven)
-                .setColor(0xFF8B5CF6.toInt())
-                .setContentTitle("Updating ClipHaven…")
-                .setContentText("Connecting to server…")
-                .setSubText("Update")
-                .setOngoing(true)
-                .setOnlyAlertOnce(true)
-                .setProgress(100, 0, true)
-
-            if (largeBmp != null) {
-                notifBuilder.setLargeIcon(largeBmp)
-            }
-            nm?.notify(UPDATE_NOTIF_ID, notifBuilder.build())
-            var lastNotifPct = -1
-
-            var conn: HttpURLConnection? = null
-            val tmpFile = File(cacheDir, "ClipHaven-update.apk.tmp")
-            val finalApk = File(cacheDir, "ClipHaven-update.apk")
             try {
-                if (tmpFile.exists()) tmpFile.delete()
-                var success = false
-                var lastErr: Throwable? = null
-                var expectedTotalBytes = -1L
-                for (attempt in 1..3) {
-                    try {
-                        if (tmpFile.exists()) tmpFile.delete()
-                        conn?.disconnect()
-                        conn = (URL(apkUrl).openConnection() as HttpURLConnection).apply {
-                            instanceFollowRedirects = true
-                            connectTimeout = 20000
-                            readTimeout = 45000
-                            requestMethod = "GET"
-                            setRequestProperty("User-Agent", "ClipHaven-Android/$APP_VERSION")
-                            setRequestProperty("Accept-Encoding", "identity")
-                        }
-                        val code = conn.responseCode
-                        if (code !in 200..299) {
-                            throw IllegalStateException("Download failed (HTTP $code)")
-                        }
-                        expectedTotalBytes = conn.contentLengthLong
-                        var downloadedBytes = 0L
-                        val buf = ByteArray(32 * 1024)
+                val dm = getSystemService(Context.DOWNLOAD_SERVICE) as? DownloadManager
+                    ?: throw IllegalStateException("System DownloadManager unavailable.")
 
-                        conn.inputStream.use { input ->
-                            tmpFile.outputStream().use { output ->
-                                var read: Int
-                                while (input.read(buf).also { read = it } != -1) {
-                                    output.write(buf, 0, read)
-                                    downloadedBytes += read
-                                    val pct = if (expectedTotalBytes > 0) ((downloadedBytes * 100L) / expectedTotalBytes).toInt().coerceIn(1, 99) else 0
+                try {
+                    getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)?.let { dir ->
+                        File(dir, "ClipHaven-update.apk").delete()
+                    }
+                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)?.let { pubDir ->
+                        File(pubDir, "ClipHaven-update.apk").delete()
+                    }
+                } catch (_: Throwable) {}
+
+                val request = DownloadManager.Request(Uri.parse(apkUrl)).apply {
+                    setTitle("ClipHaven Update")
+                    setDescription("Downloading latest ClipHaven APK…")
+                    setMimeType("application/vnd.android.package-archive")
+                    setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                    setAllowedOverMetered(true)
+                    setAllowedOverRoaming(true)
+                    addRequestHeader("User-Agent", "ClipHaven-Android/$APP_VERSION")
+                    try {
+                        setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "ClipHaven-update.apk")
+                    } catch (_: Throwable) {
+                        setDestinationInExternalFilesDir(this@MainActivity, Environment.DIRECTORY_DOWNLOADS, "ClipHaven-update.apk")
+                    }
+                }
+
+                val downloadId = dm.enqueue(request)
+                activeUpdateDownloadId = downloadId
+
+                var finished = false
+                while (!finished) {
+                    val query = DownloadManager.Query().setFilterById(downloadId)
+                    dm.query(query)?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            val statusIdx = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS)
+                            val downIdx = cursor.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR)
+                            val totIdx = cursor.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES)
+                            val status = if (statusIdx >= 0) cursor.getInt(statusIdx) else DownloadManager.STATUS_RUNNING
+                            val downloadedBytes = if (downIdx >= 0) cursor.getLong(downIdx) else 0L
+                            val totalBytes = if (totIdx >= 0) cursor.getLong(totIdx) else -1L
+
+                            when (status) {
+                                DownloadManager.STATUS_SUCCESSFUL -> {
+                                    finished = true
+                                    synchronized(selfUpdateLock) {
+                                        selfUpdateState = JSONObject()
+                                            .put("state", "Complete")
+                                            .put("percent", 100)
+                                            .put("detail", "Update downloaded! Tap the notification or top item in Downloads to install.")
+                                    }
+                                    openSystemDownloadsScreen()
+                                }
+                                DownloadManager.STATUS_FAILED -> {
+                                    finished = true
+                                    throw IllegalStateException("System download failed. Please check your connection and try again.")
+                                }
+                                else -> {
+                                    val pct = if (totalBytes > 0) ((downloadedBytes * 100L) / totalBytes).toInt().coerceIn(1, 99) else 0
                                     val dlMb = String.format(Locale.US, "%.1f", downloadedBytes / (1024.0 * 1024.0))
-                                    val totMb = if (expectedTotalBytes > 0) String.format(Locale.US, " / %.1f MB", expectedTotalBytes / (1024.0 * 1024.0)) else " MB"
+                                    val totMb = if (totalBytes > 0) String.format(Locale.US, " / %.1f MB", totalBytes / (1024.0 * 1024.0)) else " MB"
                                     synchronized(selfUpdateLock) {
                                         selfUpdateState = JSONObject()
                                             .put("state", "Downloading")
                                             .put("percent", pct)
                                             .put("detail", "Downloading update… $dlMb$totMb ($pct%)")
                                     }
-                                    if (pct != lastNotifPct) {
-                                        lastNotifPct = pct
-                                        notifBuilder.setContentText("$dlMb$totMb ($pct%)")
-                                            .setProgress(100, pct, false)
-                                        nm?.notify(UPDATE_NOTIF_ID, notifBuilder.build())
-                                    }
                                 }
                             }
+                        } else {
+                            finished = true
+                            throw IllegalStateException("Download was cancelled.")
                         }
-                        if (tmpFile.length() >= 1_000_000L && (expectedTotalBytes <= 0 || tmpFile.length() == expectedTotalBytes)) {
-                            success = true
-                            break
-                        }
-                    } catch (e: Throwable) {
-                        lastErr = e
-                        Thread.sleep(1000)
+                    } ?: run {
+                        finished = true
+                        throw IllegalStateException("Could not query download progress.")
+                    }
+                    if (!finished) {
+                        Thread.sleep(350)
                     }
                 }
-                if (!success) {
-                    throw (lastErr ?: IllegalStateException("Downloaded update file was incomplete. Please try again."))
-                }
-
-                if (tmpFile.length() < 1_000_000L || (expectedTotalBytes > 0 && tmpFile.length() != expectedTotalBytes)) {
-                    tmpFile.delete()
-                    throw IllegalStateException("Downloaded update file was incomplete. Please try again.")
-                }
-                if (finalApk.exists()) finalApk.delete()
-                if (!tmpFile.renameTo(finalApk)) {
-                    tmpFile.copyTo(finalApk, overwrite = true)
-                    tmpFile.delete()
-                }
-
-                synchronized(selfUpdateLock) {
-                    selfUpdateState = JSONObject()
-                        .put("state", "Complete")
-                        .put("percent", 100)
-                        .put("detail", "Update ready! Launching Android package installer…")
-                }
-                try {
-                    val apkUri = FileProvider.getUriForFile(
-                        this@MainActivity,
-                        "${applicationContext.packageName}.fileprovider",
-                        finalApk
-                    )
-                    val installIntent = Intent(Intent.ACTION_VIEW).apply {
-                        setDataAndType(apkUri, "application/vnd.android.package-archive")
-                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                    val pendingFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-                    } else {
-                        PendingIntent.FLAG_UPDATE_CURRENT
-                    }
-                    val installPending = PendingIntent.getActivity(this@MainActivity, 201, installIntent, pendingFlags)
-
-                    val completeNotif = NotificationCompat.Builder(this@MainActivity, channelId)
-                        .setSmallIcon(R.drawable.ic_stat_cliphaven)
-                        .setColor(0xFF16A34A.toInt())
-                        .setContentTitle("ClipHaven update ready!")
-                        .setContentText("Download complete. Tap to install.")
-                        .setSubText("Update")
-                        .setContentIntent(installPending)
-                        .setProgress(0, 0, false)
-                        .setOngoing(false)
-                        .setAutoCancel(true)
-
-                    if (largeBmp != null) {
-                        completeNotif.setLargeIcon(largeBmp)
-                    }
-                    nm?.notify(UPDATE_NOTIF_ID, completeNotif.build())
-                } catch (_: Throwable) {
-                }
-                promptInstallApk(finalApk)
             } catch (t: Throwable) {
-                try { tmpFile.delete() } catch (_: Throwable) {}
-                try { nm?.cancel(UPDATE_NOTIF_ID) } catch (_: Throwable) {}
                 synchronized(selfUpdateLock) {
                     selfUpdateState = JSONObject()
                         .put("state", "Error")
                         .put("percent", 0)
                         .put("detail", t.message ?: "Could not download update.")
                 }
-            } finally {
-                try { conn?.disconnect() } catch (_: Throwable) {}
             }
         }
         return JSONObject().put("ok", true).put("state", "Downloading")
