@@ -3,11 +3,11 @@
 All notable changes to **ClipHaven** are documented in this file.
 
 
-## [[3.2.3](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.2.3)] - 2026-11-05
+## [[tv3.2.2](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/tv3.2.2)] - 2026-11-05
 
 ### Added & Fixed
 - **FileProvider Storage Path Fix (`file_paths.xml`)**: Added `<external-path>` and `<external-files-path>` so downloaded media files saved in external storage (`Downloads/ClipHaven`) can be opened directly via the notification card's **`▶️ Play`** action button without root configuration errors.
-- **In-App APK Update Notification Progress**: Added real-time progress bar, percentage, and MB counter in the Android notification drawer during in-app APK self-updates, plus a completion notification allowing one-tap installation even when the app is minimized.
+- **Play Protect Safe System Update Manager (`DownloadManager`)**: Removed `REQUEST_INSTALL_PACKAGES` permission to eliminate Google Play Protect false-positive dropper warnings, and integrated Android's native `DownloadManager` with live in-app progress tracking, system notification progress, and automatic Downloads screen opening upon completion.
 - **Preserved Status Bar & Thumbnail Design**: Retained the clean monochrome vector status bar icon (`ic_stat_cliphaven`) and kept the square thumbnail preview on the right side of notifications.
 
 

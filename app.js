@@ -828,7 +828,9 @@ function showUpdateModal(info) {
   latestUpdateInfo = info;
   const modal = $("update-modal");
   if (!modal) return;
-  $("update-version-line").textContent = `v${info.current_version} → v${info.latest_version}`;
+  const curV = String(info.current_version || "").replace(/^[tTvV]+/, "");
+  const latV = String(info.latest_version || "").replace(/^[tTvV]+/, "");
+  $("update-version-line").textContent = `v${curV} → v${latV}`;
   $("update-notes-content").textContent =
     info.release_notes || "Performance improvements and updated platform extractors.";
   const isAndroid = Boolean(window.ClipHavenAndroid || info.is_android);
@@ -886,7 +888,7 @@ $("update-now-btn").onclick = async () => {
           clearInterval(updatePollTimer);
           updatePollTimer = null;
           nowBtn.disabled = false;
-          nowBtn.textContent = "✅ Install Update";
+          nowBtn.textContent = "📂 Open Downloads to Install";
           laterBtn.disabled = false;
         } else if (st.state === "Error") {
           clearInterval(updatePollTimer);
