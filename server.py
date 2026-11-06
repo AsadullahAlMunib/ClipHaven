@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local-only backend for ClipHaven Video & Audio Downloader (tv3.2.2).
+"""Local-only backend for ClipHaven Video & Audio Downloader (tv3.2.3).
 Developed by Md Asadullah Al Munib (https://github.com/AsadullahAlMunib/ClipHaven/)."""
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, quote
@@ -18,7 +18,7 @@ import time
 import webbrowser
 import logging
 
-VERSION = "tv3.2.2"
+VERSION = "tv3.2.3"
 AUTHOR = "Md Asadullah Al Munib"
 REPO_URL = "https://github.com/AsadullahAlMunib/ClipHaven/"
 IS_FROZEN = getattr(sys, "frozen", False)

@@ -745,7 +745,7 @@ function startPolling(jobId) {
       timer = null;
       status("Status error", err.message, 0, "Error", "error");
       b.disabled = false;
-      b.textContent = "⬇ Download Now";
+      b.textContent = "⚡ Download Now";
       cb.style.display = "none";
       currentJobId = null;
       localStorage.removeItem("cliphaven_active_job");
@@ -813,7 +813,7 @@ $("form").onsubmit = async (e) => {
   } catch (err) {
     status("Could not start download", err.message, 0, "Error", "error");
     b.disabled = false;
-    b.textContent = "⬇ Download Now";
+    b.textContent = "⚡ Download Now";
     cb.style.display = "none";
     currentJobId = null;
   }
@@ -908,15 +908,40 @@ $("update-now-btn").onclick = async () => {
   }
 };
 
-async function checkForAppUpdates() {
+async function checkForAppUpdates(manual = false) {
+  const btn = $("check-update-btn");
+  if (manual && btn) {
+    btn.disabled = true;
+    btn.textContent = "⏳ Checking…";
+  }
   try {
-    const info = await api("/api/check-update");
+    const info = await api(manual ? "/api/check-update?force=1" : "/api/check-update");
     if (info && info.update_available) {
       showUpdateModal(info);
+    } else if (manual) {
+      const ver = (info && info.current_version) || "tv3.2.3";
+      status(
+        `✅ You are on the latest version (${ver})!`,
+        "ClipHaven is completely up to date.",
+        100,
+        "Up to Date",
+        "success",
+      );
     }
   } catch {
-    // Silent failover if offline or GitHub API unreachable
+    if (manual) {
+      status("Update check failed", "Could not reach GitHub release server.", 0, "Error", "error");
+    }
+  } finally {
+    if (manual && btn) {
+      btn.disabled = false;
+      btn.textContent = "🔄 Update";
+    }
   }
+}
+
+if ($("check-update-btn")) {
+  $("check-update-btn").onclick = () => checkForAppUpdates(true);
 }
 
 // Startup initialization: load config, FFmpeg check, folder memory, and active job recovery
