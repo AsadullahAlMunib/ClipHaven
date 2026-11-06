@@ -53,9 +53,9 @@ class MainActivity : AppCompatActivity() {
         private const val REQ_STORAGE_PERMISSION = 1001
         private const val REQ_OPEN_DOCUMENT_TREE = 1002
         private const val MAX_JOBS = 40
-        private const val APP_VERSION = "tv3.2.2"
+        private const val APP_VERSION = "tv3.2.3"
         private const val PREFS_NAME = "cliphaven_engine_prefs"
-        private const val KEY_YTDLP_UPDATED_AT = "ytdlp_updated_at_v322"
+        private const val KEY_YTDLP_UPDATED_AT = "ytdlp_updated_at_v323"
         private const val KEY_REL_CHECKED_AT = "github_rel_checked_at"
         private const val KEY_REL_CACHED_JSON = "github_rel_cached_json"
         private const val UPDATE_INTERVAL_MS = 12L * 3600L * 1000L
