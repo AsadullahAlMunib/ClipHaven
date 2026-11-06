@@ -59,9 +59,9 @@ def test_parse_timestamp():
     assert server.validate_playlist_items("") == ""
     assert server.validate_playlist_items("1, 3, 5-8") == "1,3,5-8"
     assert server.validate_playlist_items("1;rm -rf") is None
-    assert server.is_newer_version("3.3.0", "3.2.3") is True
-    assert server.is_newer_version("3.2.3", "3.2.3") is False
-    assert server.is_newer_version("3.2.2", "3.2.3") is False
+    assert server.is_newer_version("3.3.0", "tv3.2.2") is True
+    assert server.is_newer_version("tv3.2.2", "tv3.2.2") is False
+    assert server.is_newer_version("3.2.1", "tv3.2.2") is False
 
 
 def test_trim_and_shift_subtitle_text_and_file(tmp_path):
@@ -149,7 +149,7 @@ def test_config_logo_and_validation_endpoints(tmp_path):
             assert resp.status == 200
             data = json.loads(resp.read().decode("utf-8"))
             assert data["ok"] is True
-            assert data["version"] == "3.2.3"
+            assert data["version"] == "tv3.2.2"
             assert "default_folder" in data
             assert "ffmpeg" in data
 
