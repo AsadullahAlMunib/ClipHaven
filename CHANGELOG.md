@@ -3,21 +3,17 @@
 All notable changes to **ClipHaven** are documented in this file.
 
 
-## [[3.2.3](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.2.3)] - 2026-11-05
+## [[3.2.2](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.2.2)] - 2026-11-07
 
 ### Added & Fixed
+- **Play Protect Safe System Update Manager (`DownloadManager`) with Versioned Auto-Rename**: Removed `REQUEST_INSTALL_PACKAGES` permission from `AndroidManifest.xml` to eliminate Google Play Protect false-positive dropper warnings ("Harmful app blocked"). In-app self-updates now leverage Android's native `DownloadManager` with live in-app progress tracking, system notification, automatic versioned file naming (`ClipHaven-Android-64bit_(v3.2.2).apk` / `ClipHaven-Android-32bit_(v3.2.2).apk`), and automatic Downloads screen launch upon completion.
+- **Automatic Old Update APK Cleanup**: Automatically removes previous update `.apk` packages (`DownloadManager.remove()` + cache and `Downloads` folder sweep for `ClipHaven-Android*.apk` and `ClipHaven-update.apk`) on app startup and prior to new update downloads so duplicate `(1)`/`(2)` files never accumulate.
 - **FileProvider Storage Path Fix (`file_paths.xml`)**: Added `<external-path>` and `<external-files-path>` so downloaded media files saved in external storage (`Downloads/ClipHaven`) can be opened directly via the notification card's **`▶️ Play`** action button without root configuration errors.
-- **In-App APK Update Notification Progress**: Added real-time progress bar, percentage, and MB counter in the Android notification drawer during in-app APK self-updates, plus a completion notification allowing one-tap installation even when the app is minimized.
-- **Preserved Status Bar & Thumbnail Design**: Retained the clean monochrome vector status bar icon (`ic_stat_cliphaven`) and kept the square thumbnail preview on the right side of notifications.
-
-
-## [[3.2.2](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.2.2)] - 2026-11-05
-
-### Added & Fixed
 - **Rich Notification Actions & Size Metrics**: Displayed detailed downloaded size in notification header (`📥 48% of 29.5 MB • ⚡ 3.5 MB/s`), and added interactive **`▶️ Play`** (direct video player launch) and **`📂 Open Folder`** action buttons on the completion notification card.
 - **Clean Video Filenames Without Video ID Bracket**: Removed the trailing `[%(id)s]` video ID code from downloaded filenames while preserving `[clip <start>_to_<end>]` on trimmed clips (`%(title).160B{clip_suffix}.%(ext)s`), and stripped internal cache paths from Android status logs.
 - **Smart Playlist Checkbox Guard (`#allow-playlist`)**: Automatically keeps the `Download Entire Playlist` checkbox disabled when a single-video link (or empty URL) is entered, enabling it only when a playlist link is detected.
 - **Premium Info-Centric Android Notification**: Replaced raw engine console logs with clean, structured user-focused indicators: SubText header (`[📑 3/10 •] 48% • ⚡ 3.5 MB/s`), clear video title, and actionable stage descriptions (`✂️ Cutting Clip (05:00 - 15:00) • ⏱ 00:24 left`, `🎬 Merging video & audio…`, `🎵 Converting audio…`).
+- **Preserved Status Bar & Thumbnail Design**: Retained the clean monochrome vector status bar icon (`ic_stat_cliphaven`) and kept the square thumbnail preview on the right side of notifications.
 
 
 ## [[3.2.1](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.2.1)] - 2026-11-04

@@ -886,7 +886,7 @@ $("update-now-btn").onclick = async () => {
           clearInterval(updatePollTimer);
           updatePollTimer = null;
           nowBtn.disabled = false;
-          nowBtn.textContent = "✅ Install Update";
+          nowBtn.textContent = "📂 Open Downloads to Install";
           laterBtn.disabled = false;
         } else if (st.state === "Error") {
           clearInterval(updatePollTimer);
