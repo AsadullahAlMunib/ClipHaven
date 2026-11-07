@@ -745,7 +745,7 @@ function startPolling(jobId) {
       timer = null;
       status("Status error", err.message, 0, "Error", "error");
       b.disabled = false;
-      b.textContent = "⚡ Download Now";
+      b.textContent = "⬇ Download Now";
       cb.style.display = "none";
       currentJobId = null;
       localStorage.removeItem("cliphaven_active_job");
@@ -813,7 +813,7 @@ $("form").onsubmit = async (e) => {
   } catch (err) {
     status("Could not start download", err.message, 0, "Error", "error");
     b.disabled = false;
-    b.textContent = "⚡ Download Now";
+    b.textContent = "⬇ Download Now";
     cb.style.display = "none";
     currentJobId = null;
   }
@@ -828,9 +828,7 @@ function showUpdateModal(info) {
   latestUpdateInfo = info;
   const modal = $("update-modal");
   if (!modal) return;
-  const curV = String(info.current_version || "").replace(/^[tTvV]+/, "");
-  const latV = String(info.latest_version || "").replace(/^[tTvV]+/, "");
-  $("update-version-line").textContent = `v${curV} → v${latV}`;
+  $("update-version-line").textContent = `v${info.current_version} → v${info.latest_version}`;
   $("update-notes-content").textContent =
     info.release_notes || "Performance improvements and updated platform extractors.";
   const isAndroid = Boolean(window.ClipHavenAndroid || info.is_android);
@@ -908,40 +906,15 @@ $("update-now-btn").onclick = async () => {
   }
 };
 
-async function checkForAppUpdates(manual = false) {
-  const btn = $("check-update-btn");
-  if (manual && btn) {
-    btn.disabled = true;
-    btn.textContent = "⏳ Checking…";
-  }
+async function checkForAppUpdates() {
   try {
-    const info = await api(manual ? "/api/check-update?force=1" : "/api/check-update");
+    const info = await api("/api/check-update");
     if (info && info.update_available) {
       showUpdateModal(info);
-    } else if (manual) {
-      const ver = (info && info.current_version) || "tv3.2.3";
-      status(
-        `✅ You are on the latest version (${ver})!`,
-        "ClipHaven is completely up to date.",
-        100,
-        "Up to Date",
-        "success",
-      );
     }
   } catch {
-    if (manual) {
-      status("Update check failed", "Could not reach GitHub release server.", 0, "Error", "error");
-    }
-  } finally {
-    if (manual && btn) {
-      btn.disabled = false;
-      btn.textContent = "🔄 Update";
-    }
+    // Silent failover if offline or GitHub API unreachable
   }
-}
-
-if ($("check-update-btn")) {
-  $("check-update-btn").onclick = () => checkForAppUpdates(true);
 }
 
 // Startup initialization: load config, FFmpeg check, folder memory, and active job recovery
