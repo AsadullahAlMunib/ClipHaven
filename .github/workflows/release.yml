@@ -2,15 +2,12 @@ name: Build & Release (Windows, macOS, Linux x64/ARM64, Android 64-bit/32-bit AP
 
 on:
   push:
-    branches:
-      - test
     tags:
       - "v*"
-      - "tv*"
   workflow_dispatch:
     inputs:
       tag_name:
-        description: "Release tag (e.g. v3.2.3) - leave blank if just testing build."
+        description: "Release tag (e.g. v3.2.2) - leave blank if just testing build."
         required: false
         default: ""
 
@@ -359,7 +356,7 @@ jobs:
           path: release_assets/*
 
       - name: Publish GitHub Release (on tag push or manual tag input)
-        if: (startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/tv')) || (github.event_name == 'workflow_dispatch' && inputs.tag_name != '')
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.tag_name != '')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag_name || github.ref_name }}
