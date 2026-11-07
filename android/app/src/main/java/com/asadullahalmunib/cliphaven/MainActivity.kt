@@ -53,11 +53,14 @@ class MainActivity : AppCompatActivity() {
         private const val REQ_STORAGE_PERMISSION = 1001
         private const val REQ_OPEN_DOCUMENT_TREE = 1002
         private const val MAX_JOBS = 40
-        private const val APP_VERSION = "tv3.2.3"
+        private const val APP_VERSION = "3.2.2"
         private const val PREFS_NAME = "cliphaven_engine_prefs"
-        private const val KEY_YTDLP_UPDATED_AT = "ytdlp_updated_at_v323"
+        private const val KEY_YTDLP_UPDATED_AT = "ytdlp_updated_at_v322"
         private const val KEY_REL_CHECKED_AT = "github_rel_checked_at"
         private const val KEY_REL_CACHED_JSON = "github_rel_cached_json"
+        private const val KEY_LAST_UPDATE_DL_ID = "last_update_dm_id"
+        private const val KEY_LAST_UPDATE_ENQUEUED_AT = "last_update_enqueued_at"
+        private val UPDATE_URL_VER_REGEX = Regex("""/download/[tTvV]*([0-9]+(?:\.[0-9]+)+)/""")
         private const val UPDATE_INTERVAL_MS = 12L * 3600L * 1000L
         private const val REL_CHECK_TTL_MS = 4L * 3600L * 1000L
         private const val GITHUB_LATEST_RELEASE_API = "https://api.github.com/repos/AsadullahAlMunib/ClipHaven/releases/latest"
@@ -152,14 +155,7 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        try {
-            File(cacheDir, "ClipHaven-update.apk").delete()
-            File(cacheDir, "ClipHaven-update.apk.tmp").delete()
-            getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)?.let { dir ->
-                File(dir, "ClipHaven-update.apk").delete()
-            }
-        } catch (_: Throwable) {
-        }
+        cleanupOldUpdateApks()
         DownloadForegroundService.onCancelRequested = { cancelId ->
             cancelDownloadJob(cancelId)
         }
@@ -910,6 +906,7 @@ class MainActivity : AppCompatActivity() {
 
             val is64Bit = Build.SUPPORTED_ABIS.any { it.contains("64") }
             val preferredAssetName = if (is64Bit) "ClipHaven-Android-64bit.apk" else "ClipHaven-Android-32bit.apk"
+            val archPrefix = if (is64Bit) "ClipHaven-Android-64bit" else "ClipHaven-Android-32bit"
             var apkDownloadUrl = ""
             var fallbackApkUrl = ""
             val assets = rel.optJSONArray("assets")
@@ -918,7 +915,10 @@ class MainActivity : AppCompatActivity() {
                     val asset = assets.optJSONObject(i) ?: continue
                     val name = asset.optString("name", "")
                     val dlUrl = asset.optString("browser_download_url", "")
-                    if (name.equals(preferredAssetName, ignoreCase = true) && dlUrl.isNotEmpty()) {
+                    if ((name.equals(preferredAssetName, ignoreCase = true) ||
+                            (name.startsWith(archPrefix, ignoreCase = true) && name.endsWith(".apk", ignoreCase = true))) &&
+                        dlUrl.isNotEmpty()
+                    ) {
                         apkDownloadUrl = dlUrl
                         break
                     }
@@ -980,7 +980,82 @@ class MainActivity : AppCompatActivity() {
     @Volatile
     private var activeUpdateDownloadId: Long = -1L
 
-    private fun openSystemDownloadsScreen() {
+    @Volatile
+    private var activeUpdateFileName: String = "ClipHaven-update.apk"
+
+    private fun isOldUpdateApkFile(name: String): Boolean {
+        val lower = name.lowercase(Locale.US)
+        if (lower == "cliphaven-update.apk" || lower == "cliphaven-update.apk.tmp") return true
+        return lower.startsWith("cliphaven-android") && lower.endsWith(".apk")
+    }
+
+    private fun cleanupOldUpdateApks() {
+        if (activeUpdateDownloadId > 0L) return
+        try {
+            File(cacheDir, "ClipHaven-update.apk").delete()
+            File(cacheDir, "ClipHaven-update.apk.tmp").delete()
+
+            val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val prevDlId = prefs.getLong(KEY_LAST_UPDATE_DL_ID, -1L)
+            val enqueuedAt = prefs.getLong(KEY_LAST_UPDATE_ENQUEUED_AT, 0L)
+            val pkgUpdateTime = try {
+                packageManager.getPackageInfo(packageName, 0).lastUpdateTime
+            } catch (_: Throwable) {
+                0L
+            }
+            val now = System.currentTimeMillis()
+            // Clean up downloaded APK once the app has been updated after enqueueing (or if older than 24h)
+            val shouldCleanDownloads = enqueuedAt == 0L || pkgUpdateTime >= enqueuedAt || (now - enqueuedAt) > 24L * 3600L * 1000L
+            if (shouldCleanDownloads) {
+                if (prevDlId > 0L) {
+                    try {
+                        (getSystemService(Context.DOWNLOAD_SERVICE) as? DownloadManager)?.remove(prevDlId)
+                    } catch (_: Throwable) {}
+                }
+                prefs.edit()
+                    .remove(KEY_LAST_UPDATE_DL_ID)
+                    .remove(KEY_LAST_UPDATE_ENQUEUED_AT)
+                    .apply()
+                val dlDirs = listOfNotNull(
+                    getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
+                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                )
+                for (dir in dlDirs) {
+                    dir.listFiles()?.forEach { file ->
+                        if (file.isFile && isOldUpdateApkFile(file.name)) {
+                            try { file.delete() } catch (_: Throwable) {}
+                        }
+                    }
+                }
+            }
+        } catch (_: Throwable) {
+        }
+    }
+
+    private fun buildVersionedUpdateFileName(apkUrl: String): String {
+        val is32 = apkUrl.contains("32bit", ignoreCase = true)
+        val is64 = apkUrl.contains("64bit", ignoreCase = true)
+        val archBase = when {
+            is32 -> "ClipHaven-Android-32bit"
+            is64 -> "ClipHaven-Android-64bit"
+            Build.SUPPORTED_ABIS.any { it.contains("64") } -> "ClipHaven-Android-64bit"
+            else -> "ClipHaven-Android-32bit"
+        }
+        var verTag = UPDATE_URL_VER_REGEX.find(apkUrl)?.groupValues?.getOrNull(1)?.trim() ?: ""
+        if (verTag.isEmpty()) {
+            try {
+                val cachedRaw = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                    .getString(KEY_REL_CACHED_JSON, null)
+                if (!cachedRaw.isNullOrBlank()) {
+                    verTag = JSONObject(cachedRaw).optString("latest_version", "")
+                        .trim().trimStart('t', 'T', 'v', 'V')
+                }
+            } catch (_: Throwable) {}
+        }
+        return if (verTag.isNotEmpty()) "${archBase}_(v$verTag).apk" else "${archBase}.apk"
+    }
+
+    private fun openSystemDownloadsScreen(fileName: String = activeUpdateFileName) {
         runOnUiThread {
             try {
                 val dmIntent = Intent(DownloadManager.ACTION_VIEW_DOWNLOADS).apply {
@@ -989,11 +1064,11 @@ class MainActivity : AppCompatActivity() {
                 startActivity(dmIntent)
                 Toast.makeText(
                     this@MainActivity,
-                    "Update downloaded! Tap ClipHaven-update.apk at the top to install.",
+                    "Update downloaded! Tap $fileName at the top to install.",
                     Toast.LENGTH_LONG
                 ).show()
             } catch (t: Throwable) {
-                Toast.makeText(this@MainActivity, "Update saved to Downloads.", Toast.LENGTH_LONG).show()
+                Toast.makeText(this@MainActivity, "Update saved to Downloads ($fileName).", Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -1002,18 +1077,20 @@ class MainActivity : AppCompatActivity() {
         if (apkUrl.isBlank() || !apkUrl.startsWith("https://")) {
             return JSONObject().put("ok", false).put("error", "Invalid update package URL.")
         }
+        val targetFileName = buildVersionedUpdateFileName(apkUrl)
         synchronized(selfUpdateLock) {
             if (selfUpdateState.optString("state") == "Downloading") {
                 return JSONObject().put("ok", true).put("state", "Downloading")
             }
             if (selfUpdateState.optString("state") == "Complete" && activeUpdateDownloadId > 0L) {
-                openSystemDownloadsScreen()
+                openSystemDownloadsScreen(activeUpdateFileName)
                 return JSONObject().put("ok", true).put("state", "Complete")
             }
+            activeUpdateFileName = targetFileName
             selfUpdateState = JSONObject()
                 .put("state", "Downloading")
                 .put("percent", 0)
-                .put("detail", "Starting Android Download Manager…")
+                .put("detail", "Starting download: $targetFileName…")
         }
 
         thread {
@@ -1021,32 +1098,44 @@ class MainActivity : AppCompatActivity() {
                 val dm = getSystemService(Context.DOWNLOAD_SERVICE) as? DownloadManager
                     ?: throw IllegalStateException("System DownloadManager unavailable.")
 
+                // Clean up any previous update APK before downloading so Android never appends (1) or (2)
                 try {
-                    getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)?.let { dir ->
-                        File(dir, "ClipHaven-update.apk").delete()
+                    val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                    val prevDlId = prefs.getLong(KEY_LAST_UPDATE_DL_ID, -1L)
+                    if (prevDlId > 0L) {
+                        try { dm.remove(prevDlId) } catch (_: Throwable) {}
+                        prefs.edit().remove(KEY_LAST_UPDATE_DL_ID).apply()
                     }
-                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)?.let { pubDir ->
-                        File(pubDir, "ClipHaven-update.apk").delete()
+                    getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)?.listFiles()?.forEach { f ->
+                        if (f.isFile && isOldUpdateApkFile(f.name)) f.delete()
+                    }
+                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)?.listFiles()?.forEach { f ->
+                        if (f.isFile && isOldUpdateApkFile(f.name)) f.delete()
                     }
                 } catch (_: Throwable) {}
 
                 val request = DownloadManager.Request(Uri.parse(apkUrl)).apply {
-                    setTitle("ClipHaven Update")
-                    setDescription("Downloading latest ClipHaven APK…")
+                    setTitle(targetFileName)
+                    setDescription("Downloading ClipHaven update package…")
                     setMimeType("application/vnd.android.package-archive")
                     setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
                     setAllowedOverMetered(true)
                     setAllowedOverRoaming(true)
                     addRequestHeader("User-Agent", "ClipHaven-Android/$APP_VERSION")
                     try {
-                        setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "ClipHaven-update.apk")
+                        setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, targetFileName)
                     } catch (_: Throwable) {
-                        setDestinationInExternalFilesDir(this@MainActivity, Environment.DIRECTORY_DOWNLOADS, "ClipHaven-update.apk")
+                        setDestinationInExternalFilesDir(this@MainActivity, Environment.DIRECTORY_DOWNLOADS, targetFileName)
                     }
                 }
 
                 val downloadId = dm.enqueue(request)
                 activeUpdateDownloadId = downloadId
+                getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                    .edit()
+                    .putLong(KEY_LAST_UPDATE_DL_ID, downloadId)
+                    .putLong(KEY_LAST_UPDATE_ENQUEUED_AT, System.currentTimeMillis())
+                    .apply()
 
                 var finished = false
                 while (!finished) {
@@ -1067,9 +1156,9 @@ class MainActivity : AppCompatActivity() {
                                         selfUpdateState = JSONObject()
                                             .put("state", "Complete")
                                             .put("percent", 100)
-                                            .put("detail", "Update downloaded! Tap the notification or top item in Downloads to install.")
+                                            .put("detail", "Saved as $targetFileName! Tap it in Downloads to install.")
                                     }
-                                    openSystemDownloadsScreen()
+                                    openSystemDownloadsScreen(targetFileName)
                                 }
                                 DownloadManager.STATUS_FAILED -> {
                                     finished = true
