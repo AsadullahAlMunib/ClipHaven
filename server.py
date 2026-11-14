@@ -861,7 +861,8 @@ def fetch_video_info(url: str, full: bool = False) -> dict:
             "no_warnings": True,
             "noplaylist": False if has_list_param else True,
             "extract_flat": "in_playlist",
-            "lazy_playlist": True if has_list_param else False,
+            "playliststart": 1,
+            "playlistend": 100,
             "socket_timeout": 10,
             "source_address": "0.0.0.0",
             "extractor_args": {"youtube": {"player_client": ["android", "web", "default"], "player_skip": ["configs"]}},
@@ -956,6 +957,66 @@ def fetch_video_info(url: str, full: bool = False) -> dict:
             _info_cache.pop(next(iter(_info_cache)), None)
         _info_cache[clean_url] = dict(result)
         _info_cache[clean_url]["entries"] = list(playlist_entries)
+
+    has_more_pages = bool(
+        is_playlist
+        and not is_loading_more
+        and len(playlist_entries) >= 100
+        and (reported_count == 0 or reported_count > len(playlist_entries))
+    )
+    if has_more_pages:
+        with lock:
+            if clean_url in _info_cache:
+                _info_cache[clean_url]["playlist_loading"] = True
+
+        def _fetch_remaining_pages():
+            next_start = len(playlist_entries) + 1
+            page_size = 100
+            try:
+                import yt_dlp  # type: ignore
+                while not stop_event.is_set():
+                    next_end = next_start + page_size - 1
+                    page_opts = {
+                        "quiet": True,
+                        "no_warnings": True,
+                        "noplaylist": False,
+                        "extract_flat": "in_playlist",
+                        "playliststart": next_start,
+                        "playlistend": next_end,
+                        "socket_timeout": 10,
+                        "source_address": "0.0.0.0",
+                        "extractor_args": {"youtube": {"player_client": ["android", "web", "default"], "player_skip": ["configs"]}},
+                    }
+                    with yt_dlp.YoutubeDL(page_opts) as ydl:
+                        p_data = ydl.extract_info(clean_url, download=False)
+                    if stop_event.is_set() or not isinstance(p_data, dict):
+                        break
+                    p_entries = [e for e in (p_data.get("entries") or []) if isinstance(e, dict)]
+                    if not p_entries:
+                        break
+                    with lock:
+                        cached = _info_cache.get(clean_url)
+                        if not cached:
+                            break
+                        cur_idx = len(cached["entries"])
+                        for item in p_entries:
+                            cur_idx += 1
+                            cached["entries"].append(_format_playlist_entry(item, cur_idx))
+                        cached["playlist_count"] = max(int(cached.get("playlist_count") or 0), len(cached["entries"]))
+                    if len(p_entries) < page_size or (reported_count > 0 and next_end >= reported_count):
+                        break
+                    next_start += page_size
+            except Exception:
+                pass
+            finally:
+                with lock:
+                    cached = _info_cache.get(clean_url)
+                    if cached:
+                        cached["playlist_loading"] = False
+                        if cached.get("entries"):
+                            cached["playlist_count"] = len(cached["entries"])
+
+        threading.Thread(target=_fetch_remaining_pages, daemon=True).start()
 
     if is_loading_more and entries_iter is not None:
         def _stream_remaining_entries():

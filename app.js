@@ -7,7 +7,8 @@ let lastPreviewUrl = "";
 let currentTitleHint = "";
 let currentDurationHint = 0;
 const PLAYLIST_BATCH_INTERVAL_MS = 500;
-const PLAYLIST_INITIAL_RENDER_BATCH = 50;
+const PLAYLIST_INITIAL_RENDER_BATCH = 25;
+const PLAYLIST_RENDER_CHUNK_SIZE = 25;
 let currentPlaylistCount = 0;
 let isCurrentUrlPlaylist = false;
 let currentPlaylistEntries = [];
@@ -371,7 +372,9 @@ function startPlaylistBatchLoop(cleanUrl, seq) {
       }
     }
     if (renderedPlaylistCount < currentPlaylistEntries.length) {
-      appendPlaylistBatch(currentPlaylistEntries.length - renderedPlaylistCount);
+      const remaining = currentPlaylistEntries.length - renderedPlaylistCount;
+      const chunk = remaining > 100 ? Math.ceil(remaining / 2) : Math.max(PLAYLIST_RENDER_CHUNK_SIZE, remaining);
+      appendPlaylistBatch(chunk);
     }
     updatePlaylistScrollHint();
     updateExtraOptionsBadge();
@@ -650,7 +653,7 @@ async function fetchPreview(rawUrl) {
   lastPreviewUrl = clean;
 
   const seq = ++previewSeq;
-  stopPlaylistStream(true);
+  stopPlaylistStream(false);
   currentTitleHint = "";
   currentDurationHint = 0;
   currentPlaylistCount = 0;
