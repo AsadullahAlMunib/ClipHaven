@@ -55,7 +55,7 @@ class MainActivity : AppCompatActivity() {
         private const val MAX_JOBS = 40
         private const val APP_VERSION = "3.2.3"
         private const val PREFS_NAME = "cliphaven_engine_prefs"
-        private const val KEY_YTDLP_UPDATED_AT = "ytdlp_updated_at_v323"
+        private const val KEY_YTDLP_UPDATED_AT = "ytdlp_nightly_updated_at_v323"
         private const val KEY_REL_CHECKED_AT = "github_rel_checked_at"
         private const val KEY_REL_CACHED_JSON = "github_rel_cached_json"
         private const val KEY_LAST_UPDATE_DL_ID = "last_update_dm_id"
@@ -242,7 +242,7 @@ class MainActivity : AppCompatActivity() {
             if (lastUpdated == 0L || now - lastUpdated > UPDATE_INTERVAL_MS) {
                 // Always run yt-dlp binary updates asynchronously in the background so startup and previews never block
                 thread {
-                    syncUpdateYtDlp(YoutubeDL.UpdateChannel.STABLE)
+                    syncUpdateYtDlp(YoutubeDL.UpdateChannel.NIGHTLY)
                 }
             }
 
@@ -1307,6 +1307,390 @@ class MainActivity : AppCompatActivity() {
         return ranges.joinToString(",")
     }
 
+    private fun findInnerContinuationToken(node: Any?): String {
+        when (node) {
+            is JSONObject -> {
+                for (key in listOf("token", "continuation")) {
+                    val direct = node.optString(key, "").trim()
+                    if (direct.length > 12) return direct
+                }
+                val keys = node.keys()
+                while (keys.hasNext()) {
+                    val k = keys.next()
+                    val found = findInnerContinuationToken(node.opt(k))
+                    if (found.isNotEmpty()) return found
+                }
+            }
+            is JSONArray -> {
+                for (i in 0 until node.length()) {
+                    val found = findInnerContinuationToken(node.opt(i))
+                    if (found.isNotEmpty()) return found
+                }
+            }
+        }
+        return ""
+    }
+
+    private fun parseYouTubeVideoItem(item: JSONObject): Triple<String, String, String>? {
+        val unwrapped = item.optJSONObject("richItemRenderer")?.optJSONObject("content") ?: item
+
+        // 1. Legacy shape: playlistVideoRenderer
+        val pvr = unwrapped.optJSONObject("playlistVideoRenderer")
+        if (pvr != null) {
+            val vid = pvr.optString("videoId", "").trim()
+            if (vid.isEmpty()) return null
+            val titleObj = pvr.optJSONObject("title")
+            val title = titleObj?.optJSONArray("runs")?.optJSONObject(0)?.optString("text", "")
+                ?.ifEmpty { titleObj.optString("simpleText", "") }
+                ?: pvr.optString("title", "")
+            var dur = pvr.optJSONObject("lengthText")?.optString("simpleText", "")?.trim() ?: ""
+            if (dur.isEmpty()) {
+                val lSec = pvr.optInt("lengthSeconds", 0)
+                if (lSec > 0) dur = formatSeconds(lSec)
+            }
+            return Triple(vid, title.ifEmpty { "Video" }, dur)
+        }
+
+        // 2. Current 2026 shape: lockupViewModel
+        val lvm = unwrapped.optJSONObject("lockupViewModel")
+        if (lvm != null) {
+            val vid = lvm.optString("contentId", "").trim()
+            if (vid.isEmpty()) return null
+            val title = lvm.optJSONObject("metadata")
+                ?.optJSONObject("lockupMetadataViewModel")
+                ?.optJSONObject("title")
+                ?.optString("content", "")
+                ?.trim()
+                ?: ""
+            var dur = ""
+            val overlays = lvm.optJSONObject("contentImage")
+                ?.optJSONObject("thumbnailViewModel")
+                ?.optJSONArray("overlays")
+            if (overlays != null) {
+                for (i in 0 until overlays.length()) {
+                    val ov = overlays.optJSONObject(i) ?: continue
+                    val badges = ov.optJSONObject("thumbnailBottomOverlayViewModel")?.optJSONArray("badges")
+                    if (badges != null) {
+                        for (j in 0 until badges.length()) {
+                            val bText = badges.optJSONObject(j)
+                                ?.optJSONObject("thumbnailBadgeViewModel")
+                                ?.optString("text", "")
+                                ?.trim()
+                                ?: ""
+                            if (bText.contains(":")) {
+                                dur = bText
+                                break
+                            }
+                        }
+                    }
+                    if (dur.isEmpty()) {
+                        val tText = ov.optJSONObject("thumbnailOverlayTimeStatusRenderer")
+                            ?.optJSONObject("text")
+                            ?.optString("simpleText", "")
+                            ?.trim()
+                            ?: ""
+                        if (tText.contains(":")) dur = tText
+                    }
+                    if (dur.isNotEmpty()) break
+                }
+            }
+            return Triple(vid, title.ifEmpty { "Video" }, dur)
+        }
+        return null
+    }
+
+    private fun collectPlaylistVideosAndTokens(
+        node: Any?,
+        videosOut: MutableList<Triple<String, String, String>>,
+        tokensOut: MutableList<String>
+    ) {
+        when (node) {
+            is JSONObject -> {
+                if (node.has("playlistVideoRenderer") || node.has("lockupViewModel")) {
+                    val parsed = parseYouTubeVideoItem(node)
+                    if (parsed != null) {
+                        videosOut.add(parsed)
+                        return
+                    }
+                }
+                if (node.has("continuationItemViewModel") || node.has("continuationItemRenderer") || node.has("nextContinuationData")) {
+                    val sub = node.opt("continuationItemViewModel")
+                        ?: node.opt("continuationItemRenderer")
+                        ?: node.opt("nextContinuationData")
+                    val tok = findInnerContinuationToken(sub)
+                    if (tok.isNotEmpty() && tok !in tokensOut) {
+                        tokensOut.add(tok)
+                    }
+                    return
+                }
+                // Traverse itemSectionRenderer / playlistVideoListRenderer / appendContinuationItemsAction / contents first
+                // so inner video-list tokens are always collected BEFORE outer sectionListRenderer tokens!
+                val priorityKeys = listOf(
+                    "contents",
+                    "twoColumnBrowseResultsRenderer",
+                    "singleColumnBrowseResultsRenderer",
+                    "tabs",
+                    "tabRenderer",
+                    "content",
+                    "sectionListRenderer",
+                    "itemSectionRenderer",
+                    "playlistVideoListRenderer",
+                    "onResponseReceivedActions",
+                    "onResponseReceivedEndpoints",
+                    "appendContinuationItemsAction",
+                    "reloadContinuationItemsCommand",
+                    "continuationItems",
+                    "continuationContents",
+                    "playlistVideoListContinuation",
+                    "continuations"
+                )
+                val visited = mutableSetOf<String>()
+                for (pk in priorityKeys) {
+                    if (node.has(pk)) {
+                        visited.add(pk)
+                        collectPlaylistVideosAndTokens(node.opt(pk), videosOut, tokensOut)
+                    }
+                }
+                val keys = node.keys()
+                while (keys.hasNext()) {
+                    val k = keys.next()
+                    if (k !in visited) {
+                        collectPlaylistVideosAndTokens(node.opt(k), videosOut, tokensOut)
+                    }
+                }
+            }
+            is JSONArray -> {
+                for (i in 0 until node.length()) {
+                    collectPlaylistVideosAndTokens(node.opt(i), videosOut, tokensOut)
+                }
+            }
+        }
+    }
+
+    private fun postYouTubeInnerTubeBrowse(
+        payload: JSONObject,
+        apiKey: String = "",
+        visitorData: String = "",
+        clientVersion: String = "2.20261101.01.00",
+        cookieHeader: String = ""
+    ): JSONObject? {
+        val keyParam = if (apiKey.isNotEmpty()) "&key=$apiKey" else ""
+        val endpoint = URL("https://www.youtube.com/youtubei/v1/browse?prettyPrint=false$keyParam")
+        val conn = (endpoint.openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = 8000
+            readTimeout = 10000
+            doOutput = true
+            setRequestProperty("Content-Type", "application/json")
+            setRequestProperty("Accept", "application/json")
+            setRequestProperty("Origin", "https://www.youtube.com")
+            setRequestProperty("Referer", "https://www.youtube.com/")
+            setRequestProperty("X-YouTube-Client-Name", "1")
+            setRequestProperty("X-YouTube-Client-Version", clientVersion)
+            if (visitorData.isNotEmpty()) {
+                setRequestProperty("X-Goog-Visitor-Id", visitorData)
+            }
+            if (cookieHeader.isNotEmpty()) {
+                setRequestProperty("Cookie", cookieHeader)
+            }
+            setRequestProperty(
+                "User-Agent",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+            )
+        }
+        return try {
+            val bytes = payload.toString().toByteArray(Charsets.UTF_8)
+            conn.outputStream.use { it.write(bytes) }
+            if (conn.responseCode != 200) return null
+            val text = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+            JSONObject(text)
+        } catch (_: Throwable) {
+            null
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    private fun fetchYouTubePlaylistDirectContinuations(listId: String, url: String, myToken: Int): Boolean {
+        if (listId.isEmpty() || listId.startsWith("RD")) return false
+        var apiKey = ""
+        var clientVersion = "2.20261101.01.00"
+        var visitorData = ""
+        val cookiesList = mutableListOf("CONSENT=YES+cb.20210328-17-p0.en+FX+410", "PREF=hl=en&gl=US")
+        val pendingTokens = ArrayDeque<String>()
+        val seenTokens = mutableSetOf<String>()
+        val page1Videos = mutableListOf<Triple<String, String, String>>()
+
+        // Step 1: Fetch playlist webpage to get session-bound visitorData, INNERTUBE_API_KEY, cookies, and initial continuation token
+        try {
+            val pageConn = (URL("https://www.youtube.com/playlist?list=$listId&hl=en&gl=US").openConnection() as HttpURLConnection).apply {
+                connectTimeout = 8000
+                readTimeout = 10000
+                setRequestProperty("Cookie", cookiesList.joinToString("; "))
+                setRequestProperty("Accept-Language", "en-US,en;q=0.9")
+                setRequestProperty(
+                    "User-Agent",
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+                )
+            }
+            try {
+                val setCookies = pageConn.headerFields["Set-Cookie"] ?: pageConn.headerFields["set-cookie"]
+                if (setCookies != null) {
+                    for (sc in setCookies) {
+                        val pair = sc.substringBefore(";").trim()
+                        if (pair.isNotEmpty()) cookiesList.add(pair)
+                    }
+                }
+                if (pageConn.responseCode == 200) {
+                    val html = pageConn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                    Regex(""""INNERTUBE_API_KEY"\s*:\s*"([^"]+)"""").find(html)?.groupValues?.getOrNull(1)?.let { apiKey = it }
+                    Regex(""""INNERTUBE_CLIENT_VERSION"\s*:\s*"([^"]+)"""").find(html)?.groupValues?.getOrNull(1)?.let { clientVersion = it }
+                    Regex(""""VISITOR_DATA"\s*:\s*"([^"]+)"""").find(html)?.groupValues?.getOrNull(1)?.let { visitorData = it }
+
+                    for (marker in listOf("var ytInitialData = ", "window[\"ytInitialData\"] = ")) {
+                        val mIdx = html.indexOf(marker)
+                        if (mIdx != -1) {
+                            val jsonStart = mIdx + marker.length
+                            val endIdx = html.indexOf(";</script>", jsonStart)
+                            if (endIdx != -1) {
+                                val rootObj = JSONObject(html.substring(jsonStart, endIdx).trim())
+                                if (visitorData.isEmpty()) {
+                                    visitorData = rootObj.optJSONObject("responseContext")?.optString("visitorData", "") ?: ""
+                                }
+                                val initialTokens = mutableListOf<String>()
+                                collectPlaylistVideosAndTokens(rootObj, page1Videos, initialTokens)
+                                for (t in initialTokens) {
+                                    if (seenTokens.add(t)) pendingTokens.addLast(t)
+                                }
+                                break
+                            }
+                        }
+                    }
+                }
+            } finally {
+                pageConn.disconnect()
+            }
+        } catch (_: Throwable) {
+        }
+
+        if (previewSeqGen.get() != myToken) return false
+
+        // Step 2: Fallback to POST /youtubei/v1/browse with browseId="VL<listId>" if HTML didn't yield tokens
+        if (pendingTokens.isEmpty()) {
+            val clientObj = JSONObject()
+                .put("hl", "en")
+                .put("gl", "US")
+                .put("clientName", "WEB")
+                .put("clientVersion", clientVersion)
+            if (visitorData.isNotEmpty()) clientObj.put("visitorData", visitorData)
+            val browseId = if (listId.startsWith("VL")) listId else "VL$listId"
+            val firstPayload = JSONObject()
+                .put("context", JSONObject().put("client", clientObj))
+                .put("browseId", browseId)
+            val firstResp = postYouTubeInnerTubeBrowse(firstPayload, apiKey, visitorData, clientVersion, cookiesList.joinToString("; "))
+            if (firstResp != null) {
+                if (visitorData.isEmpty()) {
+                    visitorData = firstResp.optJSONObject("responseContext")?.optString("visitorData", "") ?: ""
+                }
+                val initialTokens = mutableListOf<String>()
+                collectPlaylistVideosAndTokens(firstResp, page1Videos, initialTokens)
+                for (t in initialTokens) {
+                    if (seenTokens.add(t)) pendingTokens.addLast(t)
+                }
+            }
+        }
+
+        var anyAdded = false
+        // If Page 1 had more videos than currently in infoCache[url], append the remainder
+        if (page1Videos.isNotEmpty()) {
+            synchronized(jobsLock) {
+                val cached = infoCache[url]
+                if (cached != null) {
+                    val arr = cached.optJSONArray("entries") ?: JSONArray().also { cached.put("entries", it) }
+                    if (page1Videos.size > arr.length()) {
+                        var idxCounter = arr.length() + 1
+                        for (i in arr.length() until page1Videos.size) {
+                            val (vid, vTitle, vDur) = page1Videos[i]
+                            arr.put(
+                                JSONObject()
+                                    .put("index", idxCounter)
+                                    .put("id", vid)
+                                    .put("title", vTitle.ifEmpty { "Video $idxCounter" })
+                                    .put("duration", vDur)
+                            )
+                            idxCounter++
+                            anyAdded = true
+                        }
+                        cached.put("playlist_count", maxOf(cached.optInt("playlist_count", 0), arr.length()))
+                    }
+                }
+            }
+        }
+
+        val cookieHeaderStr = cookiesList.joinToString("; ")
+        var pagesFetched = 0
+
+        // Step 3: Follow all continuation tokens (Page 2: 101..200, Page 3: 201..300, ... Page 9: 801..843, up to 50 pages / 5000 videos)
+        while (pendingTokens.isNotEmpty() && pagesFetched < 50 && previewSeqGen.get() == myToken) {
+            val tok = pendingTokens.removeFirst()
+            val clientObj = JSONObject()
+                .put("hl", "en")
+                .put("gl", "US")
+                .put("clientName", "WEB")
+                .put("clientVersion", clientVersion)
+            if (visitorData.isNotEmpty()) clientObj.put("visitorData", visitorData)
+
+            val contPayload = JSONObject()
+                .put("context", JSONObject().put("client", clientObj))
+                .put("continuation", tok)
+            val contResp = postYouTubeInnerTubeBrowse(contPayload, apiKey, visitorData, clientVersion, cookieHeaderStr) ?: continue
+            if (previewSeqGen.get() != myToken) break
+
+            val newVis = contResp.optJSONObject("responseContext")?.optString("visitorData", "") ?: ""
+            if (newVis.isNotEmpty()) visitorData = newVis
+
+            val pageVideos = mutableListOf<Triple<String, String, String>>()
+            val nextTokens = mutableListOf<String>()
+            collectPlaylistVideosAndTokens(contResp, pageVideos, nextTokens)
+
+            // If this token yielded videos, push its continuation token(s) to the front of pendingTokens
+            if (pageVideos.isNotEmpty()) {
+                pagesFetched++
+                for (nt in nextTokens.asReversed()) {
+                    if (seenTokens.add(nt)) pendingTokens.addFirst(nt)
+                }
+                var cacheMissing = false
+                synchronized(jobsLock) {
+                    val cached = infoCache[url]
+                    if (cached == null) {
+                        cacheMissing = true
+                    } else {
+                        val arr = cached.optJSONArray("entries") ?: JSONArray().also { cached.put("entries", it) }
+                        var idxCounter = arr.length() + 1
+                        for ((vid, vTitle, vDur) in pageVideos) {
+                            arr.put(
+                                JSONObject()
+                                    .put("index", idxCounter)
+                                    .put("id", vid)
+                                    .put("title", vTitle.ifEmpty { "Video $idxCounter" })
+                                    .put("duration", vDur)
+                            )
+                            idxCounter++
+                            anyAdded = true
+                        }
+                        cached.put("playlist_count", maxOf(cached.optInt("playlist_count", 0), arr.length()))
+                    }
+                }
+                if (cacheMissing) break
+            } else {
+                for (nt in nextTokens) {
+                    if (seenTokens.add(nt)) pendingTokens.addLast(nt)
+                }
+            }
+        }
+        return anyAdded
+    }
+
     private fun buildInfoRequest(
         url: String,
         hasListParam: Boolean,
@@ -1425,9 +1809,15 @@ class MainActivity : AppCompatActivity() {
                             return JSONObject().put("ok", false).put("error", "Enter a valid HTTPS link (YouTube, Facebook, Instagram, LinkedIn, TikTok, X, etc.).").toString()
                         }
                         val full = body.optBoolean("full", false)
+                        val isPoll = body.optBoolean("poll", false)
                         synchronized(jobsLock) {
                             infoCache[url]?.let { cached ->
-                                if (!full || cached.optString("duration", "").isNotEmpty() || cached.optBoolean("is_playlist", false)) {
+                                val isPl = cached.optBoolean("is_playlist", false)
+                                val isLoad = cached.optBoolean("playlist_loading", false)
+                                val eLen = cached.optJSONArray("entries")?.length() ?: 0
+                                val pCnt = cached.optInt("playlist_count", 0)
+                                val incompletePl = isPl && !isLoad && pCnt > eLen && eLen <= 100
+                                if (isPoll || (!incompletePl && (!full || cached.optString("duration", "").isNotEmpty() || isPl))) {
                                     return JSONObject().put("ok", true).put("info", JSONObject(cached.toString())).toString()
                                 }
                             }
@@ -1529,7 +1919,7 @@ class MainActivity : AppCompatActivity() {
                             isPlaylist -> 2
                             else -> 1
                         }
-                        val hasMorePages = isPlaylist && entriesList.length() >= 100 && (reportedTotal == 0 || reportedTotal > 100)
+                        val hasMorePages = isPlaylist && (entriesList.length() >= 95 || reportedTotal > entriesList.length())
                         val infoObj = JSONObject()
                             .put("title", data.optString("title", "Video ready to download"))
                             .put("uploader", data.optString("uploader").ifEmpty { data.optString("channel").ifEmpty { data.optString("creator").ifEmpty { data.optString("extractor_key", "Video") } } })
@@ -1548,13 +1938,20 @@ class MainActivity : AppCompatActivity() {
                             infoCache[url] = JSONObject(infoObj.toString())
                         }
 
-                        // 3. If playlist has >100 items, fetch remaining pages (101..250, 251..400, ...) progressively in background
+                        // 3. If playlist has >100 items, fetch remaining pages (101..200, 201..N) progressively in background
                         if (hasMorePages) {
+                            val ytListId = parsedUri.getQueryParameter("list")?.trim() ?: ""
                             thread {
                                 var nextStart = 101
                                 val pageSize = 150
                                 try {
-                                    while (previewSeqGen.get() == myToken) {
+                                    // Fast & reliable direct YouTube InnerTube continuation pagination (handles 2026 lockupViewModel + inner token)
+                                    val handledByInnerTube = if (ytListId.isNotEmpty()) {
+                                        fetchYouTubePlaylistDirectContinuations(ytListId, url, myToken)
+                                    } else {
+                                        false
+                                    }
+                                    while (!handledByInnerTube && previewSeqGen.get() == myToken) {
                                         val nextEnd = nextStart + pageSize - 1
                                         try { YoutubeDL.getInstance().destroyProcessById("bg_info_dur") } catch (_: Throwable) {}
                                         val pageRes = try {
