@@ -53,9 +53,9 @@ class MainActivity : AppCompatActivity() {
         private const val REQ_STORAGE_PERMISSION = 1001
         private const val REQ_OPEN_DOCUMENT_TREE = 1002
         private const val MAX_JOBS = 40
-        private const val APP_VERSION = "3.2.2"
+        private const val APP_VERSION = "3.2.3"
         private const val PREFS_NAME = "cliphaven_engine_prefs"
-        private const val KEY_YTDLP_UPDATED_AT = "ytdlp_updated_at_v322"
+        private const val KEY_YTDLP_UPDATED_AT = "ytdlp_updated_at_v323"
         private const val KEY_REL_CHECKED_AT = "github_rel_checked_at"
         private const val KEY_REL_CACHED_JSON = "github_rel_cached_json"
         private const val KEY_LAST_UPDATE_DL_ID = "last_update_dm_id"
@@ -1263,18 +1263,60 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    @Volatile
+    private var activePreviewUrl: String = ""
+
+    private fun cancelActivePreview() {
+        val prev = activePreviewUrl
+        activePreviewUrl = ""
+        try { YoutubeDL.getInstance().destroyProcessById("bg_info_dur") } catch (_: Throwable) {}
+        if (prev.isNotEmpty()) {
+            synchronized(jobsLock) {
+                infoCache[prev]?.let { cached ->
+                    cached.put("playlist_loading", false)
+                    val arr = cached.optJSONArray("entries")
+                    if (arr != null && arr.length() > 0) {
+                        cached.put("playlist_count", arr.length())
+                    }
+                }
+            }
+        }
+    }
+
+    private fun compressPlaylistIndices(raw: String): String {
+        val cleaned = raw.replace(Regex("""\s+"""), "")
+        if (cleaned.isEmpty() || cleaned.contains("-") || !cleaned.contains(",")) return cleaned
+        val nums = cleaned.split(",").mapNotNull { it.toIntOrNull() }.filter { it > 0 }.distinct().sorted()
+        if (nums.isEmpty()) return cleaned
+        val ranges = mutableListOf<String>()
+        var start = nums[0]
+        var prev = nums[0]
+        for (i in 1 until nums.size) {
+            val cur = nums[i]
+            if (cur == prev + 1) {
+                prev = cur
+            } else {
+                ranges.add(if (start == prev) "$start" else "$start-$prev")
+                start = cur
+                prev = cur
+            }
+        }
+        ranges.add(if (start == prev) "$start" else "$start-$prev")
+        return ranges.joinToString(",")
+    }
+
     private fun buildInfoRequest(url: String, hasListParam: Boolean, useFallbackClient: Boolean): YoutubeDLRequest {
         return YoutubeDLRequest(url).apply {
-            addOption("--dump-single-json")
-            addOption("--force-ipv4")
-            addOption("--socket-timeout", "10")
             if (hasListParam) {
+                addOption("--dump-json")
                 addOption("--yes-playlist")
                 addOption("--flat-playlist")
-                addOption("--playlist-end", "100")
             } else {
+                addOption("--dump-single-json")
                 addOption("--no-playlist")
             }
+            addOption("--force-ipv4")
+            addOption("--socket-timeout", "10")
             if (useFallbackClient) {
                 addOption("--extractor-args", "youtube:player_client=android,default")
             } else {
@@ -1355,6 +1397,10 @@ class MainActivity : AppCompatActivity() {
                             JSONObject().put("ok", false).put("error", "Download job not found.").toString()
                         }
                     }
+                    "/api/cancel-preview" -> {
+                        cancelActivePreview()
+                        JSONObject().put("ok", true).toString()
+                    }
                     "/api/info" -> {
                         val url = extractUrl(body.optString("url", ""))
                         if (!isValidUrl(url)) {
@@ -1363,7 +1409,7 @@ class MainActivity : AppCompatActivity() {
                         val full = body.optBoolean("full", false)
                         synchronized(jobsLock) {
                             infoCache[url]?.let { cached ->
-                                if (!full || cached.optString("duration", "").isNotEmpty()) {
+                                if (!full || cached.optString("duration", "").isNotEmpty() || cached.optBoolean("is_playlist", false)) {
                                     return JSONObject().put("ok", true).put("info", JSONObject(cached.toString())).toString()
                                 }
                             }
@@ -1378,6 +1424,7 @@ class MainActivity : AppCompatActivity() {
                             val fastInfo = fetchFastOembedInfo(url, parsedUri, false)
                             if (fastInfo != null) {
                                 fastInfo.put("entries", JSONArray())
+                                fastInfo.put("playlist_loading", false)
                                 synchronized(jobsLock) {
                                     if (infoCache.size >= 64) {
                                         infoCache.keys.firstOrNull()?.let { infoCache.remove(it) }
@@ -1388,49 +1435,156 @@ class MainActivity : AppCompatActivity() {
                             }
                         }
 
-                        // 2. Playlist / Fallback extraction via yt-dlp with IPv4 forcing and fast player_client
+                        // 2. Progressive unlimited playlist stream (or single-video full metadata extraction)
                         ensureEnginesInitialized()
-                        try { YoutubeDL.getInstance().destroyProcessById("bg_info_dur") } catch (_: Throwable) {}
+                        cancelActivePreview()
+
+                        if (hasListParam) {
+                            activePreviewUrl = url
+                            val firstItemLatch = java.util.concurrent.CountDownLatch(1)
+                            val seenIndices = mutableSetOf<Int>()
+                            var seqCounter = 0
+
+                            fun handlePlaylistJsonLine(rawLine: String) {
+                                val trimmed = rawLine.trim()
+                                if (!trimmed.startsWith("{")) return
+                                val obj = try { JSONObject(trimmed) } catch (_: Throwable) { return }
+                                val nested = obj.optJSONArray("entries")
+                                if (nested != null && nested.length() > 0) {
+                                    for (k in 0 until nested.length()) {
+                                        val child = nested.optJSONObject(k) ?: continue
+                                        if (!child.has("playlist_title") && obj.has("title")) {
+                                            child.put("playlist_title", obj.optString("title"))
+                                        }
+                                        if (!child.has("playlist_uploader") && (obj.has("uploader") || obj.has("channel"))) {
+                                            child.put("playlist_uploader", obj.optString("uploader").ifEmpty { obj.optString("channel") })
+                                        }
+                                        if (!child.has("playlist_count")) {
+                                            child.put("playlist_count", obj.optInt("playlist_count", nested.length()))
+                                        }
+                                        handlePlaylistJsonLine(child.toString())
+                                    }
+                                    return
+                                }
+                                synchronized(jobsLock) {
+                                    seqCounter++
+                                    val idx = obj.optInt("playlist_index", seqCounter).coerceAtLeast(1)
+                                    if (!seenIndices.add(idx)) return
+                                    val edur = obj.optDouble("duration", 0.0)
+                                    val entryObj = JSONObject()
+                                        .put("index", idx)
+                                        .put("id", obj.optString("id", ""))
+                                        .put("title", obj.optString("title", "Video $idx"))
+                                        .put("duration", if (edur > 0) formatSeconds(edur.toInt()) else "")
+
+                                    var eThumb = obj.optString("thumbnail", "")
+                                    if (eThumb.isEmpty()) {
+                                        val thumbs = obj.optJSONArray("thumbnails")
+                                        if (thumbs != null && thumbs.length() > 0) {
+                                            eThumb = thumbs.optJSONObject(thumbs.length() - 1)?.optString("url", "") ?: ""
+                                        }
+                                    }
+                                    if (eThumb.isEmpty()) {
+                                        val vidId = obj.optString("id", "").ifEmpty { YT_ID_REGEX.find(url)?.groupValues?.getOrNull(1) ?: "" }
+                                        if (vidId.length == 11) eThumb = "https://i.ytimg.com/vi/$vidId/hqdefault.jpg"
+                                    }
+                                    val plTitle = obj.optString("playlist_title").ifEmpty { obj.optString("title", "Playlist ready to download") }
+                                    val plUploader = obj.optString("playlist_uploader").ifEmpty { obj.optString("uploader").ifEmpty { obj.optString("channel", "Playlist") } }
+                                    val plTotal = obj.optInt("playlist_count", obj.optInt("n_entries", 0))
+
+                                    val existing = infoCache[url]
+                                    if (existing == null) {
+                                        if (infoCache.size >= 64) {
+                                            infoCache.keys.firstOrNull()?.let { infoCache.remove(it) }
+                                        }
+                                        val arr = JSONArray().put(entryObj)
+                                        infoCache[url] = JSONObject()
+                                            .put("title", plTitle)
+                                            .put("uploader", plUploader)
+                                            .put("duration", "")
+                                            .put("duration_seconds", 0)
+                                            .put("thumbnail", eThumb)
+                                            .put("is_playlist", true)
+                                            .put("playlist_count", maxOf(1, plTotal))
+                                            .put("playlist_loading", true)
+                                            .put("entries", arr)
+                                            .put("webpage_url", url)
+                                    } else {
+                                        val arr = existing.optJSONArray("entries") ?: JSONArray().also { existing.put("entries", it) }
+                                        arr.put(entryObj)
+                                        existing.put("playlist_count", maxOf(existing.optInt("playlist_count", 0), plTotal, arr.length()))
+                                        if (existing.optString("thumbnail", "").isEmpty() && eThumb.isNotEmpty()) {
+                                            existing.put("thumbnail", eThumb)
+                                        }
+                                    }
+                                    firstItemLatch.countDown()
+                                }
+                            }
+
+                            thread {
+                                var streamErr: Throwable? = null
+                                try {
+                                    val res = try {
+                                        YoutubeDL.getInstance().execute(buildInfoRequest(url, true, false), "bg_info_dur") { _, _, line ->
+                                            handlePlaylistJsonLine(line)
+                                        }
+                                    } catch (t: Throwable) {
+                                        if (activePreviewUrl != url) return@thread
+                                        if (isYouTubeClientBlockError(t.message)) {
+                                            thread { syncUpdateYtDlp(YoutubeDL.UpdateChannel.NIGHTLY) }
+                                        }
+                                        YoutubeDL.getInstance().execute(buildInfoRequest(url, true, true), "bg_info_dur") { _, _, line ->
+                                            handlePlaylistJsonLine(line)
+                                        }
+                                    }
+                                    res.out.lineSequence().forEach { ln -> handlePlaylistJsonLine(ln) }
+                                } catch (t2: Throwable) {
+                                    streamErr = t2
+                                } finally {
+                                    synchronized(jobsLock) {
+                                        infoCache[url]?.let { cached ->
+                                            cached.put("playlist_loading", false)
+                                            val arr = cached.optJSONArray("entries")
+                                            if (arr != null && arr.length() > 0) {
+                                                cached.put("playlist_count", arr.length())
+                                            }
+                                        }
+                                    }
+                                    if (activePreviewUrl == url) activePreviewUrl = ""
+                                    firstItemLatch.countDown()
+                                }
+                            }
+
+                            firstItemLatch.await(12, java.util.concurrent.TimeUnit.SECONDS)
+                            Thread.sleep(40)
+                            synchronized(jobsLock) {
+                                infoCache[url]?.let { cached ->
+                                    return JSONObject().put("ok", true).put("info", JSONObject(cached.toString())).toString()
+                                }
+                            }
+                            if (hasVideoAndList) {
+                                val fallbackSingle = fetchFastOembedInfo(url, parsedUri, true)
+                                if (fallbackSingle != null) {
+                                    fallbackSingle.put("entries", JSONArray())
+                                    fallbackSingle.put("playlist_loading", false)
+                                    return JSONObject().put("ok", true).put("info", fallbackSingle).toString()
+                                }
+                            }
+                            return JSONObject().put("ok", false).put("error", "Could not fetch playlist details.").toString()
+                        }
+
                         val res = try {
-                            YoutubeDL.getInstance().execute(buildInfoRequest(url, hasListParam, false), "bg_info_dur", null)
+                            YoutubeDL.getInstance().execute(buildInfoRequest(url, false, false), "bg_info_dur", null)
                         } catch (t: Throwable) {
                             if (isYouTubeClientBlockError(t.message)) {
                                 thread { syncUpdateYtDlp(YoutubeDL.UpdateChannel.NIGHTLY) }
                             }
-                            try {
-                                YoutubeDL.getInstance().execute(buildInfoRequest(url, hasListParam, true), "bg_info_dur", null)
-                            } catch (t2: Throwable) {
-                                if (hasVideoAndList) {
-                                    val fallbackSingle = fetchFastOembedInfo(url, parsedUri, true)
-                                    if (fallbackSingle != null) {
-                                        fallbackSingle.put("entries", JSONArray())
-                                        return JSONObject().put("ok", true).put("info", fallbackSingle).toString()
-                                    }
-                                }
-                                throw t2
-                            }
+                            YoutubeDL.getInstance().execute(buildInfoRequest(url, false, true), "bg_info_dur", null)
                         }
 
                         val rawOut = res.out.trim()
                         val jsonLine = rawOut.lineSequence().lastOrNull { it.trim().startsWith("{") } ?: rawOut
                         val data = JSONObject(jsonLine)
-                        val entries = data.optJSONArray("entries")
-                        val entriesList = JSONArray()
-                        if (entries != null) {
-                            var idxCounter = 1
-                            for (i in 0 until entries.length()) {
-                                val item = entries.optJSONObject(i) ?: continue
-                                val edur = item.optDouble("duration", 0.0)
-                                val entryObj = JSONObject()
-                                    .put("index", idxCounter)
-                                    .put("id", item.optString("id", ""))
-                                    .put("title", item.optString("title", "Video $idxCounter"))
-                                    .put("duration", if (edur > 0) formatSeconds(edur.toInt()) else "")
-                                entriesList.put(entryObj)
-                                idxCounter++
-                            }
-                        }
-                        val isPlaylist = hasListParam || data.optString("_type") == "playlist" || entriesList.length() > 0
                         val dur = data.optDouble("duration", 0.0)
                         var thumb = data.optString("thumbnail", "")
                         if (thumb.isEmpty()) {
@@ -1439,28 +1593,9 @@ class MainActivity : AppCompatActivity() {
                                 thumb = thumbs.optJSONObject(thumbs.length() - 1)?.optString("url", "") ?: ""
                             }
                         }
-                        if (thumb.isEmpty() && entries != null && entries.length() > 0) {
-                            val firstItem = entries.optJSONObject(0)
-                            thumb = firstItem?.optString("thumbnail", "") ?: ""
-                            if (thumb.isEmpty()) {
-                                val fThumbs = firstItem?.optJSONArray("thumbnails")
-                                if (fThumbs != null && fThumbs.length() > 0) {
-                                    thumb = fThumbs.optJSONObject(fThumbs.length() - 1)?.optString("url", "") ?: ""
-                                }
-                            }
-                        }
                         if (thumb.isEmpty()) {
                             val ytId = YT_ID_REGEX.find(url)?.groupValues?.getOrNull(1) ?: ""
                             if (ytId.isNotEmpty()) thumb = "https://i.ytimg.com/vi/$ytId/hqdefault.jpg"
-                        }
-                        val plCount = if (entriesList.length() > 0) {
-                            entriesList.length()
-                        } else if (data.optInt("playlist_count", 0) > 0) {
-                            data.optInt("playlist_count")
-                        } else if (isPlaylist) {
-                            2
-                        } else {
-                            1
                         }
                         val infoObj = JSONObject()
                             .put("title", data.optString("title", "Video ready to download"))
@@ -1468,9 +1603,10 @@ class MainActivity : AppCompatActivity() {
                             .put("duration", if (dur > 0) formatSeconds(dur.toInt()) else "")
                             .put("duration_seconds", if (dur > 0) dur.toInt() else 0)
                             .put("thumbnail", thumb)
-                            .put("is_playlist", isPlaylist)
-                            .put("playlist_count", plCount)
-                            .put("entries", entriesList)
+                            .put("is_playlist", false)
+                            .put("playlist_count", 1)
+                            .put("playlist_loading", false)
+                            .put("entries", JSONArray())
                             .put("webpage_url", data.optString("webpage_url", url))
                         synchronized(jobsLock) {
                             if (infoCache.size >= 64) {
@@ -1640,10 +1776,11 @@ class MainActivity : AppCompatActivity() {
             val subtitles = body.optBoolean("subtitles", false)
             val embedThumb = body.optBoolean("embed_thumbnail", false)
             val allowPlaylist = body.optBoolean("allow_playlist", false)
-            val rawPlaylistItems = body.optString("playlist_items", "").replace(Regex("""\s+"""), "")
-            if (rawPlaylistItems.isNotEmpty() && !PLAYLIST_ITEMS_REGEX.matches(rawPlaylistItems)) {
+            val rawPlaylistItemsInput = body.optString("playlist_items", "").replace(Regex("""\s+"""), "")
+            if (rawPlaylistItemsInput.isNotEmpty() && !PLAYLIST_ITEMS_REGEX.matches(rawPlaylistItemsInput)) {
                 return JSONObject().put("ok", false).put("error", "Invalid playlist video selection.").toString()
             }
+            val rawPlaylistItems = compressPlaylistIndices(rawPlaylistItemsInput)
             val titleHint = body.optString("title_hint", "").trim()
             val durationHint = body.optInt("duration_hint", 0)
 
@@ -1666,7 +1803,7 @@ class MainActivity : AppCompatActivity() {
                 else -> 0
             }
 
-            try { YoutubeDL.getInstance().destroyProcessById("bg_info_dur") } catch (_: Throwable) {}
+            cancelActivePreview()
             val outDir = normalizeAndroidFolder(folderRaw)
             val jid = UUID.randomUUID().toString().replace("-", "")
             val initialJob = JSONObject()
