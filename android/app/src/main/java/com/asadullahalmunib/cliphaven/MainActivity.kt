@@ -1317,19 +1317,28 @@ class MainActivity : AppCompatActivity() {
         return YoutubeDLRequest(url).apply {
             addOption("--dump-single-json")
             addOption("--force-ipv4")
-            addOption("--socket-timeout", "10")
+            addOption("--socket-timeout", if (hasListParam && playlistStart > 1) "15" else "10")
             if (hasListParam) {
                 addOption("--yes-playlist")
                 addOption("--flat-playlist")
-                addOption("--playlist-start", playlistStart.toString())
-                addOption("--playlist-end", playlistEnd.toString())
+                if (playlistStart > 1) {
+                    addOption("--playlist-start", playlistStart.toString())
+                }
+                if (playlistEnd > 0) {
+                    addOption("--playlist-end", playlistEnd.toString())
+                }
+                // IMPORTANT: Do NOT pass player_skip=configs or player_client=android for playlists!
+                // YouTube playlist continuations (>100 videos) require web ytcfg (configs) to call /youtubei/v1/browse.
+                if (useFallbackClient) {
+                    addOption("--extractor-args", "youtube:player_client=web,default")
+                }
             } else {
                 addOption("--no-playlist")
-            }
-            if (useFallbackClient) {
-                addOption("--extractor-args", "youtube:player_client=android,default")
-            } else {
-                addOption("--extractor-args", "youtube:player_client=android,web,default;player_skip=configs")
+                if (useFallbackClient) {
+                    addOption("--extractor-args", "youtube:player_client=android,default")
+                } else {
+                    addOption("--extractor-args", "youtube:player_client=android,web,default;player_skip=configs")
+                }
             }
             addOption("--no-check-certificates")
             addOption("--no-warnings")
@@ -1539,18 +1548,20 @@ class MainActivity : AppCompatActivity() {
                             infoCache[url] = JSONObject(infoObj.toString())
                         }
 
-                        // 3. If playlist has >100 items, fetch remaining pages (101..200, 201..300, ...) progressively in background
+                        // 3. If playlist has >100 items, fetch remaining pages (101..250, 251..400, ...) progressively in background
                         if (hasMorePages) {
                             thread {
                                 var nextStart = 101
-                                val pageSize = 100
+                                val pageSize = 150
                                 try {
                                     while (previewSeqGen.get() == myToken) {
                                         val nextEnd = nextStart + pageSize - 1
+                                        try { YoutubeDL.getInstance().destroyProcessById("bg_info_dur") } catch (_: Throwable) {}
                                         val pageRes = try {
                                             YoutubeDL.getInstance().execute(buildInfoRequest(url, true, false, nextStart, nextEnd), "bg_info_dur", null)
                                         } catch (_: Throwable) {
                                             if (previewSeqGen.get() != myToken) break
+                                            try { YoutubeDL.getInstance().destroyProcessById("bg_info_dur") } catch (_: Throwable) {}
                                             try {
                                                 YoutubeDL.getInstance().execute(buildInfoRequest(url, true, true, nextStart, nextEnd), "bg_info_dur", null)
                                             } catch (_: Throwable) {
@@ -1560,13 +1571,33 @@ class MainActivity : AppCompatActivity() {
                                         if (previewSeqGen.get() != myToken) break
                                         val pOut = pageRes.out.trim()
                                         val pLine = pOut.lineSequence().lastOrNull { it.trim().startsWith("{") } ?: pOut
-                                        if (!pLine.startsWith("{")) break
-                                        val pData = JSONObject(pLine)
-                                        val pEntries = pData.optJSONArray("entries") ?: break
-                                        if (pEntries.length() == 0) break
+                                        var pEntries = if (pLine.startsWith("{")) JSONObject(pLine).optJSONArray("entries") else null
+
+                                        // Fallback if an extractor ignored --playlist-start > 1: fetch 1..nextEnd and slice from nextStart-1
+                                        var sliceOffset = 0
+                                        if ((pEntries == null || pEntries.length() == 0) && nextStart == 101) {
+                                            val targetEnd = if (reportedTotal in 101..1000) reportedTotal else 500
+                                            try { YoutubeDL.getInstance().destroyProcessById("bg_info_dur") } catch (_: Throwable) {}
+                                            val fullRes = try {
+                                                YoutubeDL.getInstance().execute(buildInfoRequest(url, true, false, 1, targetEnd), "bg_info_dur", null)
+                                            } catch (_: Throwable) {
+                                                null
+                                            }
+                                            if (fullRes != null && previewSeqGen.get() == myToken) {
+                                                val fOut = fullRes.out.trim()
+                                                val fLine = fOut.lineSequence().lastOrNull { it.trim().startsWith("{") } ?: fOut
+                                                if (fLine.startsWith("{")) {
+                                                    pEntries = JSONObject(fLine).optJSONArray("entries")
+                                                    sliceOffset = 100
+                                                }
+                                            }
+                                        }
+
+                                        if (pEntries == null || pEntries.length() <= sliceOffset) break
 
                                         var addedCount = 0
                                         var cacheMissing = false
+                                        var totalNow = 0
                                         synchronized(jobsLock) {
                                             val cached = infoCache[url]
                                             if (cached == null) {
@@ -1574,7 +1605,7 @@ class MainActivity : AppCompatActivity() {
                                             } else {
                                                 val arr = cached.optJSONArray("entries") ?: JSONArray().also { cached.put("entries", it) }
                                                 var idxCounter = arr.length() + 1
-                                                for (i in 0 until pEntries.length()) {
+                                                for (i in sliceOffset until pEntries.length()) {
                                                     val item = pEntries.optJSONObject(i)
                                                     if (item != null) {
                                                         val edur = item.optDouble("duration", 0.0)
@@ -1588,10 +1619,16 @@ class MainActivity : AppCompatActivity() {
                                                         addedCount++
                                                     }
                                                 }
-                                                cached.put("playlist_count", maxOf(cached.optInt("playlist_count", 0), arr.length()))
+                                                totalNow = arr.length()
+                                                cached.put("playlist_count", maxOf(cached.optInt("playlist_count", 0), totalNow))
                                             }
                                         }
-                                        if (cacheMissing || addedCount < pageSize || (reportedTotal > 0 && nextEnd >= reportedTotal)) {
+                                        if (
+                                            cacheMissing ||
+                                            sliceOffset > 0 ||
+                                            addedCount < pageSize ||
+                                            (reportedTotal > 0 && totalNow >= reportedTotal)
+                                        ) {
                                             break
                                         }
                                         nextStart += pageSize
