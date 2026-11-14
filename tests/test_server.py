@@ -59,9 +59,9 @@ def test_parse_timestamp():
     assert server.validate_playlist_items("") == ""
     assert server.validate_playlist_items("1, 3, 5-8") == "1,3,5-8"
     assert server.validate_playlist_items("1;rm -rf") is None
-    assert server.is_newer_version("3.3.0", "3.2.2") is True
-    assert server.is_newer_version("3.2.2", "3.2.2") is False
-    assert server.is_newer_version("3.2.1", "3.2.2") is False
+    assert server.is_newer_version("3.3.0", "3.2.3") is True
+    assert server.is_newer_version("3.2.3", "3.2.3") is False
+    assert server.is_newer_version("3.2.2", "3.2.3") is False
 
 
 def test_trim_and_shift_subtitle_text_and_file(tmp_path):
@@ -149,7 +149,7 @@ def test_config_logo_and_validation_endpoints(tmp_path):
             assert resp.status == 200
             data = json.loads(resp.read().decode("utf-8"))
             assert data["ok"] is True
-            assert data["version"] == "3.2.2"
+            assert data["version"] == "3.2.3"
             assert "default_folder" in data
             assert "ffmpeg" in data
 
@@ -249,3 +249,49 @@ def test_config_logo_and_validation_endpoints(tmp_path):
     finally:
         httpd.shutdown()
         httpd.server_close()
+
+
+def test_smart_range_compression_and_validation():
+    assert server.compress_playlist_indices([]) == ""
+    assert server.compress_playlist_indices([1, 2, 4, 5, 6, 8, 10, 11]) == "1-2,4-6,8,10-11"
+    # Example from 500-item playlist where only item #3 is unchecked
+    items_499 = [i for i in range(1, 501) if i != 3]
+    assert server.compress_playlist_indices(items_499) == "1-2,4-500"
+    # validate_playlist_items auto-compresses comma-separated lists and preserves valid ranges
+    assert server.validate_playlist_items("1,2,3,5,6,7,10") == "1-3,5-7,10"
+    assert server.validate_playlist_items("1-50, 52-500") == "1-50,52-500"
+    assert server.validate_playlist_items("invalid;cmd") is None
+
+
+def test_progressive_playlist_stream_and_cancel():
+    url = "https://www.youtube.com/playlist?list=PL_TEST_UNLIMITED_323"
+    stop_ev = threading.Event()
+    with server._preview_lock:
+        server._preview_stop_event = stop_ev
+        server._preview_url = url
+    with server.lock:
+        server._info_cache[url] = {
+            "title": "Test 250 Video Playlist",
+            "uploader": "ClipHaven Channel",
+            "duration": "",
+            "duration_seconds": 0,
+            "thumbnail": "",
+            "is_playlist": True,
+            "playlist_count": 250,
+            "playlist_loading": True,
+            "entries": [{"index": i, "id": f"id_{i}", "title": f"Video {i}", "duration": "01:00"} for i in range(1, 151)],
+            "webpage_url": url,
+        }
+    snap = server.fetch_video_info(url)
+    assert snap["is_playlist"] is True
+    assert snap["playlist_loading"] is True
+    assert len(snap["entries"]) == 150
+
+    # Cancelling active preview sets event and marks playlist_loading False with current count
+    server.cancel_active_preview()
+    assert stop_ev.is_set() is True
+    snap_after = server.fetch_video_info(url)
+    assert snap_after["playlist_loading"] is False
+    assert snap_after["playlist_count"] == 150
+    with server.lock:
+        server._info_cache.pop(url, None)
