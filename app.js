@@ -455,7 +455,7 @@ function syncPlaylistBadgeText() {
     if (selBadge) selBadge.textContent = `${selected.length} of ${total}${loadingSuffix} Selected ▾`;
   } else {
     const countStr = total > 1 ? ` (${total}${loadingSuffix} videos)` : "";
-    badge.textContent = `✅ All Playlist${countStr} ▾`;
+    badge.textContent = `✅ All Playlist Videos${countStr} ▾`;
     if (selBadge) selBadge.textContent = total > 1 ? `All ${total}${loadingSuffix} Selected ▾` : "All Selected ▾";
   }
   badge.style.display = "inline-block";

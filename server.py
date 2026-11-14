@@ -657,165 +657,69 @@ def _snapshot_cached_info(cached: dict) -> dict:
     return snap
 
 
-def _start_subprocess_playlist_stream(clean_url: str, parsed, has_video_and_list: bool, stop_event: threading.Event) -> dict:
-    """Stream unlimited flat playlist entries line-by-line via yt-dlp --dump-json without blocking after initial items arrive."""
-    global _preview_proc
+def _fetch_playlist_page_dict(clean_url: str, has_list_param: bool, start_idx: int = 1, end_idx: int = 100) -> dict | None:
+    data = None
+    try:
+        import yt_dlp  # type: ignore
+        ydl_opts: dict = {
+            "quiet": True,
+            "no_warnings": True,
+            "noplaylist": False if has_list_param else True,
+            "extract_flat": "in_playlist",
+            "socket_timeout": 15 if (has_list_param and start_idx > 1) else 10,
+            "source_address": "0.0.0.0",
+        }
+        if has_list_param:
+            if start_idx > 1:
+                ydl_opts["playliststart"] = start_idx
+            if end_idx > 0:
+                ydl_opts["playlistend"] = end_idx
+        else:
+            ydl_opts["extractor_args"] = {"youtube": {"player_client": ["android", "web", "default"], "player_skip": ["configs"]}}
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            data = ydl.extract_info(clean_url, download=False)
+    except Exception:
+        data = None
+
+    if isinstance(data, dict):
+        return data
+
+    if has_list_param:
+        playlist_flags = ["--yes-playlist", "--flat-playlist"]
+        if start_idx > 1:
+            playlist_flags.extend(["--playlist-start", str(start_idx)])
+        if end_idx > 0:
+            playlist_flags.extend(["--playlist-end", str(end_idx)])
+        extractor_flags: list[str] = []
+    else:
+        playlist_flags = ["--no-playlist"]
+        extractor_flags = ["--extractor-args", "youtube:player_client=android,web,default;player_skip=configs"]
+
     cmd = get_ytdlp_cmd() + [
-        "--yes-playlist",
-        "--flat-playlist",
-        "--dump-json",
+        "--dump-single-json",
         "--force-ipv4",
         "--socket-timeout",
-        "10",
-        "--extractor-args",
-        "youtube:player_client=android,web,default;player_skip=configs",
+        "15" if (has_list_param and start_idx > 1) else "10",
+        *playlist_flags,
+        *extractor_flags,
         "--no-warnings",
         "--",
         clean_url,
     ]
-    creationflags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
-    proc = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        cwd=str(APP_DIR),
-        creationflags=creationflags,
-    )
-    with _preview_lock:
-        if stop_event.is_set():
-            terminate_process(proc)
-        else:
-            _preview_proc = proc
+    res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", timeout=18, cwd=str(APP_DIR))
+    if res.returncode != 0 or not res.stdout.strip():
+        if start_idx == 1:
+            err_lines = [line.strip() for line in res.stderr.splitlines() if line.strip()]
+            err_msg = next((x for x in reversed(err_lines) if "ERROR:" in x), err_lines[-1] if err_lines else "Could not fetch video details.")
+            raise RuntimeError(err_msg.replace("ERROR:", "").strip()[:300])
+        return None
 
-    first_ready = threading.Event()
-    err_holder: list[str] = []
-
-    def _reader():
-        idx_counter = 0
-        try:
-            assert proc.stdout is not None
-            for raw_line in proc.stdout:
-                if stop_event.is_set():
-                    break
-                line = raw_line.strip()
-                if not line.startswith("{"):
-                    continue
-                try:
-                    obj = json.loads(line)
-                except Exception:
-                    continue
-                if not isinstance(obj, dict):
-                    continue
-
-                # Handle either a full playlist object or a single flat entry line
-                if isinstance(obj.get("entries"), list):
-                    raw_list = [e for e in obj["entries"] if isinstance(e, dict)]
-                    formatted_list = [_format_playlist_entry(e, i) for i, e in enumerate(raw_list, 1)]
-                    thumb = obj.get("thumbnail") or (obj["thumbnails"][-1].get("url", "") if obj.get("thumbnails") else "")
-                    if not thumb and raw_list:
-                        first_e = raw_list[0]
-                        thumb = first_e.get("thumbnail") or (first_e["thumbnails"][-1].get("url", "") if first_e.get("thumbnails") else "")
-                    if not thumb:
-                        yt_id = _extract_yt_id(clean_url)
-                        if yt_id:
-                            thumb = f"https://i.ytimg.com/vi/{yt_id}/hqdefault.jpg"
-                    with lock:
-                        if len(_info_cache) >= 64 and clean_url not in _info_cache:
-                            _info_cache.pop(next(iter(_info_cache)), None)
-                        _info_cache[clean_url] = {
-                            "title": obj.get("title") or "Playlist ready to download",
-                            "uploader": obj.get("uploader") or obj.get("channel") or obj.get("creator") or "Playlist",
-                            "duration": "",
-                            "duration_seconds": 0,
-                            "thumbnail": thumb,
-                            "is_playlist": True,
-                            "playlist_count": len(formatted_list) or int(obj.get("playlist_count") or 2),
-                            "playlist_loading": False,
-                            "entries": formatted_list,
-                            "webpage_url": obj.get("webpage_url") or clean_url,
-                        }
-                    idx_counter = len(formatted_list)
-                    first_ready.set()
-                    continue
-
-                idx_counter += 1
-                entry_idx = int(obj.get("playlist_index") or idx_counter)
-                formatted = _format_playlist_entry(obj, entry_idx)
-                e_thumb = obj.get("thumbnail") or (obj["thumbnails"][-1].get("url", "") if obj.get("thumbnails") else "")
-                if not e_thumb:
-                    yt_id = str(obj.get("id") or _extract_yt_id(clean_url))
-                    if yt_id and len(yt_id) == 11:
-                        e_thumb = f"https://i.ytimg.com/vi/{yt_id}/hqdefault.jpg"
-                pl_title = obj.get("playlist_title") or obj.get(" playlist") or obj.get("title") or "Playlist ready to download"
-                pl_uploader = obj.get("playlist_uploader") or obj.get("uploader") or obj.get("channel") or "Playlist"
-                pl_total = int(obj.get("playlist_count") or obj.get("n_entries") or 0)
-
-                with lock:
-                    cached = _info_cache.get(clean_url)
-                    if not cached:
-                        if len(_info_cache) >= 64:
-                            _info_cache.pop(next(iter(_info_cache)), None)
-                        cached = {
-                            "title": pl_title,
-                            "uploader": pl_uploader,
-                            "duration": "",
-                            "duration_seconds": 0,
-                            "thumbnail": e_thumb,
-                            "is_playlist": True,
-                            "playlist_count": max(1, pl_total),
-                            "playlist_loading": True,
-                            "entries": [formatted],
-                            "webpage_url": clean_url,
-                        }
-                        _info_cache[clean_url] = cached
-                    else:
-                        cached["entries"].append(formatted)
-                        cached["playlist_count"] = max(int(cached.get("playlist_count") or 0), pl_total, len(cached["entries"]))
-                        if not cached.get("thumbnail") and e_thumb:
-                            cached["thumbnail"] = e_thumb
-                first_ready.set()
-
-            if proc.stderr:
-                for eline in proc.stderr:
-                    s = eline.strip()
-                    if s:
-                        err_holder.append(s)
-        except Exception as exc:
-            err_holder.append(str(exc))
-        finally:
-            try:
-                proc.wait(timeout=2)
-            except Exception:
-                terminate_process(proc)
-            with lock:
-                cached = _info_cache.get(clean_url)
-                if cached:
-                    cached["playlist_loading"] = False
-                    if cached.get("entries"):
-                        cached["playlist_count"] = len(cached["entries"])
-            first_ready.set()
-
-    threading.Thread(target=_reader, daemon=True).start()
-    first_ready.wait(timeout=15.0)
-    # Give a tiny 40ms window to batch initial burst of stdout lines
-    time.sleep(0.04)
-
-    with lock:
-        if clean_url in _info_cache:
-            return _snapshot_cached_info(_info_cache[clean_url])
-
-    if has_video_and_list:
-        fast_info = _fetch_fast_oembed_info(clean_url, parsed, True)
-        if fast_info:
-            fast_info["entries"] = []
-            fast_info["playlist_loading"] = False
-            return fast_info
-
-    err_msg = next((x for x in reversed(err_holder) if "ERROR:" in x), err_holder[-1] if err_holder else "Could not fetch video details.")
-    raise RuntimeError(err_msg.replace("ERROR:", "").strip()[:300])
+    raw_out = res.stdout.strip()
+    try:
+        return json.loads(raw_out)
+    except json.JSONDecodeError:
+        json_line = next((ln.strip() for ln in reversed(raw_out.splitlines()) if ln.strip().startswith("{")), raw_out.splitlines()[-1])
+        return json.loads(json_line)
 
 
 def fetch_video_info(url: str, full: bool = False) -> dict:
@@ -852,54 +756,26 @@ def fetch_video_info(url: str, full: bool = False) -> dict:
             _preview_stop_event = stop_event
             _preview_url = clean_url
 
-    # 2. Extract unlimited flat playlist entries (progressive lazy stream) or single video metadata
-    data = None
+    # 2. Fetch Page 1 (items 1..100) using proven fast flat-playlist extraction, then stream remaining pages (101..N) in background
     try:
-        import yt_dlp  # type: ignore
-        ydl_opts = {
-            "quiet": True,
-            "no_warnings": True,
-            "noplaylist": False if has_list_param else True,
-            "extract_flat": "in_playlist",
-            "playliststart": 1,
-            "playlistend": 100,
-            "socket_timeout": 10,
-            "source_address": "0.0.0.0",
-            "extractor_args": {"youtube": {"player_client": ["android", "web", "default"], "player_skip": ["configs"]}},
-        }
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            data = ydl.extract_info(clean_url, download=False)
+        data = _fetch_playlist_page_dict(clean_url, has_list_param, 1, 100)
     except Exception:
-        data = None
+        if has_video_and_list:
+            fast_info = _fetch_fast_oembed_info(clean_url, parsed, True)
+            if fast_info:
+                fast_info["entries"] = []
+                fast_info["playlist_loading"] = False
+                return fast_info
+        raise
 
     if not isinstance(data, dict):
-        if has_list_param:
-            return _start_subprocess_playlist_stream(clean_url, parsed, has_video_and_list, stop_event)
-
-        cmd = get_ytdlp_cmd() + [
-            "--dump-single-json",
-            "--force-ipv4",
-            "--socket-timeout",
-            "10",
-            "--no-playlist",
-            "--extractor-args",
-            "youtube:player_client=android,web,default;player_skip=configs",
-            "--no-warnings",
-            "--",
-            clean_url,
-        ]
-        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", timeout=18, cwd=str(APP_DIR))
-        if res.returncode != 0 or not res.stdout.strip():
-            err_lines = [line.strip() for line in res.stderr.splitlines() if line.strip()]
-            err_msg = next((x for x in reversed(err_lines) if "ERROR:" in x), err_lines[-1] if err_lines else "Could not fetch video details.")
-            raise RuntimeError(err_msg.replace("ERROR:", "").strip()[:300])
-
-        raw_out = res.stdout.strip()
-        try:
-            data = json.loads(raw_out)
-        except json.JSONDecodeError:
-            json_line = next((ln.strip() for ln in reversed(raw_out.splitlines()) if ln.strip().startswith("{")), raw_out.splitlines()[-1])
-            data = json.loads(json_line)
+        if has_video_and_list:
+            fast_info = _fetch_fast_oembed_info(clean_url, parsed, True)
+            if fast_info:
+                fast_info["entries"] = []
+                fast_info["playlist_loading"] = False
+                return fast_info
+        raise RuntimeError("Could not fetch video details.")
 
     raw_entries_obj = data.get("entries")
     initial_raw: list[dict] = []
@@ -911,7 +787,7 @@ def fetch_video_info(url: str, full: bool = False) -> dict:
     elif raw_entries_obj is not None:
         entries_iter = iter(raw_entries_obj)
         exhausted = False
-        for _ in range(25):
+        for _ in range(100):
             if stop_event.is_set():
                 exhausted = True
                 break
@@ -939,7 +815,13 @@ def fetch_video_info(url: str, full: bool = False) -> dict:
         if yt_id:
             thumb = f"https://i.ytimg.com/vi/{yt_id}/hqdefault.jpg"
 
-    reported_count = int(data.get("playlist_count") or 0) if isinstance(data.get("playlist_count"), (int, float)) else 0
+    reported_count = int(data.get("playlist_count") or data.get("n_entries") or 0) if isinstance(data.get("playlist_count") or data.get("n_entries"), (int, float)) else 0
+    has_more_pages = bool(
+        is_playlist
+        and not is_loading_more
+        and len(playlist_entries) >= 100
+        and (reported_count == 0 or reported_count > len(playlist_entries))
+    )
     result = {
         "title": data.get("title") or "Untitled video",
         "uploader": data.get("uploader") or data.get("channel") or data.get("creator") or data.get("extractor_key") or "Video",
@@ -948,7 +830,7 @@ def fetch_video_info(url: str, full: bool = False) -> dict:
         "thumbnail": thumb,
         "is_playlist": is_playlist,
         "playlist_count": max(len(playlist_entries), reported_count) if (playlist_entries or reported_count) else (2 if is_playlist else 1),
-        "playlist_loading": bool(is_loading_more and is_playlist),
+        "playlist_loading": bool((is_loading_more or has_more_pages) and is_playlist),
         "entries": playlist_entries,
         "webpage_url": data.get("webpage_url") or clean_url,
     }
@@ -958,37 +840,14 @@ def fetch_video_info(url: str, full: bool = False) -> dict:
         _info_cache[clean_url] = dict(result)
         _info_cache[clean_url]["entries"] = list(playlist_entries)
 
-    has_more_pages = bool(
-        is_playlist
-        and not is_loading_more
-        and len(playlist_entries) >= 100
-        and (reported_count == 0 or reported_count > len(playlist_entries))
-    )
     if has_more_pages:
-        with lock:
-            if clean_url in _info_cache:
-                _info_cache[clean_url]["playlist_loading"] = True
-
         def _fetch_remaining_pages():
             next_start = len(playlist_entries) + 1
             page_size = 100
             try:
-                import yt_dlp  # type: ignore
                 while not stop_event.is_set():
                     next_end = next_start + page_size - 1
-                    page_opts = {
-                        "quiet": True,
-                        "no_warnings": True,
-                        "noplaylist": False,
-                        "extract_flat": "in_playlist",
-                        "playliststart": next_start,
-                        "playlistend": next_end,
-                        "socket_timeout": 10,
-                        "source_address": "0.0.0.0",
-                        "extractor_args": {"youtube": {"player_client": ["android", "web", "default"], "player_skip": ["configs"]}},
-                    }
-                    with yt_dlp.YoutubeDL(page_opts) as ydl:
-                        p_data = ydl.extract_info(clean_url, download=False)
+                    p_data = _fetch_playlist_page_dict(clean_url, True, next_start, next_end)
                     if stop_event.is_set() or not isinstance(p_data, dict):
                         break
                     p_entries = [e for e in (p_data.get("entries") or []) if isinstance(e, dict)]
