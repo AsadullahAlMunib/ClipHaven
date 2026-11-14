@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local-only backend for ClipHaven Video & Audio Downloader (v3.2.2).
+"""Local-only backend for ClipHaven Video & Audio Downloader (v3.2.3).
 Developed by Md Asadullah Al Munib (https://github.com/AsadullahAlMunib/ClipHaven/)."""
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, quote
@@ -18,7 +18,7 @@ import time
 import webbrowser
 import logging
 
-VERSION = "3.2.2"
+VERSION = "3.2.3"
 AUTHOR = "Md Asadullah Al Munib"
 REPO_URL = "https://github.com/AsadullahAlMunib/ClipHaven/"
 IS_FROZEN = getattr(sys, "frozen", False)
@@ -611,14 +611,222 @@ def _fetch_fast_oembed_info(clean_url: str, parsed, has_video_and_list: bool) ->
         return None
 
 
+_preview_lock = threading.Lock()
+_preview_proc: subprocess.Popen | None = None
+_preview_stop_event: threading.Event | None = None
+_preview_url: str = ""
+
+
+def cancel_active_preview():
+    """Immediately stop any running background playlist preview stream so downloads get 100% bandwidth/CPU."""
+    global _preview_proc, _preview_stop_event, _preview_url
+    with _preview_lock:
+        ev = _preview_stop_event
+        proc = _preview_proc
+        url = _preview_url
+        _preview_stop_event = None
+        _preview_proc = None
+        _preview_url = ""
+    if ev:
+        ev.set()
+    if proc:
+        terminate_process(proc)
+    if url:
+        with lock:
+            if url in _info_cache and _info_cache[url].get("playlist_loading"):
+                _info_cache[url]["playlist_loading"] = False
+                entries_now = _info_cache[url].get("entries") or []
+                if entries_now:
+                    _info_cache[url]["playlist_count"] = len(entries_now)
+
+
+def _format_playlist_entry(entry: dict, idx: int) -> dict:
+    edur = entry.get("duration")
+    return {
+        "index": idx,
+        "id": str(entry.get("id") or ""),
+        "title": str(entry.get("title") or f"Video {idx}"),
+        "duration": format_seconds(int(edur)) if isinstance(edur, (int, float)) and edur > 0 else "",
+    }
+
+
+def _snapshot_cached_info(cached: dict) -> dict:
+    snap = dict(cached)
+    snap["entries"] = list(cached.get("entries") or [])
+    snap["playlist_loading"] = bool(cached.get("playlist_loading", False))
+    return snap
+
+
+def _start_subprocess_playlist_stream(clean_url: str, parsed, has_video_and_list: bool, stop_event: threading.Event) -> dict:
+    """Stream unlimited flat playlist entries line-by-line via yt-dlp --dump-json without blocking after initial items arrive."""
+    global _preview_proc
+    cmd = get_ytdlp_cmd() + [
+        "--yes-playlist",
+        "--flat-playlist",
+        "--dump-json",
+        "--force-ipv4",
+        "--socket-timeout",
+        "10",
+        "--extractor-args",
+        "youtube:player_client=android,web,default;player_skip=configs",
+        "--no-warnings",
+        "--",
+        clean_url,
+    ]
+    creationflags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        cwd=str(APP_DIR),
+        creationflags=creationflags,
+    )
+    with _preview_lock:
+        if stop_event.is_set():
+            terminate_process(proc)
+        else:
+            _preview_proc = proc
+
+    first_ready = threading.Event()
+    err_holder: list[str] = []
+
+    def _reader():
+        idx_counter = 0
+        try:
+            assert proc.stdout is not None
+            for raw_line in proc.stdout:
+                if stop_event.is_set():
+                    break
+                line = raw_line.strip()
+                if not line.startswith("{"):
+                    continue
+                try:
+                    obj = json.loads(line)
+                except Exception:
+                    continue
+                if not isinstance(obj, dict):
+                    continue
+
+                # Handle either a full playlist object or a single flat entry line
+                if isinstance(obj.get("entries"), list):
+                    raw_list = [e for e in obj["entries"] if isinstance(e, dict)]
+                    formatted_list = [_format_playlist_entry(e, i) for i, e in enumerate(raw_list, 1)]
+                    thumb = obj.get("thumbnail") or (obj["thumbnails"][-1].get("url", "") if obj.get("thumbnails") else "")
+                    if not thumb and raw_list:
+                        first_e = raw_list[0]
+                        thumb = first_e.get("thumbnail") or (first_e["thumbnails"][-1].get("url", "") if first_e.get("thumbnails") else "")
+                    if not thumb:
+                        yt_id = _extract_yt_id(clean_url)
+                        if yt_id:
+                            thumb = f"https://i.ytimg.com/vi/{yt_id}/hqdefault.jpg"
+                    with lock:
+                        if len(_info_cache) >= 64 and clean_url not in _info_cache:
+                            _info_cache.pop(next(iter(_info_cache)), None)
+                        _info_cache[clean_url] = {
+                            "title": obj.get("title") or "Playlist ready to download",
+                            "uploader": obj.get("uploader") or obj.get("channel") or obj.get("creator") or "Playlist",
+                            "duration": "",
+                            "duration_seconds": 0,
+                            "thumbnail": thumb,
+                            "is_playlist": True,
+                            "playlist_count": len(formatted_list) or int(obj.get("playlist_count") or 2),
+                            "playlist_loading": False,
+                            "entries": formatted_list,
+                            "webpage_url": obj.get("webpage_url") or clean_url,
+                        }
+                    idx_counter = len(formatted_list)
+                    first_ready.set()
+                    continue
+
+                idx_counter += 1
+                entry_idx = int(obj.get("playlist_index") or idx_counter)
+                formatted = _format_playlist_entry(obj, entry_idx)
+                e_thumb = obj.get("thumbnail") or (obj["thumbnails"][-1].get("url", "") if obj.get("thumbnails") else "")
+                if not e_thumb:
+                    yt_id = str(obj.get("id") or _extract_yt_id(clean_url))
+                    if yt_id and len(yt_id) == 11:
+                        e_thumb = f"https://i.ytimg.com/vi/{yt_id}/hqdefault.jpg"
+                pl_title = obj.get("playlist_title") or obj.get(" playlist") or obj.get("title") or "Playlist ready to download"
+                pl_uploader = obj.get("playlist_uploader") or obj.get("uploader") or obj.get("channel") or "Playlist"
+                pl_total = int(obj.get("playlist_count") or obj.get("n_entries") or 0)
+
+                with lock:
+                    cached = _info_cache.get(clean_url)
+                    if not cached:
+                        if len(_info_cache) >= 64:
+                            _info_cache.pop(next(iter(_info_cache)), None)
+                        cached = {
+                            "title": pl_title,
+                            "uploader": pl_uploader,
+                            "duration": "",
+                            "duration_seconds": 0,
+                            "thumbnail": e_thumb,
+                            "is_playlist": True,
+                            "playlist_count": max(1, pl_total),
+                            "playlist_loading": True,
+                            "entries": [formatted],
+                            "webpage_url": clean_url,
+                        }
+                        _info_cache[clean_url] = cached
+                    else:
+                        cached["entries"].append(formatted)
+                        cached["playlist_count"] = max(int(cached.get("playlist_count") or 0), pl_total, len(cached["entries"]))
+                        if not cached.get("thumbnail") and e_thumb:
+                            cached["thumbnail"] = e_thumb
+                first_ready.set()
+
+            if proc.stderr:
+                for eline in proc.stderr:
+                    s = eline.strip()
+                    if s:
+                        err_holder.append(s)
+        except Exception as exc:
+            err_holder.append(str(exc))
+        finally:
+            try:
+                proc.wait(timeout=2)
+            except Exception:
+                terminate_process(proc)
+            with lock:
+                cached = _info_cache.get(clean_url)
+                if cached:
+                    cached["playlist_loading"] = False
+                    if cached.get("entries"):
+                        cached["playlist_count"] = len(cached["entries"])
+            first_ready.set()
+
+    threading.Thread(target=_reader, daemon=True).start()
+    first_ready.wait(timeout=15.0)
+    # Give a tiny 40ms window to batch initial burst of stdout lines
+    time.sleep(0.04)
+
+    with lock:
+        if clean_url in _info_cache:
+            return _snapshot_cached_info(_info_cache[clean_url])
+
+    if has_video_and_list:
+        fast_info = _fetch_fast_oembed_info(clean_url, parsed, True)
+        if fast_info:
+            fast_info["entries"] = []
+            fast_info["playlist_loading"] = False
+            return fast_info
+
+    err_msg = next((x for x in reversed(err_holder) if "ERROR:" in x), err_holder[-1] if err_holder else "Could not fetch video details.")
+    raise RuntimeError(err_msg.replace("ERROR:", "").strip()[:300])
+
+
 def fetch_video_info(url: str, full: bool = False) -> dict:
+    global _preview_stop_event, _preview_url
     clean_url = extract_url(url)
     if not valid_url(clean_url):
         raise ValueError("Enter a valid HTTPS video URL (YouTube, Facebook, Instagram, LinkedIn, TikTok, X, etc.).")
 
     with lock:
-        if clean_url in _info_cache and (not full or _info_cache[clean_url].get("duration")):
-            return dict(_info_cache[clean_url])
+        if clean_url in _info_cache and (not full or _info_cache[clean_url].get("duration") or _info_cache[clean_url].get("is_playlist")):
+            return _snapshot_cached_info(_info_cache[clean_url])
 
     parsed = urlparse(clean_url)
     qs = parse_qs(parsed.query)
@@ -630,13 +838,21 @@ def fetch_video_info(url: str, full: bool = False) -> dict:
         fast_info = _fetch_fast_oembed_info(clean_url, parsed, False)
         if fast_info:
             fast_info["entries"] = []
+            fast_info["playlist_loading"] = False
             with lock:
                 if len(_info_cache) >= 64:
                     _info_cache.pop(next(iter(_info_cache)), None)
                 _info_cache[clean_url] = dict(fast_info)
             return fast_info
 
-    # 2. Extract flat playlist entries (up to 100 items) or single video metadata via in-process yt_dlp or subprocess
+    stop_event = threading.Event()
+    if has_list_param:
+        cancel_active_preview()
+        with _preview_lock:
+            _preview_stop_event = stop_event
+            _preview_url = clean_url
+
+    # 2. Extract unlimited flat playlist entries (progressive lazy stream) or single video metadata
     data = None
     try:
         import yt_dlp  # type: ignore
@@ -645,7 +861,7 @@ def fetch_video_info(url: str, full: bool = False) -> dict:
             "no_warnings": True,
             "noplaylist": False if has_list_param else True,
             "extract_flat": "in_playlist",
-            "playlistend": 100,
+            "lazy_playlist": True if has_list_param else False,
             "socket_timeout": 10,
             "source_address": "0.0.0.0",
             "extractor_args": {"youtube": {"player_client": ["android", "web", "default"], "player_skip": ["configs"]}},
@@ -656,13 +872,15 @@ def fetch_video_info(url: str, full: bool = False) -> dict:
         data = None
 
     if not isinstance(data, dict):
-        playlist_flags = ["--yes-playlist", "--flat-playlist", "--playlist-end", "100"] if has_list_param else ["--no-playlist"]
+        if has_list_param:
+            return _start_subprocess_playlist_stream(clean_url, parsed, has_video_and_list, stop_event)
+
         cmd = get_ytdlp_cmd() + [
             "--dump-single-json",
             "--force-ipv4",
             "--socket-timeout",
             "10",
-            *playlist_flags,
+            "--no-playlist",
             "--extractor-args",
             "youtube:player_client=android,web,default;player_skip=configs",
             "--no-warnings",
@@ -671,12 +889,6 @@ def fetch_video_info(url: str, full: bool = False) -> dict:
         ]
         res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", timeout=18, cwd=str(APP_DIR))
         if res.returncode != 0 or not res.stdout.strip():
-            # If playlist extraction failed on a watch?v=...&list=... link (e.g. private Mix), fall back to fast single-video oEmbed
-            if has_video_and_list:
-                fast_info = _fetch_fast_oembed_info(clean_url, parsed, True)
-                if fast_info:
-                    fast_info["entries"] = []
-                    return fast_info
             err_lines = [line.strip() for line in res.stderr.splitlines() if line.strip()]
             err_msg = next((x for x in reversed(err_lines) if "ERROR:" in x), err_lines[-1] if err_lines else "Could not fetch video details.")
             raise RuntimeError(err_msg.replace("ERROR:", "").strip()[:300])
@@ -688,28 +900,45 @@ def fetch_video_info(url: str, full: bool = False) -> dict:
             json_line = next((ln.strip() for ln in reversed(raw_out.splitlines()) if ln.strip().startswith("{")), raw_out.splitlines()[-1])
             data = json.loads(json_line)
 
-    raw_entries = [e for e in (data.get("entries") or []) if isinstance(e, dict)]
-    playlist_entries = []
-    for idx, entry in enumerate(raw_entries, 1):
-        edur = entry.get("duration")
-        playlist_entries.append({
-            "index": idx,
-            "id": str(entry.get("id") or ""),
-            "title": str(entry.get("title") or f"Video {idx}"),
-            "duration": format_seconds(int(edur)) if isinstance(edur, (int, float)) and edur > 0 else "",
-        })
+    raw_entries_obj = data.get("entries")
+    initial_raw: list[dict] = []
+    entries_iter = None
+    is_loading_more = False
 
+    if isinstance(raw_entries_obj, list):
+        initial_raw = [e for e in raw_entries_obj if isinstance(e, dict)]
+    elif raw_entries_obj is not None:
+        entries_iter = iter(raw_entries_obj)
+        exhausted = False
+        for _ in range(25):
+            if stop_event.is_set():
+                exhausted = True
+                break
+            try:
+                item = next(entries_iter)
+                if isinstance(item, dict):
+                    initial_raw.append(item)
+            except StopIteration:
+                exhausted = True
+                break
+            except Exception:
+                exhausted = True
+                break
+        is_loading_more = not exhausted
+
+    playlist_entries = [_format_playlist_entry(entry, idx) for idx, entry in enumerate(initial_raw, 1)]
     is_playlist = has_list_param or data.get("_type") == "playlist" or bool(playlist_entries)
     dur = data.get("duration")
     thumb = data.get("thumbnail") or (data["thumbnails"][-1].get("url", "") if data.get("thumbnails") else "")
-    if not thumb and is_playlist and raw_entries:
-        first = raw_entries[0]
+    if not thumb and is_playlist and initial_raw:
+        first = initial_raw[0]
         thumb = first.get("thumbnail") or (first["thumbnails"][-1].get("url", "") if first.get("thumbnails") else "")
     if not thumb:
         yt_id = _extract_yt_id(clean_url)
         if yt_id:
             thumb = f"https://i.ytimg.com/vi/{yt_id}/hqdefault.jpg"
 
+    reported_count = int(data.get("playlist_count") or 0) if isinstance(data.get("playlist_count"), (int, float)) else 0
     result = {
         "title": data.get("title") or "Untitled video",
         "uploader": data.get("uploader") or data.get("channel") or data.get("creator") or data.get("extractor_key") or "Video",
@@ -717,25 +946,88 @@ def fetch_video_info(url: str, full: bool = False) -> dict:
         "duration_seconds": int(dur) if isinstance(dur, (int, float)) else 0,
         "thumbnail": thumb,
         "is_playlist": is_playlist,
-        "playlist_count": len(playlist_entries) if playlist_entries else (data.get("playlist_count") or (2 if is_playlist else 1)),
+        "playlist_count": max(len(playlist_entries), reported_count) if (playlist_entries or reported_count) else (2 if is_playlist else 1),
+        "playlist_loading": bool(is_loading_more and is_playlist),
         "entries": playlist_entries,
         "webpage_url": data.get("webpage_url") or clean_url,
     }
     with lock:
-        if len(_info_cache) >= 64:
+        if len(_info_cache) >= 64 and clean_url not in _info_cache:
             _info_cache.pop(next(iter(_info_cache)), None)
         _info_cache[clean_url] = dict(result)
-    return result
+        _info_cache[clean_url]["entries"] = list(playlist_entries)
+
+    if is_loading_more and entries_iter is not None:
+        def _stream_remaining_entries():
+            idx_counter = len(playlist_entries)
+            try:
+                for item in entries_iter:
+                    if stop_event.is_set():
+                        break
+                    if not isinstance(item, dict):
+                        continue
+                    idx_counter += 1
+                    formatted = _format_playlist_entry(item, idx_counter)
+                    with lock:
+                        cached = _info_cache.get(clean_url)
+                        if not cached:
+                            break
+                        cached["entries"].append(formatted)
+                        cached["playlist_count"] = max(int(cached.get("playlist_count") or 0), len(cached["entries"]))
+                        if not cached.get("thumbnail"):
+                            t_url = item.get("thumbnail") or (item["thumbnails"][-1].get("url", "") if item.get("thumbnails") else "")
+                            if t_url:
+                                cached["thumbnail"] = t_url
+            except Exception:
+                pass
+            finally:
+                with lock:
+                    cached = _info_cache.get(clean_url)
+                    if cached:
+                        cached["playlist_loading"] = False
+                        if cached.get("entries"):
+                            cached["playlist_count"] = len(cached["entries"])
+
+        threading.Thread(target=_stream_remaining_entries, daemon=True).start()
+
+    return _snapshot_cached_info(_info_cache[clean_url])
 
 
 _PLAYLIST_ITEMS_RE = re.compile(r"^\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*$")
+
+
+def compress_playlist_indices(indices) -> str:
+    """Compress 1-based playlist video numbers into compact start-end ranges (e.g. '1-50,52-500')."""
+    if not indices:
+        return ""
+    cleaned: list[int] = sorted(
+        {int(x) for x in indices if isinstance(x, (int, str)) and str(x).strip().isdigit() and int(x) > 0}
+    )
+    if not cleaned:
+        return ""
+    ranges: list[str] = []
+    start = prev = cleaned[0]
+    for cur in cleaned[1:]:
+        if cur == prev + 1:
+            prev = cur
+        else:
+            ranges.append(f"{start}" if start == prev else f"{start}-{prev}")
+            start = prev = cur
+    ranges.append(f"{start}" if start == prev else f"{start}-{prev}")
+    return ",".join(ranges)
 
 
 def validate_playlist_items(raw: str) -> str | None:
     if not raw or not str(raw).strip():
         return ""
     cleaned = re.sub(r"\s+", "", str(raw))
-    return cleaned if _PLAYLIST_ITEMS_RE.match(cleaned) else None
+    if not _PLAYLIST_ITEMS_RE.match(cleaned):
+        return None
+    # Also compress comma-separated individual integers if passed uncompressed
+    if "-" not in cleaned and "," in cleaned:
+        parts = [int(p) for p in cleaned.split(",") if p.isdigit()]
+        return compress_playlist_indices(parts)
+    return cleaned
 
 
 def download(
@@ -760,6 +1052,7 @@ def download(
     try:
         if out is None:
             raise ValueError("Invalid or inaccessible save folder.")
+        cancel_active_preview()
         clean_url = extract_url(url)
         logging.info("Starting download [%s] %s", jid, clean_url)
 
@@ -1273,6 +1566,10 @@ class Handler(SimpleHTTPRequestHandler):
             return self.json(400, {"ok": False, "error": "Invalid request."})
 
         req_path = urlparse(self.path).path
+
+        if req_path == "/api/cancel-preview":
+            cancel_active_preview()
+            return self.json(200, {"ok": True})
 
         if req_path == "/api/info":
             url = extract_url(str(body.get("url", "")))

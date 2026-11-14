@@ -6,9 +6,16 @@ let previewSeq = 0;
 let lastPreviewUrl = "";
 let currentTitleHint = "";
 let currentDurationHint = 0;
+const PLAYLIST_BATCH_INTERVAL_MS = 500;
+const PLAYLIST_INITIAL_RENDER_BATCH = 50;
 let currentPlaylistCount = 0;
 let isCurrentUrlPlaylist = false;
 let currentPlaylistEntries = [];
+let renderedPlaylistCount = 0;
+let isPlaylistLoading = false;
+let playlistSelectAllMode = true;
+let playlistBatchTimer = null;
+let playlistPollInFlight = false;
 let lastCompletedPath = "";
 let androidReqSeq = 0;
 const androidPending = {};
@@ -171,83 +178,232 @@ themeBtn.onclick = () =>
       : "light",
   );
 
+function compressPlaylistIndices(indices) {
+  if (!Array.isArray(indices) || !indices.length) return "";
+  const sorted = Array.from(
+    new Set(indices.map(Number).filter((n) => Number.isInteger(n) && n > 0)),
+  ).sort((a, b) => a - b);
+  if (!sorted.length) return "";
+  const ranges = [];
+  let start = sorted[0];
+  let prev = sorted[0];
+  for (let i = 1; i < sorted.length; i++) {
+    const cur = sorted[i];
+    if (cur === prev + 1) {
+      prev = cur;
+    } else {
+      ranges.push(start === prev ? `${start}` : `${start}-${prev}`);
+      start = cur;
+      prev = cur;
+    }
+  }
+  ranges.push(start === prev ? `${start}` : `${start}-${prev}`);
+  return ranges.join(",");
+}
+
 function getSelectedPlaylistIndices() {
   const boxes = document.querySelectorAll(".pl-item-checkbox");
-  if (!boxes.length) return [];
+  const totalKnown = Math.max(currentPlaylistEntries.length, currentPlaylistCount);
+  if (!boxes.length && !totalKnown) return [];
   const selected = [];
   boxes.forEach((b) => {
     if (b.checked) selected.push(Number(b.value));
   });
+  if (
+    playlistSelectAllMode &&
+    $("allow-playlist").checked &&
+    totalKnown > boxes.length
+  ) {
+    for (let i = boxes.length; i < totalKnown; i++) {
+      const item = currentPlaylistEntries[i];
+      const idx = (item && item.index) || i + 1;
+      selected.push(Number(idx));
+    }
+  }
   return selected;
 }
 
 function getPlaylistItemsParam() {
-  if (!currentPlaylistEntries.length) return "";
+  const totalKnown = Math.max(currentPlaylistEntries.length, currentPlaylistCount);
+  if (!totalKnown) return "";
   if (!$("allow-playlist").checked) {
     return /\/playlist\b/i.test($("url").value) ? "1" : "";
   }
+  const boxes = document.querySelectorAll(".pl-item-checkbox");
   const selected = getSelectedPlaylistIndices();
-  if (!selected.length || selected.length === currentPlaylistEntries.length) {
+  const allDomChecked =
+    boxes.length > 0 &&
+    Array.from(boxes).every((b) => b.checked) &&
+    playlistSelectAllMode;
+  if (
+    !selected.length ||
+    (allDomChecked && selected.length >= totalKnown)
+  ) {
     return "";
   }
-  return selected.join(",");
+  return compressPlaylistIndices(selected);
 }
 
-function renderPlaylistSelector(entries) {
+function updatePlaylistScrollHint() {
+  const scrollHint = $("playlist-scroll-hint");
+  if (!scrollHint) return;
+  const totalLoaded = currentPlaylistEntries.length;
+  if (!isCurrentUrlPlaylist || totalLoaded === 0) {
+    scrollHint.style.display = "none";
+    return;
+  }
+  if (isPlaylistLoading || renderedPlaylistCount < totalLoaded) {
+    scrollHint.textContent = `⏳ Loading (${renderedPlaylistCount} videos…)`;
+    scrollHint.style.display = "inline-block";
+  } else if (totalLoaded > 5) {
+    scrollHint.textContent = `↕ Scroll (${totalLoaded} videos)`;
+    scrollHint.style.display = "inline-block";
+  } else {
+    scrollHint.style.display = "none";
+  }
+}
+
+function stopPlaylistStream(notifyBackend = false) {
+  if (playlistBatchTimer) {
+    clearInterval(playlistBatchTimer);
+    playlistBatchTimer = null;
+  }
+  isPlaylistLoading = false;
+  playlistPollInFlight = false;
+  updatePlaylistScrollHint();
+  syncPlaylistBadgeText();
+  if (notifyBackend) {
+    api("/api/cancel-preview", { method: "POST", body: "{}" }).catch(() => {});
+  }
+}
+
+function createPlaylistRowElement(item, i, shouldCheck = true) {
+  const idx = item.index || i + 1;
+  const row = document.createElement("label");
+  row.className = "playlist-item-row";
+
+  const cb = document.createElement("input");
+  cb.type = "checkbox";
+  cb.className = "pl-item-checkbox";
+  cb.value = String(idx);
+  cb.checked = shouldCheck;
+  cb.onchange = () => {
+    const sel = getSelectedPlaylistIndices();
+    $("allow-playlist").checked = sel.length > 0;
+    updateExtraOptionsBadge();
+  };
+
+  const idxSpan = document.createElement("span");
+  idxSpan.className = "playlist-item-idx";
+  idxSpan.textContent = `#${idx}`;
+
+  const titleSpan = document.createElement("span");
+  titleSpan.className = "playlist-item-title";
+  titleSpan.textContent = item.title || `Video ${idx}`;
+
+  row.appendChild(cb);
+  row.appendChild(idxSpan);
+  row.appendChild(titleSpan);
+
+  if (item.duration) {
+    const durSpan = document.createElement("span");
+    durSpan.className = "playlist-item-dur";
+    durSpan.textContent = item.duration;
+    row.appendChild(durSpan);
+  }
+  return row;
+}
+
+function appendPlaylistBatch(maxCount = 100) {
+  const listEl = $("playlist-items-list");
+  if (!listEl || renderedPlaylistCount >= currentPlaylistEntries.length) return 0;
+  const endIdx = Math.min(
+    currentPlaylistEntries.length,
+    renderedPlaylistCount + maxCount,
+  );
+  const frag = document.createDocumentFragment();
+  const shouldCheck = playlistSelectAllMode && $("allow-playlist").checked;
+  for (let i = renderedPlaylistCount; i < endIdx; i++) {
+    const item = currentPlaylistEntries[i];
+    frag.appendChild(createPlaylistRowElement(item, i, shouldCheck));
+  }
+  listEl.appendChild(frag);
+  const added = endIdx - renderedPlaylistCount;
+  renderedPlaylistCount = endIdx;
+  return added;
+}
+
+function startPlaylistBatchLoop(cleanUrl, seq) {
+  if (playlistBatchTimer) clearInterval(playlistBatchTimer);
+  playlistBatchTimer = setInterval(async () => {
+    if (seq !== previewSeq || currentJobId) {
+      stopPlaylistStream(false);
+      return;
+    }
+    if (isPlaylistLoading && cleanUrl && !playlistPollInFlight) {
+      playlistPollInFlight = true;
+      try {
+        const d = await api("/api/info", {
+          method: "POST",
+          body: JSON.stringify({ url: cleanUrl }),
+        });
+        if (seq !== previewSeq || currentJobId) {
+          stopPlaylistStream(false);
+          return;
+        }
+        const info = (d && d.info) || {};
+        if (
+          Array.isArray(info.entries) &&
+          info.entries.length >= currentPlaylistEntries.length
+        ) {
+          currentPlaylistEntries = info.entries;
+        }
+        currentPlaylistCount = Math.max(
+          currentPlaylistCount,
+          info.playlist_count || 0,
+          currentPlaylistEntries.length,
+        );
+        isPlaylistLoading = Boolean(info.playlist_loading);
+      } catch {
+        isPlaylistLoading = false;
+      } finally {
+        playlistPollInFlight = false;
+      }
+    }
+    if (renderedPlaylistCount < currentPlaylistEntries.length) {
+      appendPlaylistBatch(currentPlaylistEntries.length - renderedPlaylistCount);
+    }
+    updatePlaylistScrollHint();
+    updateExtraOptionsBadge();
+    if (!isPlaylistLoading && renderedPlaylistCount >= currentPlaylistEntries.length) {
+      stopPlaylistStream(false);
+    }
+  }, PLAYLIST_BATCH_INTERVAL_MS);
+}
+
+function renderPlaylistSelector(entries, cleanUrl = "", seq = previewSeq) {
   const selector = $("playlist-selector");
   const listEl = $("playlist-items-list");
   const scrollHint = $("playlist-scroll-hint");
+  if (playlistBatchTimer) {
+    clearInterval(playlistBatchTimer);
+    playlistBatchTimer = null;
+  }
   listEl.innerHTML = "";
-  if (!isCurrentUrlPlaylist || !entries || !entries.length) {
+  renderedPlaylistCount = 0;
+  if (!isCurrentUrlPlaylist || ((!entries || !entries.length) && !isPlaylistLoading)) {
     selector.style.display = "none";
     if (scrollHint) scrollHint.style.display = "none";
     return;
   }
   selector.style.display = "block";
-  if (scrollHint) {
-    if (entries.length > 5) {
-      scrollHint.textContent = `↕ Scroll (${entries.length} videos)`;
-      scrollHint.style.display = "inline-block";
-    } else {
-      scrollHint.style.display = "none";
-    }
+  appendPlaylistBatch(PLAYLIST_INITIAL_RENDER_BATCH);
+  updatePlaylistScrollHint();
+  syncPlaylistBadgeText();
+
+  if (isPlaylistLoading || renderedPlaylistCount < currentPlaylistEntries.length) {
+    startPlaylistBatchLoop(cleanUrl, seq);
   }
-  entries.forEach((item, i) => {
-    const idx = item.index || i + 1;
-    const row = document.createElement("label");
-    row.className = "playlist-item-row";
-
-    const cb = document.createElement("input");
-    cb.type = "checkbox";
-    cb.className = "pl-item-checkbox";
-    cb.value = String(idx);
-    cb.checked = true;
-    cb.onchange = () => {
-      const sel = getSelectedPlaylistIndices();
-      $("allow-playlist").checked = sel.length > 0;
-      updateExtraOptionsBadge();
-    };
-
-    const idxSpan = document.createElement("span");
-    idxSpan.className = "playlist-item-idx";
-    idxSpan.textContent = `#${idx}`;
-
-    const titleSpan = document.createElement("span");
-    titleSpan.className = "playlist-item-title";
-    titleSpan.textContent = item.title || `Video ${idx}`;
-
-    row.appendChild(cb);
-    row.appendChild(idxSpan);
-    row.appendChild(titleSpan);
-
-    if (item.duration) {
-      const durSpan = document.createElement("span");
-      durSpan.className = "playlist-item-dur";
-      durSpan.textContent = item.duration;
-      row.appendChild(durSpan);
-    }
-    listEl.appendChild(row);
-  });
 }
 
 function isPlaylistUrlPattern(u) {
@@ -282,21 +438,22 @@ function syncPlaylistBadgeText() {
     if ($("playlist-selector")) $("playlist-selector").style.display = "none";
     return;
   }
-  const total = currentPlaylistEntries.length || currentPlaylistCount;
+  const total = Math.max(currentPlaylistEntries.length, currentPlaylistCount);
   const selected = getSelectedPlaylistIndices();
   const isAll = $("allow-playlist").checked;
+  const loadingSuffix = isPlaylistLoading ? "+" : "";
 
   if (!isAll || (currentPlaylistEntries.length > 0 && selected.length === 0)) {
-    const countStr = total > 1 ? ` (${total} videos)` : "";
+    const countStr = total > 1 ? ` (${total}${loadingSuffix} videos)` : "";
     badge.textContent = `📑 Playlist${countStr} • Single`;
     if (selBadge) selBadge.textContent = "Single Video Only";
-  } else if (currentPlaylistEntries.length > 0 && selected.length < total) {
-    badge.textContent = `✅ ${selected.length}/${total} Videos Selected ▾`;
-    if (selBadge) selBadge.textContent = `${selected.length} of ${total} Selected ▾`;
+  } else if (currentPlaylistEntries.length > 0 && selected.length < currentPlaylistEntries.length) {
+    badge.textContent = `✅ ${selected.length}/${total}${loadingSuffix} Videos Selected ▾`;
+    if (selBadge) selBadge.textContent = `${selected.length} of ${total}${loadingSuffix} Selected ▾`;
   } else {
-    const countStr = total > 1 ? ` (${total} videos)` : "";
+    const countStr = total > 1 ? ` (${total}${loadingSuffix} videos)` : "";
     badge.textContent = `✅ All Playlist Videos${countStr} ▾`;
-    if (selBadge) selBadge.textContent = total > 1 ? `All ${total} Selected ▾` : "All Selected ▾";
+    if (selBadge) selBadge.textContent = total > 1 ? `All ${total}${loadingSuffix} Selected ▾` : "All Selected ▾";
   }
   badge.style.display = "inline-block";
 }
@@ -401,21 +558,27 @@ $("allow-playlist").addEventListener("change", () => {
   if (boxes.length) {
     const sel = getSelectedPlaylistIndices();
     if (checked && sel.length === 0) {
+      playlistSelectAllMode = true;
       boxes.forEach((b) => (b.checked = true));
     } else if (!checked) {
+      playlistSelectAllMode = false;
       boxes.forEach((b) => (b.checked = false));
     }
+  } else {
+    playlistSelectAllMode = checked;
   }
   updateExtraOptionsBadge();
 });
 
 $("pl-select-all-btn").onclick = () => {
+  playlistSelectAllMode = true;
   document.querySelectorAll(".pl-item-checkbox").forEach((b) => (b.checked = true));
   $("allow-playlist").checked = true;
   updateExtraOptionsBadge();
 };
 
 $("pl-clear-all-btn").onclick = () => {
+  playlistSelectAllMode = false;
   document.querySelectorAll(".pl-item-checkbox").forEach((b) => (b.checked = false));
   $("allow-playlist").checked = false;
   updateExtraOptionsBadge();
@@ -461,6 +624,7 @@ $("paste-btn").onclick = async () => {
 function hidePreview() {
   previewSeq++;
   lastPreviewUrl = "";
+  stopPlaylistStream(true);
   $("preview-card").style.display = "none";
   $("playlist-selector").style.display = "none";
   $("playlist-items-list").innerHTML = "";
@@ -468,6 +632,9 @@ function hidePreview() {
   currentDurationHint = 0;
   currentPlaylistCount = 0;
   currentPlaylistEntries = [];
+  renderedPlaylistCount = 0;
+  isPlaylistLoading = false;
+  playlistSelectAllMode = true;
   isCurrentUrlPlaylist = false;
   syncPlaylistCheckboxState("");
   updateExtraOptionsBadge();
@@ -483,10 +650,14 @@ async function fetchPreview(rawUrl) {
   lastPreviewUrl = clean;
 
   const seq = ++previewSeq;
+  stopPlaylistStream(true);
   currentTitleHint = "";
   currentDurationHint = 0;
   currentPlaylistCount = 0;
   currentPlaylistEntries = [];
+  renderedPlaylistCount = 0;
+  isPlaylistLoading = false;
+  playlistSelectAllMode = true;
   isCurrentUrlPlaylist = isPlaylistUrlPattern(clean);
   syncPlaylistCheckboxState(clean);
   $("playlist-selector").style.display = "none";
@@ -517,9 +688,11 @@ async function fetchPreview(rawUrl) {
     isCurrentUrlPlaylist = Boolean(info.is_playlist);
     currentPlaylistCount = info.playlist_count || 0;
     currentPlaylistEntries = Array.isArray(info.entries) ? info.entries : [];
+    isPlaylistLoading = Boolean(info.playlist_loading);
+    playlistSelectAllMode = isCurrentUrlPlaylist;
     // Default to downloading all playlist videos automatically when a playlist link is pasted
     $("allow-playlist").checked = isCurrentUrlPlaylist;
-    renderPlaylistSelector(currentPlaylistEntries);
+    renderPlaylistSelector(currentPlaylistEntries, clean, seq);
     $("preview-title").textContent = info.title || "Video ready to download";
     $("preview-uploader").textContent = info.uploader || "";
     if (info.thumbnail) {
@@ -761,6 +934,8 @@ $("form").onsubmit = async (e) => {
   // Prevent duplicate submission if Enter is pressed in an input while a job is already active
   if (currentJobId || b.disabled) return;
   if (timer) clearInterval(timer);
+  // Stop any active background playlist preview stream so download gets 100% bandwidth & CPU
+  stopPlaylistStream(true);
 
   b.disabled = true;
   b.textContent = "Starting…";

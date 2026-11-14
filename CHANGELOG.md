@@ -3,6 +3,15 @@
 All notable changes to **ClipHaven** are documented in this file.
 
 
+## [[3.2.3](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.2.3)] - 2026-11-11
+
+### Added & Improved
+- **Unlimited Progressive Playlist Selector (Removed 100-Video Cap)**: Removed the `--playlist-end 100` / `playlistend: 100` limit across Desktop (`server.py`) and Android (`MainActivity.kt`). Playlist previews now stream all playlist items progressively in the background via lazy playlist iteration and `--flat-playlist --dump-json` line streaming, supporting playlists of any size (100, 500, 2,000+ videos).
+- **500ms Smooth Batch DOM Rendering (`DocumentFragment`)**: Added a 500ms batch rendering and polling pipeline (`PLAYLIST_BATCH_INTERVAL_MS = 500`) in `app.js` that appends newly streamed playlist videos in single `DocumentFragment` batches without resetting user scroll position or custom checkbox selections.
+- **Smart Range Compression (`compressPlaylistIndices`)**: Compressed custom playlist video selections from verbose comma-separated lists (`1,2,4,5,6...500`) into compact `start-end` range strings (`1-2,4-500`) across `app.js`, `server.py`, and `MainActivity.kt`, keeping command arguments tiny even on massive playlists.
+- **Auto-Stop Background Preview on Download (`cancel_active_preview` / `/api/cancel-preview`)**: Automatically terminates any running background playlist preview process the moment a user starts a download or clears/changes the URL, ensuring 100% network bandwidth and CPU are dedicated to the active download.
+
+
 ## [[3.2.2](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.2.2)] - 2026-11-07
 
 ### Added & Fixed
