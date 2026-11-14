@@ -1566,25 +1566,32 @@ class MainActivity : AppCompatActivity() {
                                         if (pEntries.length() == 0) break
 
                                         var addedCount = 0
+                                        var cacheMissing = false
                                         synchronized(jobsLock) {
-                                            val cached = infoCache[url] ?: break
-                                            val arr = cached.optJSONArray("entries") ?: JSONArray().also { cached.put("entries", it) }
-                                            var idxCounter = arr.length() + 1
-                                            for (i in 0 until pEntries.length()) {
-                                                val item = pEntries.optJSONObject(i) ?: continue
-                                                val edur = item.optDouble("duration", 0.0)
-                                                val entryObj = JSONObject()
-                                                    .put("index", idxCounter)
-                                                    .put("id", item.optString("id", ""))
-                                                    .put("title", item.optString("title", "Video $idxCounter"))
-                                                    .put("duration", if (edur > 0) formatSeconds(edur.toInt()) else "")
-                                                arr.put(entryObj)
-                                                idxCounter++
-                                                addedCount++
+                                            val cached = infoCache[url]
+                                            if (cached == null) {
+                                                cacheMissing = true
+                                            } else {
+                                                val arr = cached.optJSONArray("entries") ?: JSONArray().also { cached.put("entries", it) }
+                                                var idxCounter = arr.length() + 1
+                                                for (i in 0 until pEntries.length()) {
+                                                    val item = pEntries.optJSONObject(i)
+                                                    if (item != null) {
+                                                        val edur = item.optDouble("duration", 0.0)
+                                                        val entryObj = JSONObject()
+                                                            .put("index", idxCounter)
+                                                            .put("id", item.optString("id", ""))
+                                                            .put("title", item.optString("title", "Video $idxCounter"))
+                                                            .put("duration", if (edur > 0) formatSeconds(edur.toInt()) else "")
+                                                        arr.put(entryObj)
+                                                        idxCounter++
+                                                        addedCount++
+                                                    }
+                                                }
+                                                cached.put("playlist_count", maxOf(cached.optInt("playlist_count", 0), arr.length()))
                                             }
-                                            cached.put("playlist_count", maxOf(cached.optInt("playlist_count", 0), arr.length()))
                                         }
-                                        if (addedCount < pageSize || (reportedTotal > 0 && nextEnd >= reportedTotal)) {
+                                        if (cacheMissing || addedCount < pageSize || (reportedTotal > 0 && nextEnd >= reportedTotal)) {
                                             break
                                         }
                                         nextStart += pageSize
