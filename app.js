@@ -7,8 +7,8 @@ let lastPreviewUrl = "";
 let currentTitleHint = "";
 let currentDurationHint = 0;
 const PLAYLIST_BATCH_INTERVAL_MS = 500;
-const PLAYLIST_INITIAL_RENDER_BATCH = 25;
-const PLAYLIST_RENDER_CHUNK_SIZE = 25;
+const PLAYLIST_INITIAL_RENDER_BATCH = 38;
+const PLAYLIST_RENDER_CHUNK_SIZE = 38;
 let currentPlaylistCount = 0;
 let isCurrentUrlPlaylist = false;
 let currentPlaylistEntries = [];
@@ -249,15 +249,17 @@ function updatePlaylistScrollHint() {
   const scrollHint = $("playlist-scroll-hint");
   if (!scrollHint) return;
   const totalLoaded = currentPlaylistEntries.length;
+  const totalExpected = Math.max(totalLoaded, currentPlaylistCount);
   if (!isCurrentUrlPlaylist || totalLoaded === 0) {
     scrollHint.style.display = "none";
     return;
   }
   if (isPlaylistLoading || renderedPlaylistCount < totalLoaded) {
-    scrollHint.textContent = `⏳ Loading (${renderedPlaylistCount} videos…)`;
+    const suffix = totalExpected > renderedPlaylistCount ? ` / ${totalExpected}` : "";
+    scrollHint.textContent = `⏳ Loaded ${renderedPlaylistCount}${suffix} videos…`;
     scrollHint.style.display = "inline-block";
-  } else if (totalLoaded > 5) {
-    scrollHint.textContent = `↕ Scroll (${totalLoaded} videos)`;
+  } else if (renderedPlaylistCount > 5) {
+    scrollHint.textContent = `↕ Scroll (${renderedPlaylistCount} videos)`;
     scrollHint.style.display = "inline-block";
   } else {
     scrollHint.style.display = "none";
@@ -346,7 +348,7 @@ function startPlaylistBatchLoop(cleanUrl, seq) {
       try {
         const d = await api("/api/info", {
           method: "POST",
-          body: JSON.stringify({ url: cleanUrl }),
+          body: JSON.stringify({ url: cleanUrl, poll: true }),
         });
         if (seq !== previewSeq || currentJobId) {
           stopPlaylistStream(false);
@@ -373,7 +375,7 @@ function startPlaylistBatchLoop(cleanUrl, seq) {
     }
     if (renderedPlaylistCount < currentPlaylistEntries.length) {
       const remaining = currentPlaylistEntries.length - renderedPlaylistCount;
-      const chunk = remaining > 100 ? Math.ceil(remaining / 2) : Math.max(PLAYLIST_RENDER_CHUNK_SIZE, remaining);
+      const chunk = Math.min(PLAYLIST_RENDER_CHUNK_SIZE, remaining);
       appendPlaylistBatch(chunk);
     }
     updatePlaylistScrollHint();
@@ -442,21 +444,31 @@ function syncPlaylistBadgeText() {
     return;
   }
   const total = Math.max(currentPlaylistEntries.length, currentPlaylistCount);
-  const selected = getSelectedPlaylistIndices();
+  const shownCount = renderedPlaylistCount || currentPlaylistEntries.length || total;
+  const stillWorking = isPlaylistLoading || renderedPlaylistCount < currentPlaylistEntries.length;
+  const boxes = document.querySelectorAll(".pl-item-checkbox");
+  let checkedDomCount = 0;
+  boxes.forEach((b) => {
+    if (b.checked) checkedDomCount++;
+  });
   const isAll = $("allow-playlist").checked;
-  const loadingSuffix = isPlaylistLoading ? "+" : "";
+  const hasCustomUncheck = boxes.length > 0 && checkedDomCount < boxes.length && checkedDomCount > 0;
 
-  if (!isAll || (currentPlaylistEntries.length > 0 && selected.length === 0)) {
-    const countStr = total > 1 ? ` (${total}${loadingSuffix} videos)` : "";
+  if (!isAll || (boxes.length > 0 && checkedDomCount === 0)) {
+    const countStr = shownCount > 1 ? ` (${shownCount}${stillWorking ? "…" : ""} videos)` : "";
     badge.textContent = `📑 Playlist${countStr} • Single`;
     if (selBadge) selBadge.textContent = "Single Video Only";
-  } else if (currentPlaylistEntries.length > 0 && selected.length < currentPlaylistEntries.length) {
-    badge.textContent = `✅ ${selected.length}/${total}${loadingSuffix} Videos Selected ▾`;
-    if (selBadge) selBadge.textContent = `${selected.length} of ${total}${loadingSuffix} Selected ▾`;
+  } else if (hasCustomUncheck) {
+    badge.textContent = `✅ ${checkedDomCount}/${shownCount}${stillWorking ? "…" : ""} Videos Selected ▾`;
+    if (selBadge) selBadge.textContent = `${checkedDomCount} of ${shownCount}${stillWorking ? "…" : ""} Selected ▾`;
+  } else if (stillWorking) {
+    const targetStr = total > shownCount ? `/${total}` : "";
+    badge.textContent = `⏳ Playlist (${shownCount}${targetStr} loaded…) ▾`;
+    if (selBadge) selBadge.textContent = `⏳ ${shownCount}${targetStr} Loaded ▾`;
   } else {
-    const countStr = total > 1 ? ` (${total}${loadingSuffix} videos)` : "";
-    badge.textContent = `✅ All Playlist${countStr} ▾`;
-    if (selBadge) selBadge.textContent = total > 1 ? `All ${total}${loadingSuffix} Selected ▾` : "All Selected ▾";
+    const countStr = shownCount > 1 ? ` (${shownCount} videos)` : "";
+    badge.textContent = `✅ All Playlist Videos${countStr} ▾`;
+    if (selBadge) selBadge.textContent = shownCount > 1 ? `All ${shownCount} Selected ▾` : "All Selected ▾";
   }
   badge.style.display = "inline-block";
 }
