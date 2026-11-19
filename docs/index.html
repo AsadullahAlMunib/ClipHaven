@@ -4,41 +4,88 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ClipHaven Documentation — Official Guide</title>
-  <link rel="icon" type="image/svg+xml" href="https://raw.githubusercontent.com/AsadullahAlMunib/ClipHaven/6ed1d074942dab18190aba6ff1e23010d04619eb/logo.svg" />
-  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          fontFamily: {
-            sans: ['Inter', 'Hind Siliguri', 'system-ui', 'sans-serif'],
-            mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
-          },
-          colors: {
-            brand: {
-              50: '#f5f3ff',
-              100: '#ede9fe',
-              200: '#ddd6fe',
-              300: '#c4b5fd',
-              400: '#a78bfa',
-              500: '#8b5cf6',
-              600: '#7c3aed',
-              700: '#6d28d9',
-              800: '#5b21b6',
-              900: '#4c1d95',
-            }
-          }
-        }
-      }
-    };
+  <meta name="description" content="ClipHaven is a modern, high-speed, 100% local video and audio downloader for Windows, macOS, Linux, and Android — ad-free, open-source, and powered by yt-dlp and FFmpeg." />
+  <meta name="author" content="Md Asadullah Al Munib" />
+
+  <!-- Open Graph / Social Sharing -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="ClipHaven Documentation — Official Guide" />
+  <meta property="og:description" content="Catch, keep, and enjoy your clips — locally, safely, and effortlessly. 100% local, ad-free video &amp; audio downloader for Windows, macOS, Linux, and Android." />
+  <meta property="og:url" content="https://github.com/AsadullahAlMunib/ClipHaven/" />
+  <meta property="og:image" content="https://raw.githubusercontent.com/AsadullahAlMunib/ClipHaven/main/logo.svg" />
+  <meta name="twitter:image" content="https://raw.githubusercontent.com/AsadullahAlMunib/ClipHaven/main/logo.svg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="ClipHaven — 100% Local Video &amp; Audio Downloader" />
+  <meta name="twitter:description" content="Ad-free, open-source video &amp; audio downloader with clip cutting, subtitle sync, and unlimited playlists for Desktop &amp; Android." />
+
+  <!-- Structured Data (SoftwareApplication) -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "ClipHaven",
+    "applicationCategory": "MultimediaApplication",
+    "operatingSystem": "Windows, macOS, Linux, Android",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "author": {
+      "@type": "Person",
+      "name": "Md Asadullah Al Munib",
+      "url": "https://github.com/AsadullahAlMunib"
+    },
+    "url": "https://github.com/AsadullahAlMunib/ClipHaven/",
+    "license": "https://opensource.org/licenses/MIT"
+  }
   </script>
-  <!-- Font Awesome 6 -->
+
+  <link rel="icon" type="image/svg+xml" href="./../logo.svg" />
+
+  <!-- Prevent Dark Mode Flash (FOUC) -->
+  <script>
+    (function () {
+      try {
+        const saved = localStorage.getItem('cliphaven_doc_theme_v2');
+        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (saved === 'dark' || (!saved && prefersDark)) {
+          document.documentElement.classList.add('dark');
+        }
+      } catch (_) {}
+    })();
+  </script>
+
+  <!-- Tailwind CSS v4 (Latest Free Open-Source Browser Build) -->
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <style type="text/tailwindcss">
+    @custom-variant dark (&:where(.dark, .dark *));
+
+    @theme {
+      --font-sans: 'Inter', 'Hind Siliguri', system-ui, -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+
+      --color-brand-50: #f5f3ff;
+      --color-brand-100: #ede9fe;
+      --color-brand-200: #ddd6fe;
+      --color-brand-300: #c4b5fd;
+      --color-brand-400: #a78bfa;
+      --color-brand-500: #8b5cf6;
+      --color-brand-600: #7c3aed;
+      --color-brand-700: #6d28d9;
+      --color-brand-800: #5b21b6;
+      --color-brand-900: #4c1d95;
+      --color-brand-950: #2e1065;
+    }
+  </style>
+
+  <!-- Font Awesome 6 Free -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
   <style>
     body {
       font-family: 'Inter', 'Hind Siliguri', system-ui, -apple-system, sans-serif;
@@ -66,7 +113,7 @@
     .video-frame-wrap {
       position: relative;
       width: 100%;
-      padding-top: 56.25%;
+      aspect-ratio: 4 / 3;
     }
     .video-frame-wrap iframe {
       position: absolute;
@@ -81,15 +128,38 @@
     .dl-card:hover {
       transform: translateY(-3px);
     }
+    .inline-code {
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 0.88em;
+      padding: 0.1rem 0.35rem;
+      border-radius: 0.375rem;
+      background-color: rgba(124, 58, 237, 0.1);
+      color: #6d28d9;
+    }
+    .dark .inline-code {
+      background-color: rgba(139, 92, 246, 0.2);
+      color: #c4b5fd;
+    }
+    /* Fix Tailwind v4 @layer utilities vs Font Awesome unlayered display */
+    .fa-solid.hidden,
+    .fa-regular.hidden,
+    .fa-brands.hidden {
+      display: none !important;
+    }
   </style>
 </head>
 <body class="bg-slate-50/90 text-slate-800 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-300 antialiased selection:bg-brand-500/25">
 
   <!-- Toast Notification -->
-  <div id="toast" class="fixed bottom-5 right-5 z-50 hidden items-center gap-2.5 rounded-2xl bg-slate-900 px-4 py-3 text-xs sm:text-sm font-semibold text-white shadow-2xl ring-1 ring-white/10 dark:bg-brand-600">
+  <div id="toast" class="fixed bottom-16 right-5 z-50 hidden items-center gap-2.5 rounded-2xl bg-slate-900 px-4 py-3 text-xs sm:text-sm font-semibold text-white shadow-2xl ring-1 ring-white/10 dark:bg-brand-600">
     <i class="fa-solid fa-circle-check text-emerald-400 dark:text-white"></i>
     <span id="toast-msg">Copied to clipboard!</span>
   </div>
+
+  <!-- Back to Top Button -->
+  <button id="back-to-top" type="button" aria-label="Back to top" title="Back to top" class="fixed bottom-5 right-5 z-40 hidden h-10 w-10 items-center justify-center rounded-xl border border-slate-200/90 bg-white/90 text-slate-700 shadow-lg glass-nav hover:border-brand-400 hover:text-brand-600 active:scale-95 transition-all dark:border-slate-800 dark:bg-slate-900/90 dark:text-slate-200">
+    <i class="fa-solid fa-arrow-up text-sm"></i>
+  </button>
 
   <!-- Sleek Mobile-First Sticky Header -->
   <header class="sticky top-0 z-40 border-b border-slate-200/80 bg-white/85 glass-nav dark:border-slate-800/80 dark:bg-slate-950/85">
@@ -101,7 +171,7 @@
         </button>
 
         <a href="#overview" class="flex items-center gap-2.5 min-w-0 group">
-          <img src="https://raw.githubusercontent.com/AsadullahAlMunib/ClipHaven/6ed1d074942dab18190aba6ff1e23010d04619eb/logo.svg" alt="ClipHaven Logo" class="h-9 w-9 sm:h-10 sm:w-10 shrink-0 rounded-xl shadow-md shadow-brand-500/15 transition-transform duration-200 group-hover:scale-105" />
+          <img src="./../logo.svg" alt="ClipHaven Logo" class="h-9 w-9 sm:h-10 sm:w-10 shrink-0 rounded-xl shadow-md shadow-brand-500/15 transition-transform duration-200 group-hover:scale-105" />
           <div class="truncate leading-tight">
             <div class="flex items-center gap-2">
               <span class="text-base sm:text-lg font-extrabold tracking-tight bg-gradient-to-r from-slate-900 via-brand-700 to-indigo-600 bg-clip-text text-transparent dark:from-white dark:via-brand-200 dark:to-indigo-300">ClipHaven</span>
@@ -120,7 +190,7 @@
         <!-- Language Toggle Icon Button -->
         <button id="lang-toggle" type="button" title="Switch Language (English / বাংলা)" aria-label="Toggle Language" class="relative inline-flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl border border-slate-200/90 bg-slate-100/80 text-slate-700 shadow-sm hover:border-brand-400 hover:bg-brand-50/70 hover:text-brand-600 active:scale-95 transition-all dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-brand-500/50 dark:hover:bg-slate-800">
           <i class="fa-solid fa-language text-base sm:text-lg"></i>
-          <span id="lang-badge" class="absolute -bottom-1 -right-1 rounded-md bg-brand-600 px-1 py-0.2 text-[9px] font-extrabold leading-tight text-white shadow">বাংলা</span>
+          <span id="lang-badge" class="absolute -bottom-1 -right-1 rounded-md bg-brand-600 px-1 py-0.5 text-[9px] font-extrabold leading-none text-white shadow">বাংলা</span>
         </button>
 
         <!-- Theme Toggle Icon Button -->
@@ -137,10 +207,13 @@
     <!-- Left Sidebar Navigation -->
     <aside id="sidebar" class="fixed inset-y-0 left-0 z-30 w-64 -translate-x-full border-r border-slate-200/80 bg-white/95 pt-16 pb-8 glass-nav transition-transform duration-200 dark:border-slate-800 dark:bg-slate-950/95 lg:sticky lg:top-16 lg:h-[calc(100vh-4rem)] lg:translate-x-0 lg:bg-transparent lg:pt-6 lg:backdrop-blur-none overflow-y-auto shrink-0">
       <div class="px-4">
-        <!-- Search Box -->
+        <!-- Search Box with Clear Button -->
         <div class="relative mb-4">
           <i class="fa-solid fa-magnifying-glass pointer-events-none absolute left-3.5 top-3 text-xs text-slate-400"></i>
-          <input id="nav-search" type="text" placeholder="Search documentation..." class="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-xs text-slate-800 placeholder-slate-400 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100" />
+          <input id="nav-search" type="text" placeholder="Search documentation..." class="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-8 text-xs text-slate-800 placeholder-slate-400 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100" />
+          <button id="nav-search-clear" type="button" aria-label="Clear search" class="hidden absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+            <i class="fa-solid fa-xmark text-xs"></i>
+          </button>
         </div>
 
         <p class="mb-2 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500" data-i18n="navTitle">Contents</p>
@@ -204,6 +277,15 @@
     <!-- Main Content Column -->
     <main class="min-w-0 flex-1 px-3 py-5 sm:px-6 md:px-8 lg:px-10">
 
+      <!-- Search Empty State -->
+      <div id="search-empty" class="hidden my-10 rounded-3xl border border-slate-200/90 bg-white p-8 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900/60">
+        <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 dark:bg-slate-800">
+          <i class="fa-solid fa-magnifying-glass text-lg"></i>
+        </div>
+        <p class="text-sm font-bold text-slate-800 dark:text-white" data-i18n="searchEmptyTitle">No matching section found</p>
+        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400" data-i18n="searchEmptyDesc">Try searching for keywords like Android, Windows, FFmpeg, Playlist, or API.</p>
+      </div>
+
       <!-- 1. Hero Section + Video Showcase -->
       <section id="overview" class="scroll-mt-20 doc-section">
         <div class="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/70 sm:p-7">
@@ -216,11 +298,11 @@
               <span data-i18n="badgeLocal">100% Local &amp; Ad-Free</span>
             </span>
             <span id="hero-latest-badge" class="inline-flex items-center gap-1 rounded-full bg-brand-500/10 px-2.5 py-1 text-brand-700 dark:text-brand-300">
-              <i class="fa-solid fa-sparkles text-[10px]"></i>
+              <i class="fa-solid fa-wand-magic-sparkles text-[10px]"></i>
               <span>Latest Release</span>
             </span>
             <span class="inline-flex items-center gap-1.5 rounded-full bg-sky-500/10 px-2.5 py-1 text-sky-700 dark:text-sky-300">
-              <i class="fa-solid fa-laptop-mobile text-[10px]"></i>
+              <i class="fa-solid fa-laptop text-[10px]"></i>
               <span>Windows • macOS • Linux • Android</span>
             </span>
             <span id="hero-license-badge" class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
@@ -233,7 +315,7 @@
             <!-- Left Column: Brand + Tagline + Live Stats + CTA Buttons -->
             <div class="xl:col-span-6">
               <div class="flex items-center gap-3">
-                <img src="https://raw.githubusercontent.com/AsadullahAlMunib/ClipHaven/6ed1d074942dab18190aba6ff1e23010d04619eb/logo.svg" alt="ClipHaven" class="h-11 w-11 sm:h-12 sm:w-12 rounded-2xl shadow-md" />
+                <img src="./../logo.svg" alt="ClipHaven" class="h-11 w-11 sm:h-12 sm:w-12 rounded-2xl shadow-md" />
                 <div>
                   <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-3xl lg:text-4xl">
                     ClipHaven
@@ -245,8 +327,8 @@
                 Catch, keep, and enjoy your clips — locally, safely, and effortlessly.
               </p>
 
-              <p class="mt-2.5 text-xs sm:text-sm leading-relaxed text-slate-600 dark:text-slate-300" data-i18n="heroDesc">
-                ClipHaven is a modern, high-speed, 100% local video and audio downloader developed by <strong>Md Asadullah Al Munib</strong> and powered by <code>yt-dlp</code> and <code>FFmpeg</code>. Available across <strong>Windows, macOS, Linux (x64 &amp; ARM64), and Android (64-bit &amp; 32-bit)</strong>, it runs privately on your device (<code>127.0.0.1:8765</code>) with zero ads or telemetry.
+              <p class="mt-2.5 text-xs sm:text-sm leading-relaxed text-slate-600 dark:text-slate-300" data-i18n-html="heroDesc">
+                ClipHaven is a modern, high-speed, 100% local video and audio downloader developed by <strong>Md Asadullah Al Munib</strong> and powered by <code class="inline-code">yt-dlp</code> and <code class="inline-code">FFmpeg</code>. Available across <strong>Windows, macOS, Linux (x64 &amp; ARM64), and Android (64-bit &amp; 32-bit)</strong>, it runs privately on your device (<code class="inline-code">127.0.0.1:8765</code>) with zero ads or telemetry.
               </p>
 
               <!-- Live GitHub Metrics Strip -->
@@ -274,9 +356,9 @@
                 </div>
               </div>
 
-              <!-- Hero Action Buttons (with GitHub button prominent here for Mobile & Desktop) -->
+              <!-- Hero Action Buttons -->
               <div class="mt-5 flex flex-wrap items-center gap-2.5">
-                <a href="#downloads" class="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-xs sm:text-sm font-semibold text-white shadow-md shadow-brand-600/25 hover:bg-brand-500 transition-all">
+                <a id="hero-primary-dl" href="#downloads" class="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-xs sm:text-sm font-semibold text-white shadow-md shadow-brand-600/25 hover:bg-brand-500 transition-all">
                   <i class="fa-solid fa-download"></i>
                   <span data-i18n="heroBtnDownload">Quick Downloads</span>
                 </a>
@@ -294,19 +376,17 @@
               </div>
             </div>
 
-            <!-- Right Column: Exact User-Provided YouTube Iframe Only -->
+            <!-- Right Column: Dynamic Language-Based 4:3 Video Embed (English = Facebook, Bangla = YouTube) -->
             <div class="xl:col-span-6">
               <div class="overflow-hidden rounded-2xl border border-slate-200/90 bg-black shadow-xl dark:border-slate-800">
-                <div class="video-frame-wrap">
-                  <iframe width="560" height="315" src="https://www.youtube.com/embed/cW4ZbT-JCPI?si=ExRAgATMPRm7-CTP" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
-                </div>
+                <div id="video-container" class="video-frame-wrap"></div>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- 2. Redesigned Visual Quick Downloads (Modern App-Store Card Grid instead of Table!) -->
+      <!-- 2. Redesigned Visual Quick Downloads -->
       <section id="downloads" class="mt-12 scroll-mt-20 doc-section">
         <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -352,7 +432,7 @@
           </div>
         </div>
 
-        <!-- Beautiful Responsive Download Cards Grid -->
+        <!-- Responsive Download Cards Grid -->
         <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" id="dl-cards-grid">
 
           <!-- Card 1: Android (64-bit & 32-bit) -->
@@ -368,7 +448,7 @@
                     <p class="text-xs text-slate-500 dark:text-slate-400">arm64-v8a &amp; armeabi-v7a</p>
                   </div>
                 </div>
-                <span class="rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-300" data-i18n="tagRec">Recommended</span>
+                <span class="os-badge rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-300" data-i18n="tagRec">Recommended</span>
               </div>
               <p class="mt-3 text-xs leading-relaxed text-slate-600 dark:text-slate-400" data-i18n="dlCardAndDesc">
                 Self-contained Android app with Share menu integration, background downloads, and Play Protect safe auto-updates.
@@ -407,7 +487,7 @@
                     <p class="text-xs text-slate-500 dark:text-slate-400">Windows 10 / 11 (64-bit)</p>
                   </div>
                 </div>
-                <span class="rounded-full bg-sky-500/10 px-2.5 py-0.5 text-[11px] font-bold text-sky-700 dark:text-sky-300">FFmpeg Included</span>
+                <span class="os-badge rounded-full bg-sky-500/10 px-2.5 py-0.5 text-[11px] font-bold text-sky-700 dark:text-sky-300">FFmpeg Included</span>
               </div>
               <p class="mt-3 text-xs leading-relaxed text-slate-600 dark:text-slate-400" data-i18n="dlCardWinDesc">
                 Pre-packaged All-in-One bundle for instant startup without antivirus false positives, or portable single-file executable.
@@ -446,7 +526,7 @@
                     <p class="text-xs text-slate-500 dark:text-slate-400">Apple Silicon &amp; Intel</p>
                   </div>
                 </div>
-                <span class="rounded-full bg-brand-500/10 px-2.5 py-0.5 text-[11px] font-bold text-brand-700 dark:text-brand-300">FFmpeg Included</span>
+                <span class="os-badge rounded-full bg-brand-500/10 px-2.5 py-0.5 text-[11px] font-bold text-brand-700 dark:text-brand-300">FFmpeg Included</span>
               </div>
               <p class="mt-3 text-xs leading-relaxed text-slate-600 dark:text-slate-400" data-i18n="dlCardMacDesc">
                 Complete macOS application bundle with FFmpeg and all dependencies included, plus standalone binary option.
@@ -485,7 +565,7 @@
                     <p class="text-xs text-slate-500 dark:text-slate-400">Ubuntu, Debian, Fedora, Arch</p>
                   </div>
                 </div>
-                <span class="rounded-full bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-bold text-amber-700 dark:text-amber-300">x86_64</span>
+                <span class="os-badge rounded-full bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-bold text-amber-700 dark:text-amber-300">x86_64</span>
               </div>
               <p class="mt-3 text-xs leading-relaxed text-slate-600 dark:text-slate-400" data-i18n="dlCardLin64Desc">
                 Ready-to-run Linux x64 bundle with FFmpeg pre-included, or portable single-file binary for standard 64-bit PCs.
@@ -943,7 +1023,7 @@ pytest -v</pre>
         </div>
       </section>
 
-      <!-- 8. Dynamic Latest Release Updates (Fetched Live from GitHub Releases API) -->
+      <!-- 8. Dynamic Latest Release Updates -->
       <section id="release-notes" class="mt-12 scroll-mt-20 doc-section">
         <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div>
@@ -1049,6 +1129,11 @@ pytest -v</pre>
   </div>
 
   <script>
+    const videoEmbeds = {
+      en: '<iframe src="https://www.facebook.com/plugins/video.php?height=420&href=https%3A%2F%2Fwww.facebook.com%2Freel%2F2985920465079076%2F&show_text=false&width=560&t=0" width="560" height="420" style="border:none;overflow:hidden" scrolling="no" frameborder="0" allowfullscreen="true" allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"></iframe>',
+      bn: '<iframe width="560" height="315" src="https://www.youtube.com/embed/cW4ZbT-JCPI?si=W6S0IJNhVAJStVpu&rel=0" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>'
+    };
+
     const translations = {
       en: {
         brandSub: "Official Documentation",
@@ -1065,9 +1150,11 @@ pytest -v</pre>
         sideCardTitle: "100% Local & Private",
         sideCardDesc: "No ads, no tracking, no external server relays, and zero telemetry.",
         sideCardBtn: "Download Latest",
+        searchEmptyTitle: "No matching section found",
+        searchEmptyDesc: "Try searching for keywords like Android, Windows, FFmpeg, Playlist, or API.",
         badgeLocal: "100% Local & Ad-Free",
         heroTagline: "Catch, keep, and enjoy your clips — locally, safely, and effortlessly.",
-        heroDesc: "ClipHaven is a modern, high-speed, 100% local video and audio downloader developed by Md Asadullah Al Munib and powered by yt-dlp and FFmpeg. Available across Windows, macOS, Linux (x64 & ARM64), and Android (64-bit & 32-bit), it runs privately on your device (127.0.0.1:8765) with zero ads or telemetry.",
+        heroDesc: "ClipHaven is a modern, high-speed, 100% local video and audio downloader developed by <strong>Md Asadullah Al Munib</strong> and powered by <code class=\"inline-code\">yt-dlp</code> and <code class=\"inline-code\">FFmpeg</code>. Available across <strong>Windows, macOS, Linux (x64 &amp; ARM64), and Android (64-bit &amp; 32-bit)</strong>, it runs privately on your device (<code class=\"inline-code\">127.0.0.1:8765</code>) with zero ads or telemetry.",
         stat1Lbl: "Active Release",
         stat2Lbl: "Repo Stars",
         stat3Lbl: "Release Assets",
@@ -1078,6 +1165,7 @@ pytest -v</pre>
         dlLiveBadge: "Auto-Synced with Latest Release",
         dlSub: "Pick your device below — every button always downloads directly from the newest GitHub release.",
         tagRec: "Recommended",
+        tagYourDevice: "Your Device",
         dlCardAndDesc: "Self-contained Android app with Share menu integration, background downloads, and Play Protect safe auto-updates.",
         dlBtnAnd64: "64-bit APK (Modern Phones)",
         dlBtnAnd32: "32-bit APK (Older Devices / TV)",
@@ -1185,9 +1273,11 @@ pytest -v</pre>
         sideCardTitle: "১০০% লোকাল ও প্রাইভেট",
         sideCardDesc: "কোনো বিজ্ঞাপন নেই, কোনো ট্র্যাকিং নেই এবং শূন্য টেলিমেট্রি।",
         sideCardBtn: "লেটেস্ট ডাউনলোড",
+        searchEmptyTitle: "কোনো মিল পাওয়া যায়নি",
+        searchEmptyDesc: "Android, Windows, FFmpeg, Playlist বা API লিখে আবার চেষ্টা করুন।",
         badgeLocal: "১০০% লোকাল ও অ্যাড-ফ্রি",
         heroTagline: "আপনার ক্লিপ ধরুন, সংরক্ষণ করুন আর উপভোগ করুন — লোকালি, নিরাপদে ও অনায়াসে।",
-        heroDesc: "Md Asadullah Al Munib নির্মিত এবং yt-dlp ও FFmpeg চালিত একটি আধুনিক, দ্রুতগতির ও ১০০% লোকাল ভিডিও এবং অডিও ডাউনলোডার। এটি Windows, macOS, Linux (x64 ও ARM64) এবং Android (64-bit ও 32-bit)-এ আপনার ডিভাইসেই ব্যক্তিগতভাবে (127.0.0.1:8765) চলে — কোনো বিজ্ঞাপন, ট্র্যাকিং বা বাইরের সার্ভার রিলে ছাড়াই।",
+        heroDesc: "<strong>Md Asadullah Al Munib</strong> নির্মিত এবং <code class=\"inline-code\">yt-dlp</code> ও <code class=\"inline-code\">FFmpeg</code> চালিত একটি আধুনিক, দ্রুতগতির ও ১০০% লোকাল ভিডিও এবং অডিও ডাউনলোডার। এটি <strong>Windows, macOS, Linux (x64 ও ARM64) এবং Android (64-bit ও 32-bit)</strong>-এ আপনার ডিভাইসেই ব্যক্তিগতভাবে (<code class=\"inline-code\">127.0.0.1:8765</code>) চলে — কোনো বিজ্ঞাপন, ট্র্যাকিং বা বাইরের সার্ভার রিলে ছাড়াই।",
         stat1Lbl: "সক্রিয় রিলিজ",
         stat2Lbl: "গিটহাব স্টার",
         stat3Lbl: "রিলিজ প্যাকেজ",
@@ -1198,6 +1288,7 @@ pytest -v</pre>
         dlLiveBadge: "লেটেস্ট রিলিজের সাথে স্বয়ংক্রিয়ভাবে যুক্ত",
         dlSub: "নিচে আপনার ডিভাইস বেছে নিন — প্রতিটি বাটন সবসময় গিটহাবের সর্বশেষ রিলিজ থেকে ডাউনলোড করবে।",
         tagRec: "প্রস্তাবিত",
+        tagYourDevice: "আপনার ডিভাইস",
         dlCardAndDesc: "Share মেনু ইন্টিগ্রেশন, ব্যাকগ্রাউন্ড ডাউনলোড এবং Play Protect সেফ অটো-আপডেটসহ স্বয়ংসম্পূর্ণ Android অ্যাপ।",
         dlBtnAnd64: "64-bit APK (আধুনিক ফোন)",
         dlBtnAnd32: "32-bit APK (পুরনো ফোন / TV)",
@@ -1292,16 +1383,44 @@ pytest -v</pre>
       }
     };
 
-    // Default to English ('en') and Light Mode ('light')
+    // Detect initial Language & Theme
     let currentLang = 'en';
-    let currentTheme = 'light';
+    let currentTheme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+    let renderedVideoLang = null;
 
     try {
       const savedLang = localStorage.getItem('cliphaven_doc_lang_v2');
-      const savedTheme = localStorage.getItem('cliphaven_doc_theme_v2');
       if (savedLang === 'en' || savedLang === 'bn') currentLang = savedLang;
-      if (savedTheme === 'light' || savedTheme === 'dark') currentTheme = savedTheme;
     } catch (_) {}
+
+    function detectOS() {
+      const ua = (navigator.userAgent || '').toLowerCase();
+      if (ua.includes('iphone') || ua.includes('ipad') || ua.includes('ipod')) return null;
+      if (ua.includes('android')) return 'android';
+      if (ua.includes('windows')) return 'windows';
+      if (ua.includes('mac os') || ua.includes('macintosh')) return 'macos';
+      if (ua.includes('linux')) return 'linux';
+      return null;
+    }
+
+    const detectedOS = detectOS();
+
+    function highlightDetectedOS() {
+      if (!detectedOS) return;
+      const card = document.querySelector('#dl-cards-grid > div[data-os="' + detectedOS + '"]');
+      if (card) {
+        card.classList.add('ring-2', 'ring-brand-500/50');
+        const badge = card.querySelector('.os-badge');
+        if (badge) {
+          badge.setAttribute('data-i18n', 'tagYourDevice');
+          badge.textContent = translations[currentLang].tagYourDevice;
+        }
+      }
+      // Pre-select matching Getting Started tab
+      const tabMap = { windows: 'windows', android: 'android', macos: 'unix', linux: 'unix' };
+      const targetTab = tabMap[detectedOS];
+      if (targetTab) activateOsTab(targetTab);
+    }
 
     function applyTheme(theme) {
       currentTheme = theme;
@@ -1324,10 +1443,17 @@ pytest -v</pre>
       currentLang = lang;
       document.documentElement.lang = lang;
       const dict = translations[lang];
+
       document.querySelectorAll('[data-i18n]').forEach(el => {
         const key = el.getAttribute('data-i18n');
         if (dict[key]) el.textContent = dict[key];
       });
+
+      document.querySelectorAll('[data-i18n-html]').forEach(el => {
+        const key = el.getAttribute('data-i18n-html');
+        if (dict[key]) el.innerHTML = dict[key];
+      });
+
       const badge = document.getElementById('lang-badge');
       if (lang === 'bn') {
         badge.textContent = 'ENG';
@@ -1336,6 +1462,13 @@ pytest -v</pre>
         badge.textContent = 'বাংলা';
         document.getElementById('nav-search').placeholder = 'Search documentation...';
       }
+
+      // Switch embedded video only when language changes
+      if (renderedVideoLang !== lang) {
+        document.getElementById('video-container').innerHTML = videoEmbeds[lang];
+        renderedVideoLang = lang;
+      }
+
       try { localStorage.setItem('cliphaven_doc_lang_v2', lang); } catch (_) {}
     }
 
@@ -1398,9 +1531,65 @@ pytest -v</pre>
       }
     }
 
-    // Dynamic GitHub Repository & Latest Release API Sync
-    async function syncFromGitHub() {
+    function applyGitHubData(repo, rel) {
+      if (repo) {
+        if (typeof repo.stargazers_count === 'number') {
+          document.getElementById('stat-stars').textContent = repo.stargazers_count + ' Stars';
+          document.getElementById('hero-star-pill').textContent = '★ ' + repo.stargazers_count;
+        }
+        if (repo.license && repo.license.spdx_id) {
+          document.getElementById('hero-license-badge').innerHTML = '<i class="fa-solid fa-scale-balanced text-[10px]"></i><span>' + repo.license.spdx_id + ' License</span>';
+        }
+      }
+
+      if (rel) {
+        if (rel.tag_name) {
+          document.getElementById('nav-tag-text').textContent = rel.tag_name;
+          document.getElementById('hero-latest-badge').innerHTML = '<i class="fa-solid fa-wand-magic-sparkles text-[10px]"></i><span>Latest • ' + rel.tag_name + '</span>';
+          document.getElementById('stat-release').textContent = rel.tag_name;
+        }
+        if (rel.html_url) {
+          document.getElementById('side-latest-link').href = rel.html_url;
+          document.getElementById('release-html-link').href = rel.html_url;
+        }
+        if (Array.isArray(rel.assets) && rel.assets.length > 0) {
+          document.getElementById('stat-assets').textContent = rel.assets.length + ' Builds';
+          const assetMap = {};
+          rel.assets.forEach(a => { assetMap[a.name] = a; });
+          document.querySelectorAll('a[data-asset]').forEach(link => {
+            const name = link.getAttribute('data-asset');
+            const found = assetMap[name];
+            if (found && found.browser_download_url) {
+              link.href = found.browser_download_url;
+              const sizeEl = link.querySelector('.asset-size');
+              if (sizeEl && found.size) {
+                const mb = (found.size / (1024 * 1024)).toFixed(1);
+                sizeEl.textContent = mb + ' MB';
+              }
+            }
+          });
+        }
+        renderReleaseNotesDom(rel);
+      }
+    }
+
+    // Dynamic GitHub API Sync with 15-minute localStorage Cache
+    const GH_CACHE_KEY = 'cliphaven_gh_cache_v1';
+    const GH_CACHE_TTL = 15 * 60 * 1000;
+
+    async function syncFromGitHub(forceRefresh = false) {
       const refreshIcon = document.getElementById('refresh-icon');
+
+      if (!forceRefresh) {
+        try {
+          const cached = JSON.parse(localStorage.getItem(GH_CACHE_KEY) || 'null');
+          if (cached && (Date.now() - cached.ts < GH_CACHE_TTL)) {
+            applyGitHubData(cached.repo, cached.rel);
+            return;
+          }
+        } catch (_) {}
+      }
+
       if (refreshIcon) refreshIcon.classList.add('fa-spin');
       try {
         const [repoRes, relRes] = await Promise.all([
@@ -1408,57 +1597,32 @@ pytest -v</pre>
           fetch('https://api.github.com/repos/AsadullahAlMunib/ClipHaven/releases/latest')
         ]);
 
-        if (repoRes.ok) {
-          const repo = await repoRes.json();
-          if (typeof repo.stargazers_count === 'number') {
-            document.getElementById('stat-stars').textContent = repo.stargazers_count + ' Stars';
-            document.getElementById('hero-star-pill').textContent = '★ ' + repo.stargazers_count;
-          }
-          if (repo.license && repo.license.spdx_id) {
-            document.getElementById('hero-license-badge').innerHTML = '<i class="fa-solid fa-scale-balanced text-[10px]"></i><span>' + repo.license.spdx_id + ' License</span>';
-          }
-        }
+        const repo = repoRes.ok ? await repoRes.json() : null;
+        const rel = relRes.ok ? await relRes.json() : null;
+        applyGitHubData(repo, rel);
 
-        if (relRes.ok) {
-          const rel = await relRes.json();
-          if (rel.tag_name) {
-            document.getElementById('nav-tag-text').textContent = rel.tag_name;
-            document.getElementById('hero-latest-badge').innerHTML = '<i class="fa-solid fa-sparkles text-[10px]"></i><span>Latest • ' + rel.tag_name + '</span>';
-            document.getElementById('stat-release').textContent = rel.tag_name;
-          }
-          if (rel.html_url) {
-            document.getElementById('side-latest-link').href = rel.html_url;
-            document.getElementById('release-html-link').href = rel.html_url;
-          }
-          if (Array.isArray(rel.assets) && rel.assets.length > 0) {
-            document.getElementById('stat-assets').textContent = rel.assets.length + ' Builds';
-            const assetMap = {};
-            rel.assets.forEach(a => { assetMap[a.name] = a; });
-            document.querySelectorAll('a[data-asset]').forEach(link => {
-              const name = link.getAttribute('data-asset');
-              const found = assetMap[name];
-              if (found && found.browser_download_url) {
-                link.href = found.browser_download_url;
-                const sizeEl = link.querySelector('.asset-size');
-                if (sizeEl && found.size) {
-                  const mb = (found.size / (1024 * 1024)).toFixed(1);
-                  sizeEl.textContent = mb + ' MB';
-                }
-              }
-            });
-          }
-          renderReleaseNotesDom(rel);
+        if (repo || rel) {
+          try {
+            localStorage.setItem(GH_CACHE_KEY, JSON.stringify({ ts: Date.now(), repo, rel }));
+          } catch (_) {}
+          return true;
         }
+        return false;
       } catch (_) {
         // Fallback /releases/latest/download/ links work automatically
+        return false;
       } finally {
         if (refreshIcon) refreshIcon.classList.remove('fa-spin');
       }
     }
 
-    document.getElementById('refresh-release-btn').addEventListener('click', () => {
-      syncFromGitHub();
-      showToast(currentLang === 'bn' ? 'রিলিজ তথ্য আপডেট করা হয়েছে!' : 'Synced with GitHub Releases!');
+    document.getElementById('refresh-release-btn').addEventListener('click', async () => {
+      const ok = await syncFromGitHub(true);
+      if (ok) {
+        showToast(currentLang === 'bn' ? 'রিলিজ তথ্য আপডেট করা হয়েছে!' : 'Synced with GitHub Releases!');
+      } else {
+        showToast(currentLang === 'bn' ? 'GitHub থেকে ডেটা লোড করা যায়নি।' : 'Could not reach GitHub Releases.');
+      }
     });
 
     // Mobile Sidebar Drawer
@@ -1483,16 +1647,31 @@ pytest -v</pre>
       });
     });
 
-    // Global Search Filter
-    document.getElementById('nav-search').addEventListener('input', (e) => {
-      const q = e.target.value.trim().toLowerCase();
+    // Global Search Filter + Clear Button + Empty State
+    const searchInput = document.getElementById('nav-search');
+    const searchClear = document.getElementById('nav-search-clear');
+    const searchEmpty = document.getElementById('search-empty');
+
+    function runSearch() {
+      const q = searchInput.value.trim().toLowerCase();
+      searchClear.classList.toggle('hidden', !q);
+      let visibleCount = 0;
       document.querySelectorAll('#nav-links a').forEach(a => {
         const targetId = a.getAttribute('href').slice(1);
         const sec = document.getElementById(targetId);
         const matches = !q || a.textContent.toLowerCase().includes(q) || (sec && sec.textContent.toLowerCase().includes(q));
         a.style.display = matches ? 'flex' : 'none';
         if (sec) sec.style.display = matches ? 'block' : 'none';
+        if (matches) visibleCount++;
       });
+      searchEmpty.classList.toggle('hidden', visibleCount > 0);
+    }
+
+    searchInput.addEventListener('input', runSearch);
+    searchClear.addEventListener('click', () => {
+      searchInput.value = '';
+      runSearch();
+      searchInput.focus();
     });
 
     // Quick Downloads Card Grid Filter
@@ -1511,16 +1690,20 @@ pytest -v</pre>
     });
 
     // Getting Started Tabs
-    document.querySelectorAll('.os-tab').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const target = btn.getAttribute('data-tab');
-        document.querySelectorAll('.os-tab').forEach(b => {
-          b.className = 'os-tab inline-flex items-center gap-1.5 rounded-xl bg-slate-100 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700';
-        });
-        btn.className = 'os-tab inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-3.5 py-2 text-xs font-semibold text-white';
-        document.querySelectorAll('.os-panel').forEach(p => p.classList.add('hidden'));
-        document.getElementById('tab-' + target).classList.remove('hidden');
+    function activateOsTab(target) {
+      document.querySelectorAll('.os-tab').forEach(b => {
+        const isActive = b.getAttribute('data-tab') === target;
+        b.className = isActive
+          ? 'os-tab inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-3.5 py-2 text-xs font-semibold text-white'
+          : 'os-tab inline-flex items-center gap-1.5 rounded-xl bg-slate-100 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700';
       });
+      document.querySelectorAll('.os-panel').forEach(p => p.classList.add('hidden'));
+      const panel = document.getElementById('tab-' + target);
+      if (panel) panel.classList.remove('hidden');
+    }
+
+    document.querySelectorAll('.os-tab').forEach(btn => {
+      btn.addEventListener('click', () => activateOsTab(btn.getAttribute('data-tab')));
     });
 
     // Copy to Clipboard + Toast
@@ -1554,9 +1737,11 @@ pytest -v</pre>
       });
     });
 
-    // Scroll-Spy for Active Sidebar Link
+    // Scroll-Spy + Back-to-Top Visibility
     const sections = document.querySelectorAll('main section[id]');
     const navItems = document.querySelectorAll('.nav-link');
+    const backToTopBtn = document.getElementById('back-to-top');
+
     window.addEventListener('scroll', () => {
       let current = 'overview';
       sections.forEach(sec => {
@@ -1567,10 +1752,22 @@ pytest -v</pre>
       navItems.forEach(a => {
         a.classList.toggle('active', a.getAttribute('href') === '#' + current);
       });
+      if (window.scrollY > 400) {
+        backToTopBtn.classList.remove('hidden');
+        backToTopBtn.classList.add('inline-flex');
+      } else {
+        backToTopBtn.classList.add('hidden');
+        backToTopBtn.classList.remove('inline-flex');
+      }
     }, { passive: true });
 
-    // Initialize with English & Light Mode by default
+    backToTopBtn.addEventListener('click', () => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+    // Initialize
     applyTheme(currentTheme);
+    highlightDetectedOS();
     applyLang(currentLang);
     syncFromGitHub();
   </script>
