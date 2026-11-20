@@ -2,7 +2,7 @@
 
 # <img src="logo.svg" width="40" height="40" align="top" alt="ClipHaven logo" /> ClipHaven
 
-**আপনার ক্লিপ ধরুন, সংরক্ষণ করুন আর উপভোগ করুন — লোকালি, নিরাপদে ও অনায়াসে।**
+**আপনার ক্লিপ কেটে নিন, সংরক্ষণ করুন আর উপভোগ করুন — লোকালি, নিরাপদে ও অনায়াসে।**
 
 ![CI Status](https://img.shields.io/badge/CI-passing-brightgreen)
 [![Release](https://img.shields.io/badge/version-v3.2.3-blue)](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.2.3)
@@ -13,60 +13,70 @@
 
 [![Read in English](https://img.shields.io/badge/Read%20in-English-2563eb?style=for-the-badge&logo=googletranslate&logoColor=white&labelColor=1e293b)](README.md)
 
-[✨ ফিচারসমূহ](#features) • [⚡ দ্রুত ডাউনলোড](#quick-downloads) • [🚀 শুরু করার নির্দেশিকা](#getting-started) • [📦 রিলিজ](https://github.com/AsadullahAlMunib/ClipHaven/releases) • [👨‍💻 ডেভেলপার](#developer)
+[📖 ডকুমেন্টেশন](https://asadullahalmunib.github.io/ClipHaven/) • [✨ ফিচারসমূহ](#features) • [⚡ দ্রুত ডাউনলোড](#quick-downloads) • [🚀 শুরু করার নির্দেশিকা](#getting-started) • [❓ FAQ](#faq) • [📦 রিলিজ](https://github.com/AsadullahAlMunib/ClipHaven/releases) • [👨‍💻 ডেভেলপার](#developer)
 
-ClipHaven একটি আধুনিক, দ্রুতগতির ও ১০০% লোকাল ভিডিও এবং অডিও ডাউনলোডার, যা [**Md Asadullah Al Munib**](https://github.com/AsadullahAlMunib) ডেভেলপ করেছেন এবং [`yt-dlp`](https://github.com/yt-dlp/yt-dlp) দ্বারা চালিত। এটি **Windows, macOS, Linux (`x64` ও `ARM64`) এবং Android (`64-bit` ও `32-bit`)**-এ পাওয়া যায় এবং আপনার ডিভাইসেই ব্যক্তিগতভাবে (`127.0.0.1:8765`) চলে — **কোনো বিজ্ঞাপন নেই, কোনো ট্র্যাকিং নেই, বাইরের কোনো সার্ভার রিলে নেই এবং শূন্য টেলিমেট্রি**।
+<br />
+
+<a href="https://asadullahalmunib.github.io/ClipHaven/">
+  <img src="docs/ClipHaven_Documentation_Video_Thumbnail_BN.jpeg" width="760" alt="ClipHaven অফিশিয়াল ডকুমেন্টেশন ও ভিডিও টিউটোরিয়াল থাম্বনেইল" />
+</a>
+
+<sub>▶️ <strong>থাম্বনেইলে ক্লিক করুন</strong> — <a href="https://asadullahalmunib.github.io/ClipHaven/">অফিশিয়াল ইন্টারঅ্যাক্টিভ ডকুমেন্টেশন</a> দেখতে অথবা <a href="https://www.youtube.com/watch?v=cW4ZbT-JCPI">ভিডিও ওয়াকথ্রু</a> দেখতে।</sub>
+
+<br />
+
+ClipHaven একটি আধুনিক, দ্রুতগতির ও ১০০% লোকাল ভিডিও এবং অডিও ডাউনলোডার, যা [**Md Asadullah Al Munib**](https://github.com/AsadullahAlMunib) ডেভেলপ করেছেন এবং [`yt-dlp`](https://github.com/yt-dlp/yt-dlp) ও `FFmpeg` দ্বারা চালিত। এটি **Windows, macOS, Linux (`x64` ও `ARM64`) এবং Android (`64-bit` ও `32-bit`)**-এ পাওয়া যায় এবং আপনার ডিভাইসেই ব্যক্তিগতভাবে (`127.0.0.1:8765`) চলে — **কোনো বিজ্ঞাপন নেই, কোনো ট্র্যাকিং নেই, বাইরের কোনো সার্ভার রিলে নেই এবং শূন্য টেলিমেট্রি**।
+
 </div>
-
 
 <details>
 <summary align="center"><h3>✨ ClipHaven-এর সব ফিচার এক নজরে দেখতে এখানে ক্লিক করুন (ড্রপডাউন)</h3></summary>
-<br />
 
-- **🌐 সমর্থিত প্ল্যাটফর্ম:** YouTube, Meta (Facebook, Instagram, Threads), LinkedIn, TikTok, X / Twitter, Reddit, Vimeo, Dailymotion, Twitch, Pinterest, SoundCloud
-- **🎯 ভিডিও রেজোলিউশন:** Best Available (প্রস্তাবিত), 2160p (4K), 1440p (2K), 1080p (Full HD), 720p (HD), 480p, 360p
+- **🌐 সমর্থিত প্ল্যাটফর্ম:** YouTube, Meta (Facebook, Instagram, Threads), LinkedIn (`linkedin.com` ও `lnkd.in`), TikTok, X / Twitter (`t.co`), Reddit (`redd.it`), Vimeo, Dailymotion (`dai.ly`), Twitch, Pinterest (`pin.it`), SoundCloud (`snd.sc`)
+- **🎯 ভিডিও রেজোলিউশন:** Best Available, 2160p (4K), 1440p (2K), 1080p (Full HD), 720p (HD), 480p, 360p (Data Saver)
 - **🎬 ভিডিও ফরম্যাট:** MP4, MKV, WEBM
 - **🎵 অডিও ফরম্যাট:** MP3, M4A, WAV
-- **💻📱 সমর্থিত OS:** Windows, macOS, Linux (x64 ও ARM64), Android (64-bit ও 32-bit)
-- **✂️ ভিডিও ক্লিপ কাটার:** ভিডিও/অডিওর নির্দিষ্ট অংশ (Start Time – End Time) `-preset ultrafast` দিয়ে কেটে নিন
-- **💬 বহুভাষিক সাবটাইটেল (CC):** ভিডিওর মূল কথ্য ভাষার ক্যাপশন (`.*-orig`, YouTube-স্টাইল CC) ও ম্যানুয়াল ক্যাপশন (বাংলা, ইংরেজি ইত্যাদি), ট্রিম করা ক্লিপের সাথে সিঙ্ক করা
-- **🖼️ কভার আর্ট এমবেডিং:** ভিডিওর থাম্বনেইল স্থায়ীভাবে এমবেড করা (MP4, MKV, MP3, M4A)
-- **📑 আনলিমিটেড প্রোগ্রেসিভ প্লেলিস্ট ডাউনলোডার:** ডিফল্টভাবে পুরো প্লেলিস্ট মোড, ১০০টির সীমা ছাড়াই লাইভ প্রোগ্রেসিভ ভিডিও সিলেক্টর ড্রপডাউন (500ms ব্যাচ রেন্ডারিং), স্মার্ট রেঞ্জ কম্প্রেশন (`1-50,52-500`) ও লাইভ প্লেলিস্ট কাউন্টার
-- **🔍 ইনস্ট্যান্ট লিংক প্রিভিউ:** হালকা `oEmbed`-এর মাধ্যমে সাব-সেকেন্ড মেটাডেটা লোডিং (~0.2 সেকেন্ড) এবং পেস্ট করার সাথে সাথে ক্লায়েন্ট-সাইডে থাম্বনেইল রেন্ডারিং
-- **🤖 Android ব্যাকগ্রাউন্ড সার্ভিস:** Android Foreground Service (`dataSync`), `WakeLock` ও স্ট্যাটাস বার প্রোগ্রেসের সাহায্যে স্ক্রিন বন্ধ থাকলেও নিরবচ্ছিন্ন ডাউনলোড
-- **🔄 ইন-অ্যাপ অটো-আপডেট:** অ্যাপের ভেতরেই রিলিজ চেকার — Android-এ সরাসরি APK অটো-ইনস্টলার এবং ডেস্কটপে আপডেট নোটিফিকেশন
-- **📲 Android Share সাপোর্ট:** Android-এর "Share to ClipHaven" মেনু থেকে এক ক্লিকেই ডাউনলোড
-- **📁 কাস্টম সেভ ফোল্ডার:** নেটিভ OS ও Android ডিভাইসের ফোল্ডার পিকার (`Browse`) এবং স্থায়ী Scoped Storage পারমিশন
-- **📊 লাইভ প্রোগ্রেস ও কন্ট্রোল:** রিয়েল-টাইম %, স্পিড (MB/s), ETA এবং তাৎক্ষণিক ক্যানসেল
-- **🔒 ১০০% লোকাল ও প্রাইভেট:** আপনার ডিভাইসেই চলে — বিজ্ঞাপন নেই, ট্র্যাকিং নেই, FFmpeg বান্ডেল করা এবং শূন্য টেলিমেট্রি
+- **💻📱 সমর্থিত OS:** Windows, macOS, Linux (`x64` ও `ARM64`), Android (`64-bit` ও `32-bit`)
+- **✂️ ভিডিও ক্লিপ কাটার:** `-preset ultrafast`, লাইভ FFmpeg প্রগ্রেস এবং নির্ভুল ডিউরেশনসহ ভিডিও/অডিওর নির্দিষ্ট অংশ (`Start Time` – `End Time`) কেটে ডাউনলোড করুন
+- **💬 বহুভাষিক সাবটাইটেল (CC):** ভিডিওর মূল কথ্য ভাষার ক্যাপশন (`.*-orig`, YouTube-স্টাইল CC) ও ম্যানুয়াল ক্যাপশন (বাংলা, ইংরেজি ইত্যাদি), যা কাটা ক্লিপের সাথে স্বয়ংক্রিয়ভাবে ট্রিম ও টাইম-শিফট হয়ে সিঙ্ক থাকে
+- **🖼️ কভার আর্ট এমবেডিং:** `mutagen`-এর মাধ্যমে `MP4`, `MKV`, `MP3` ও `M4A` ফাইলে স্থায়ীভাবে ভিডিও থাম্বনেইল এমবেড করা
+- **📑 আনলিমিটেড প্রোগ্রেসিভ প্লেলিস্ট ডাউনলোডার:** ডিফল্টভাবে সম্পূর্ণ প্লেলিস্ট মোড, ১০০-ভিডিওর সীমা ছাড়া আনলিমিটেড প্রোগ্রেসিভ ভিডিও সিলেক্টর ড্রপডাউন (500ms স্মুথ `DocumentFragment` ব্যাচ রেন্ডারিং), স্মার্ট রেঞ্জ কমপ্রেশন (`1-50,52-500`), ডাউনলোড শুরুতেই ব্যাকগ্রাউন্ড প্রিভিউ অটো-স্টপ এবং লাইভ প্লেলিস্ট কাউন্টার
+- **🔍 তাৎক্ষণিক লিংক প্রিভিউ:** হালকা `oEmbed` (~0.2s) ও ৬৪-এন্ট্রি LRU ক্যাশের মাধ্যমে সাথে সাথেই মেটাডেটা লোড, ব্যাকগ্রাউন্ডে ডিউরেশন ফেচ এবং লিংক পেস্টের সাথে সাথেই ক্লায়েন্ট-সাইড থাম্বনেইল রেন্ডারিং
+- **🤖 Android ব্যাকগ্রাউন্ড সার্ভিস ও রিচ নোটিফিকেশন:** Android Foreground Service (`dataSync`) ও `WakeLock`-এর মাধ্যমে স্ক্রিন বন্ধ থাকলেও নিরবচ্ছিন্ন ডাউনলোড, স্ট্যাটাস বারে লাইভ প্রগ্রেস (`% / MB / Speed / ETA`), থাম্বনেইল প্রিভিউ এবং সরাসরি **`▶️ Play`**, **`📂 Open Folder`** ও **`✕ Cancel`** বাটন
+- **🔄 Play Protect-সেফ ইন-অ্যাপ অটো-আপডেট:** Android-এর নেটিভ `DownloadManager` ব্যবহার করে ইন-অ্যাপ GitHub রিলিজ চেকার, ভার্সনযুক্ত APK নামকরণ, পুরনো APK স্বয়ংক্রিয় ক্লিনআপ এবং ডেস্কটপে আপডেট নোটিফিকেশন
+- **📲 Android Share সাপোর্ট:** Android-এর **"Share to ClipHaven"** মেনু থেকে এক ক্লিকে সরাসরি ডাউনলোড
+- **📁 কাস্টম সেভ ফোল্ডার ও পরিচ্ছন্ন ফাইলের নাম:** নেটিভ OS ও Android SAF ফোল্ডার পিকার (`Browse`) এবং শেষে `[video_id]` ব্র্যাকেট ছাড়া পরিচ্ছন্ন ফাইলের নাম
+- **📊 লাইভ প্রগ্রেস ও কন্ট্রোল:** রিয়েল-টাইম `%`, ডাউনলোড হওয়া সাইজ, স্পিড (`MB/s`), `ETA`, তাৎক্ষণিক ক্যানসেল এবং ডাউনলোড শেষে **`📂 Open Folder`** নেভিগেশন
+- **🔒 ১০০% লোকাল ও প্রাইভেট:** সম্পূর্ণ আপনার ডিভাইসে চলে — কোনো বিজ্ঞাপন, ট্র্যাকিং বা টেলিমেট্রি নেই এবং FFmpeg আগে থেকেই যুক্ত
 </details>
 
 <br />
 
 <a id="quick-downloads"></a>
-
 ## ⚡ দ্রুত ডাউনলোড
 
+> 💡 **লেটেস্ট রিলিজ: [`v3.2.3`](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.2.3)** — ইন্টারঅ্যাক্টিভ ডাউনলোড কার্ড, লাইভ রিলিজ নোট এবং ভিডিও গাইড দেখতে ভিজিট করুন [**অফিশিয়াল ডকুমেন্টেশন**](https://asadullahalmunib.github.io/ClipHaven/#downloads)।
+
 <details open>
-  <summary><strong>📥 আপনার ডিভাইসের জন্য ClipHaven বেছে নিয়ে ডাউনলোড করতে এখানে ক্লিক করুন (ড্রপডাউন মেনু)</strong></summary>
+  <summary><strong>📥 আপনার ডিভাইসের জন্য ClipHaven <code>v3.2.3</code> বেছে নিতে ও ডাউনলোড করতে এখানে ক্লিক করুন (ড্রপডাউন মেনু)</strong></summary>
   <br />
 
-  * **🪟 Windows:**
-    * ⭐ [**`ClipHaven-Windows-All.zip`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-Windows-All.zip) — *`FFmpeg` ও সব ডিপেন্ডেন্সিসহ সম্পূর্ণ Windows বান্ডেল (প্রস্তাবিত)*
-    * 📦 [**`ClipHaven-Windows.exe`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-Windows.exe) — *স্ট্যান্ডঅ্যালোন সিঙ্গেল-ফাইল পোর্টেবল Windows এক্সিকিউটেবল*
-  * **🐧 Linux (x64 ও ARM64):**
-    * ⭐ [**`ClipHaven-Linux-x64-All.zip`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-Linux-x64-All.zip) — *`FFmpeg` ও সব ডিপেন্ডেন্সিসহ সম্পূর্ণ Linux x64 বান্ডেল*
-    * 📦 [**`ClipHaven-Linux-x64`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-Linux-x64) — *স্ট্যান্ডঅ্যালোন সিঙ্গেল-ফাইল Linux x64 বাইনারি*
-    * ⭐ [**`ClipHaven-Linux-ARM64-All.zip`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-Linux-ARM64-All.zip) — *`FFmpeg` ও সব ডিপেন্ডেন্সিসহ সম্পূর্ণ Linux ARM64 বান্ডেল*
-    * 📦 [**`ClipHaven-Linux-ARM64`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-Linux-ARM64) — *স্ট্যান্ডঅ্যালোন সিঙ্গেল-ফাইল Linux ARM64 বাইনারি*
-  * **🍎 macOS:**
-    * ⭐ [**`ClipHaven-macOS-All.zip`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-macOS-All.zip) — *`FFmpeg` ও সব ডিপেন্ডেন্সিসহ সম্পূর্ণ macOS বান্ডেল*
-    * 📦 [**`ClipHaven-macOS`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-macOS) — *স্ট্যান্ডঅ্যালোন সিঙ্গেল-ফাইল macOS বাইনারি*
-  * **🤖 Android (64-bit ও 32-bit):**
-    * ⭐ [**`ClipHaven-Android-64bit.apk`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-Android-64bit.apk) — *আধুনিক 64-bit Android ফোনের জন্য (`arm64-v8a`, প্রস্তাবিত)*
-    * 📱 [**`ClipHaven-Android-32bit.apk`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-Android-32bit.apk) — *পুরনো 32-bit Android ফোন ও TV বক্সের জন্য (`armeabi-v7a`)*
-  * **⚡ সোর্স কোড + লঞ্চার (`.bat`):**
-    * 🛠️ [**`ClipHaven-Source-Bat.zip`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-Source-Bat.zip) — *এক-ক্লিকে `setup-and-run.bat` সহ হালকা সোর্স বান্ডেল*
+- **🪟 Windows:**
+  - ⭐ [**`ClipHaven-Windows-All.zip`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-Windows-All.zip) — *`FFmpeg` ও সব ডিপেন্ডেন্সিসহ সম্পূর্ণ Windows বান্ডেল (প্রস্তাবিত)*
+  - 📦 [**`ClipHaven-Windows.exe`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-Windows.exe) — *স্ট্যান্ডঅ্যালোন সিঙ্গেল-ফাইল পোর্টেবল Windows অ্যাপ*
+- **🐧 Linux (x64 ও ARM64):**
+  - ⭐ [**`ClipHaven-Linux-x64-All.zip`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-Linux-x64-All.zip) — *`FFmpeg` ও সব ডিপেন্ডেন্সিসহ সম্পূর্ণ Linux x64 বান্ডেল*
+  - 📦 [**`ClipHaven-Linux-x64`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-Linux-x64) — *স্ট্যান্ডঅ্যালোন সিঙ্গেল-ফাইল Linux x64 বাইনারি*
+  - ⭐ [**`ClipHaven-Linux-ARM64-All.zip`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-Linux-ARM64-All.zip) — *`FFmpeg` ও সব ডিপেন্ডেন্সিসহ সম্পূর্ণ Linux ARM64 বান্ডেল*
+  - 📦 [**`ClipHaven-Linux-ARM64`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-Linux-ARM64) — *স্ট্যান্ডঅ্যালোন সিঙ্গেল-ফাইল Linux ARM64 বাইনারি*
+- **🍎 macOS:**
+  - ⭐ [**`ClipHaven-macOS-All.zip`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-macOS-All.zip) — *`FFmpeg` ও সব ডিপেন্ডেন্সিসহ সম্পূর্ণ macOS বান্ডেল*
+  - 📦 [**`ClipHaven-macOS`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-macOS) — *স্ট্যান্ডঅ্যালোন সিঙ্গেল-ফাইল macOS বাইনারি*
+- **🤖 Android (64-bit ও 32-bit):**
+  - ⭐ [**`ClipHaven-Android-64bit.apk`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-Android-64bit.apk) — *আধুনিক ৬৪-বিট Android ফোনের জন্য (`arm64-v8a`, প্রস্তাবিত)*
+  - 📱 [**`ClipHaven-Android-32bit.apk`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-Android-32bit.apk) — *পুরনো ৩২-বিট Android ফোন ও টিভি বক্সের জন্য (`armeabi-v7a`)*
+- **⚡ সোর্স কোড + লঞ্চার (`.bat`):**
+  - 🛠️ [**`ClipHaven-Source-Bat.zip`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-Source-Bat.zip) — *এক-ক্লিকের `setup-and-run.bat` সহ হালকা সোর্স বান্ডেল*
 </details>
 
 <br />
@@ -77,121 +87,166 @@ ClipHaven একটি আধুনিক, দ্রুতগতির ও ১�
 | **🍎 macOS** | [⬇️ `ClipHaven-macOS-All.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-macOS-All.zip) | [⬇️ `ClipHaven-macOS`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-macOS) |
 | **🐧 Linux (x64)** | [⬇️ `ClipHaven-Linux-x64-All.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-Linux-x64-All.zip) | [⬇️ `ClipHaven-Linux-x64`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-Linux-x64) |
 | **🐧 Linux (ARM64)** | [⬇️ `ClipHaven-Linux-ARM64-All.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-Linux-ARM64-All.zip) | [⬇️ `ClipHaven-Linux-ARM64`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-Linux-ARM64) |
-| **🤖 Android (64-bit)** | *(`.apk`-এর ভেতরেই সম্পূর্ণ)* | [⬇️ `ClipHaven-Android-64bit.apk`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-Android-64bit.apk) *(প্রস্তাবিত)* |
-| **🤖 Android (32-bit)** | *(`.apk`-এর ভেতরেই সম্পূর্ণ)* | [⬇️ `ClipHaven-Android-32bit.apk`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-Android-32bit.apk) |
+| **🤖 Android (64-bit)** | *(সম্পূর্ণ `.apk`-এর ভেতরেই যুক্ত)* | [⬇️ `ClipHaven-Android-64bit.apk`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-Android-64bit.apk) |
+| **🤖 Android (32-bit)** | *(সম্পূর্ণ `.apk`-এর ভেতরেই যুক্ত)* | [⬇️ `ClipHaven-Android-32bit.apk`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-Android-32bit.apk) |
 | **⚡ সোর্স + `.bat`** | [⬇️ `ClipHaven-Source-Bat.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-Source-Bat.zip) | [📦 সব রিলিজ](https://github.com/AsadullahAlMunib/ClipHaven/releases/latest) |
 
+<br />
 
 <a id="features"></a>
-
 ## ✨ প্রধান ফিচারসমূহ
 
-### 💻 মাল্টি-প্ল্যাটফর্ম রেডি
-* **ডেস্কটপ (`-All.zip` ও স্ট্যান্ডঅ্যালোন বাইনারি):** **Windows, macOS, Linux x64 ও Linux ARM64**-এর জন্য `FFmpeg` আগে থেকেই অন্তর্ভুক্ত সম্পূর্ণ প্রি-প্যাকেজড বান্ডেল এবং পোর্টেবল সিঙ্গেল-ফাইল অ্যাপ।
-* **Android (`ClipHaven-Android-64bit.apk` ও `ClipHaven-Android-32bit.apk`):** হালকা, আর্কিটেকচার-নির্দিষ্ট `.apk` বিল্ড — Foreground Service ও WakeLock-সহ নিরবচ্ছিন্ন ব্যাকগ্রাউন্ড ডাউনলোড, ইনক্রিমেন্টাল প্লেলিস্ট এক্সপোর্ট, নেটওয়ার্ক রিট্রাই রেজিলিয়েন্স এবং কোনো সেটআপ ছাড়াই লোকালি চলে সরাসরি `Downloads/ClipHaven`-এ সেভ করে।
-* **সোর্স লঞ্চার (`setup-and-run.bat`):** আলাদা `.venv` তৈরি করে, `yt-dlp` ও `imageio-ffmpeg` ইনস্টল/আপডেট করে এবং ড্যাশবোর্ড চালু করে।
+### 💻 মাল্টি-প্ল্যাটফর্ম প্রস্তুত
+- **ডেস্কটপ (`-All.zip` ও স্ট্যান্ডঅ্যালোন বাইনারি):** **Windows, macOS, Linux x64 এবং Linux ARM64**-এর জন্য `FFmpeg` আগে থেকেই যুক্ত সম্পূর্ণ প্রি-প্যাকেজড বান্ডেল ও পোর্টেবল সিঙ্গেল-ফাইল অ্যাপ।
+- **Android (`ClipHaven-Android-64bit.apk` ও `ClipHaven-Android-32bit.apk`):** `youtubedl-android` চালিত হালকা ও আর্কিটেকচার-ভিত্তিক `.apk` বিল্ড। এতে আছে স্ক্রিন বন্ধ থাকলেও নিরবচ্ছিন্ন ডাউনলোডের জন্য Foreground Service (`dataSync`) ও `WakeLock`, রিচ নোটিফিকেশন (`▶️ Play`, `📂 Open Folder`, `✕ Cancel`), ইনক্রিমেন্টাল প্লেলিস্ট এক্সপোর্ট, নেটওয়ার্ক রিট্রাই সাপোর্ট, Play Protect-সেফ `DownloadManager` আপডেট (ভার্সনযুক্ত APK নামকরণ ও পুরনো APK অটো-ক্লিনআপসহ) এবং সরাসরি `Downloads/ClipHaven`-এ সেভ করার সুবিধা।
+- **সোর্স লঞ্চার (`setup-and-run.bat`):** স্বয়ংক্রিয়ভাবে একটি আলাদা `.venv` তৈরি করে `yt-dlp`, `imageio-ffmpeg` ও `mutagen` ইনস্টল/আপডেট করে এবং ড্যাশবোর্ড চালু করে।
 
-### 🌐 বহু প্ল্যাটফর্ম থেকে এক্সট্র্যাকশন
-জনপ্রিয় মিডিয়া প্ল্যাটফর্ম থেকে পরিষ্কারভাবে ভিডিও ও অডিও এক্সট্র্যাক্ট করে:
-* **YouTube:** পূর্ণ ভিডিও, Shorts এবং সম্পূর্ণ প্লেলিস্ট
-* **Meta:** Facebook ভিডিও ও Reels, Instagram Reels, পোস্ট ও Threads (`threads.net` ও `threads.com`)
-* **অন্যান্য:** LinkedIn (`linkedin.com` ও `lnkd.in`), TikTok, X / Twitter (`t.co` শেয়ার লিংকসহ), Reddit, Vimeo, Dailymotion, Twitch, Pinterest (`pin.it`) এবং SoundCloud (`snd.sc`)
+### 🌐 বিস্তৃত মাল্টি-প্ল্যাটফর্ম এক্সট্র্যাকশন
+জনপ্রিয় সব মিডিয়া প্ল্যাটফর্ম থেকে নির্বিঘ্নে ভিডিও এবং অডিও ডাউনলোড করুন:
+- **YouTube:** সম্পূর্ণ ভিডিও, Shorts এবং আনলিমিটেড সাইজের প্লেলিস্ট
+- **Meta:** Facebook ভিডিও ও Reels, Instagram Reels, পোস্ট এবং Threads (`threads.net` ও `threads.com`)
+- **অন্যান্য:** LinkedIn (`linkedin.com` ও `lnkd.in`), TikTok, X / Twitter (`t.co` শেয়ার লিংকসহ), Reddit (`redd.it`), Vimeo, Dailymotion (`dai.ly`), Twitch, Pinterest (`pin.it`) এবং SoundCloud (`snd.sc`)
 
-### 🎯 নিখুঁত টুলস ও মিডিয়া অপশন
-* **📁 নেটিভ ফোল্ডার পিকার (`Browse`):** আপনার OS-এর নেটিভ ফোল্ডার সিলেকশন ডায়ালগ দিয়ে ডাউনলোড ফোল্ডার বেছে নিন, অথবা সরাসরি যেকোনো পাথ টাইপ করুন।
-* **✂️ লাইভ প্রোগ্রেসসহ ভিডিও ট্রিমিং ও ক্লিপ কাটার:** নির্দিষ্ট সময়সীমা (`Start Time` থেকে `End Time`, `MM:SS` বা `HH:MM:SS` ফরম্যাটে) ডাউনলোড করুন, সাথে রিয়েল-টাইম FFmpeg শতকরা হার (`%`), এনকোডিং স্পিড ও বাকি সময় (`ETA`) দেখুন।
-* **📑 প্লেলিস্ট ডাউনলোড:** পুরো ভিডিও প্লেলিস্ট ব্যাচে ডাউনলোড করুন। ভিজ্যুয়াল ব্যাজ (`📑 3/15 • 2 done • 12 left`) দেখাবে প্লেলিস্টের কোন ভিডিওটি ডাউনলোড হচ্ছে, কয়টি শেষ হয়েছে এবং কয়টি বাকি আছে।
-* **💬 বহুভাষিক সাবটাইটেল (CC):** ভিডিওর হুবহু মূল কথ্য ভাষার ক্যাপশন (`.*-orig`, ঠিক YouTube-এর CC বাটনের মতো) স্বয়ংক্রিয়ভাবে শনাক্ত করে এমবেড করে, সাথে ম্যানুয়াল বাংলা (`bn`) ও ইংরেজি (`en`) সাবটাইটেলও; রোবটিক অটো-ট্রান্সলেশন বাদ দেয় (`skip=translated_subs`)।
-* **🖼️ কভার আর্ট / থাম্বনেইল এমবেড:** `MP4`, `MKV`, `MP3` ও `M4A` ফাইলে ভিডিওর থাম্বনেইল স্থায়ী কভার আর্ট হিসেবে এমবেড করে।
-* **⚡ একাধিক ফরম্যাট ও 4K কোয়ালিটি:**
-  * **ভিডিও ফরম্যাট:** `MP4` *(প্রস্তাবিত)*, `MKV`, `WEBM`
-  * **অডিও ফরম্যাট:** `MP3`, `M4A`, `WAV`
-  * **রেজোলিউশন:** `Best Available`, `4K (2160p)`, `2K (1440p)`, `1080p`, `720p`, `480p`, `360p`
-* **📊 রিয়েল-টাইম ফিডব্যাক:** লাইভ ডাউনলোড স্পিড কাউন্টার (`MB/s`), নির্ভুল বাকি সময় (`ETA`), শতকরা প্রোগ্রেস বার এবং ডাউনলোড শেষে ডিরেক্টরি নেভিগেশন (`📂 Open Folder`)।
+### 🎯 নির্ভুল টুলস ও মিডিয়া অপশনসমূহ
+- **📁 নেটিভ ফোল্ডার পিকার (`Browse`):** আপনার OS-এর নেটিভ ফোল্ডার সিলেক্টর ডায়ালগ (অথবা Android-এর ডিরেক্ট SAF পিকার, SD কার্ডসহ) দিয়ে ডাউনলোড ফোল্ডার বাছাই করুন অথবা সরাসরি পাথ লিখে দিন।
+- **🔍 তাৎক্ষণিক ~0.2s লিংক প্রিভিউ ও অটো-স্টপ:** হালকা `oEmbed` এবং ৬৪-এন্ট্রি LRU ক্যাশের মাধ্যমে প্রায় সাথে সাথেই থাম্বনেইল, শিরোনাম ও চ্যানেলের নাম দেখায়, ব্যাকগ্রাউন্ডে সঠিক ডিউরেশন ফেচ করে এবং ডাউনলোড শুরু হওয়ার সাথে সাথেই চলমান ব্যাকগ্রাউন্ড প্লেলিস্ট প্রিভিউ স্বয়ংক্রিয়ভাবে বন্ধ করে দেয়।
+- **✂️ লাইভ প্রগ্রেসসহ ভিডিও ট্রিমিং ও ক্লিপ কাটার:** `-preset ultrafast` ব্যবহার করে নির্দিষ্ট সময় (`Start Time` থেকে `End Time`, `MM:SS` বা `HH:MM:SS`) কেটে ডাউনলোড করুন—সাথে থাকবে রিয়েল-টাইম FFmpeg `%`, এনকোডিং স্পিড, অবশিষ্ট `ETA`, সঠিক ডিউরেশন এবং স্বয়ংক্রিয়ভাবে ট্রিম ও টাইম-শিফট হওয়া সাবটাইটেল।
+- **📑 আনলিমিটেড প্রোগ্রেসিভ প্লেলিস্ট ডাউনলোড:** ১০০-ভিডিওর সীমা সরিয়ে যেকোনো বড় প্লেলিস্ট (১০০, ৫০০, ২,০০০+ ভিডিও) 500ms `DocumentFragment` ব্যাচে মসৃণভাবে লোড করে। ইন্টারঅ্যাক্টিভ চেকবক্স, স্মার্ট রেঞ্জ কমপ্রেশন (`1-50,52-500`) এবং লাইভ কাউন্টার ব্যাজ (`📑 3/15 • 2 done • 12 left`) দিয়ে চলমান, সম্পন্ন ও বাকি ভিডিওর সংখ্যা দেখা যায়।
+- **💬 বহুভাষিক সাবটাইটেল (CC):** YouTube-এর CC বাটনের মতো ভিডিওর মূল কথ্য ভাষার ক্যাপশন (`.*-orig`) এবং ম্যানুয়াল বাংলা (`bn`) ও ইংরেজি (`en`) সাবটাইটেল স্বয়ংক্রিয়ভাবে শনাক্ত ও এমবেড করে, আর রোবটিক অটো-ট্রান্সলেশন বাদ দেয় (`skip=translated_subs`)।
+- **🖼️ কভার আর্ট / থাম্বনেইল এমবেড ও পরিচ্ছন্ন ফাইলের নাম:** `mutagen`-এর মাধ্যমে `MP4`, `MKV`, `MP3` ও `M4A` ফাইলে স্থায়ী কভার আর্ট যুক্ত করে এবং শেষে `[video_id]` ব্র্যাকেট ছাড়া পরিচ্ছন্ন নামে ফাইল সেভ করে।
+- **⚡ একাধিক ফরম্যাট ও 4K কোয়ালিটি:**
+  - **ভিডিও ফরম্যাট:** `MP4` *(প্রস্তাবিত)*, `MKV`, `WEBM`
+  - **অডিও ফরম্যাট:** `MP3`, `M4A`, `WAV`
+  - **রেজোলিউশন:** `Best Available`, `4K (2160p)`, `2K (1440p)`, `1080p`, `720p`, `480p`, `360p (Data Saver)`
+- **📊 রিয়েল-টাইম ফিডব্যাক:** লাইভ ডাউনলোড স্পিড (`MB/s`), ডাউনলোড হওয়া সাইজ, সঠিক অবশিষ্ট সময় (`ETA`), প্রগ্রেস বার, তাৎক্ষণিক ক্যানসেল এবং ডাউনলোড শেষে সরাসরি ফোল্ডার খোলার বাটন (`📂 Open Folder`)।
 
+<br />
 
 <a id="getting-started"></a>
-
 ## 🚀 শুরু করার নির্দেশিকা
 
+> 📖 ইন্টারঅ্যাক্টিভ ভিজ্যুয়াল গাইড দেখতে চান? ঘুরে আসুন [**অফিশিয়াল সেটআপ গাইড**](https://asadullahalmunib.github.io/ClipHaven/#install) থেকে।
+
 ### পদ্ধতি ১: অল-ইন-ওয়ান বান্ডেল (`-All.zip` — ⭐ ডেস্কটপের জন্য প্রস্তাবিত)
-1. [Releases](https://github.com/AsadullahAlMunib/ClipHaven/releases/latest) থেকে `ClipHaven-Windows-All.zip`, `ClipHaven-macOS-All.zip`, `ClipHaven-Linux-x64-All.zip` অথবা `ClipHaven-Linux-ARM64-All.zip` ডাউনলোড করুন।
-2. আর্কাইভটি এক্সট্র্যাক্ট করে **`ClipHaven`** চালু করুন (Windows-এ `ClipHaven.exe`)। আপনার ব্রাউজারে `http://127.0.0.1:8765/` খুলবে।
+1. [Release `v3.2.3`](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.2.3) থেকে `ClipHaven-Windows-All.zip`, `ClipHaven-macOS-All.zip`, `ClipHaven-Linux-x64-All.zip`, অথবা `ClipHaven-Linux-ARM64-All.zip` ডাউনলোড করুন।
+2. আর্কাইভটি এক্সট্র্যাক্ট করে **`ClipHaven`** (Windows-এ `ClipHaven.exe`) চালু করুন। আপনার ব্রাউজারে স্বয়ংক্রিয়ভাবে `http://127.0.0.1:8765/` খুলে যাবে।
 
 ### পদ্ধতি ২: Android অ্যাপ (`ClipHaven-Android-64bit.apk` / `ClipHaven-Android-32bit.apk`)
-1. [`ClipHaven-Android-64bit.apk`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-Android-64bit.apk) *(আধুনিক 64-bit ফোনের জন্য)* অথবা [`ClipHaven-Android-32bit.apk`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-Android-32bit.apk) *(পুরনো 32-bit ডিভাইসের জন্য)* ডাউনলোড করে ইনস্টল করুন।
-2. **ClipHaven** খুলুন (অথবা YouTube, Facebook, Instagram, LinkedIn বা TikTok থেকে যেকোনো ভিডিও লিংক সরাসরি ClipHaven-এ শেয়ার করুন)।
+1. আধুনিক ৬৪-বিট ফোনের জন্য [`ClipHaven-Android-64bit.apk`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-Android-64bit.apk) অথবা পুরনো ৩২-বিট ডিভাইসের জন্য [`ClipHaven-Android-32bit.apk`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-Android-32bit.apk) ডাউনলোড করে ইনস্টল করুন।
+2. **ClipHaven** ওপেন করুন (অথবা YouTube, Facebook, Instagram, LinkedIn বা TikTok থেকে যেকোনো ভিডিও লিংক সরাসরি ClipHaven-এ Share করুন)।
 
 ### পদ্ধতি ৩: এক-ক্লিক স্ক্রিপ্ট (`setup-and-run.bat`)
-1. **Python 3.10+** ইনস্টল করা আছে এবং **"Add Python to PATH"** চালু রাখা হয়েছে কি না নিশ্চিত করুন।
-2. [`ClipHaven-Source-Bat.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-Source-Bat.zip) ডাউনলোড করে এক্সট্র্যাক্ট করুন (অথবা রিপোজিটরি ক্লোন করুন):
+1. আপনার পিসিতে **"Add Python to PATH"** অপশনসহ **Python 3.10+** ইনস্টল করা আছে কি না নিশ্চিত করুন।
+2. [`ClipHaven-Source-Bat.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.2.3/ClipHaven-Source-Bat.zip) ডাউনলোড ও এক্সট্র্যাক্ট করুন (অথবা রিপোজিটরি ক্লোন করুন):
    ```bash
    git clone https://github.com/AsadullahAlMunib/ClipHaven.git
    cd ClipHaven
    ```
-3. **`setup-and-run.bat`** ডাবল-ক্লিক করুন। স্ক্রিপ্টটি ভার্চুয়াল এনভায়রনমেন্ট তৈরি করে, `yt-dlp` ও পোর্টেবল `FFmpeg` (`imageio-ffmpeg`) ইনস্টল করে এবং স্বয়ংক্রিয়ভাবে ড্যাশবোর্ড খোলে।
+3. **`setup-and-run.bat`** ফাইলে ডাবল-ক্লিক করুন। স্ক্রিপ্টটি নিজেই ভার্চুয়াল এনভায়রনমেন্ট তৈরি করবে, `yt-dlp`, পোর্টেবল `FFmpeg` (`imageio-ffmpeg`) ও `mutagen` ইনস্টল করবে এবং স্বয়ংক্রিয়ভাবে ড্যাশবোর্ড খুলে দেবে।
 
 ### পদ্ধতি ৪: ডেভেলপার সেটআপ (macOS / Linux / Windows)
 ```bash
-# 1. Create and activate a virtual environment
+# ১. ভার্চুয়াল এনভায়রনমেন্ট তৈরি ও অ্যাক্টিভেট করুন
 python3 -m venv .venv
-source .venv/bin/activate       # On Windows: .venv\Scripts\activate
+source .venv/bin/activate       # Windows-এ: .venv\Scripts\activate
 
-# 2. Install dependencies (includes yt-dlp, imageio-ffmpeg, and mutagen)
+# ২. ডিপেন্ডেন্সি ইনস্টল করুন (yt-dlp, imageio-ffmpeg এবং mutagen সহ)
 pip install --upgrade pip
 pip install -r requirements.txt pytest
 
-# 3. Launch server
+# ৩. লোকাল সার্ভার চালু করুন
 python server.py
 
-# 4. (Optional) Run tests locally
+# ৪. (ঐচ্ছিক) লোকালি টেস্ট রান করুন
 pytest -v
 ```
 
+<br />
 
-## 📂 প্রজেক্টের কাঠামো
+<a id="faq"></a>
+## ❓ সাধারণ প্রশ্নোত্তর ও সমাধান (FAQ)
+
+<details>
+<summary><strong>প্রথমবার চালু করার সময় Windows Defender / SmartScreen সতর্কতা দেখালে কী করবো?</strong></summary>
+
+ClipHaven একটি ওপেন-সোর্স, আনসাইন্ড কমিউনিটি বিল্ড। ডেস্কটপে সবসময় **`ClipHaven-Windows-All.zip`** ডাউনলোড করুন (এতে সিঙ্গেল-ফাইল টেম্প-আনপ্যাকিং অ্যান্টিভাইরাস হিউরিস্টিক সমস্যা হয় না)। তবুও SmartScreen পপ-আপ এলে **More info → Run anyway** ক্লিক করুন, অথবা `setup-and-run.bat` দিয়ে সরাসরি সোর্স থেকে চালান।
+</details>
+
+<details>
+<summary><strong>ভিডিওর নির্দিষ্ট অংশ কেটে ডাউনলোড করলে কি এমবেডেড সাবটাইটেল সিঙ্ক থাকে?</strong></summary>
+
+হ্যাঁ। ClipHaven স্বয়ংক্রিয়ভাবে `.vtt`/`.srt` সাবটাইটেল কিউগুলো আপনার `[Start Time, End Time]` অনুযায়ী কেটে ফেলে এবং সব টাইমস্ট্যাম্প `00:00`-এ শিফট করে দেয়, ফলে সাবটাইটেল একদম সিঙ্ক থাকে এবং আউটপুট ফাইলের ডিউরেশনও নিখুঁত হয়।
+</details>
+
+<details>
+<summary><strong>Android-এ ডাউনলোড করা ফাইলগুলো কোথায় সেভ হয়?</strong></summary>
+
+ডিফল্টভাবে ফাইলগুলো সরাসরি `Downloads/ClipHaven` ফোল্ডারে সেভ হয় এবং সাথে সাথেই আপনার গ্যালারি ও মিউজিক অ্যাপে দেখা যায়। আপনি চাইলে **`📁 Browse`** বাটনে ট্যাপ করে SD কার্ডসহ যেকোনো কাস্টম ফোল্ডার বেছে নিতে পারবেন।
+</details>
+
+আরও প্রশ্নোত্তর দেখুন [**সম্পূর্ণ ডকুমেন্টেশন FAQ**](https://asadullahalmunib.github.io/ClipHaven/#faq)-এ।
+
+<br />
+
+## 📂 প্রজেক্ট স্ট্রাকচার
 
 ```
 ClipHaven/
 ├── .github/
-│   ├── dependabot.yml            # ডিপেন্ডেন্সি আপডেটারের কনফিগারেশন
+│   ├── dependabot.yml                                  # ডিপেন্ডেন্সি আপডেটার কনফিগারেশন
 │   └── workflows/
-│       ├── ci.yml                # মাল্টি-প্ল্যাটফর্ম CI টেস্টিং পাইপলাইন
-│       └── release.yml           # স্বয়ংক্রিয় ১১-অ্যাসেট বিল্ডার (Windows, macOS, Linux x64/ARM64, Android 64/32-bit ও সোর্স)
-├── android/                      # স্বয়ংসম্পূর্ণ Android APK প্রজেক্ট (WebView + youtubedl-android)
+│       ├── ci.yml                                      # মাল্টি-প্ল্যাটফর্ম CI টেস্টিং ও Ruff লিন্ট পাইপলাইন
+│       └── release.yml                                 # স্বয়ংক্রিয় ১১-অ্যাসেট বিল্ডার (Windows, macOS, Linux x64/ARM64, Android 64/32-bit ও Source)
+├── android/                                            # স্বয়ংসম্পূর্ণ Android APK প্রজেক্ট (Kotlin WebView + youtubedl-android)
+│   └── app/
+│       ├── build.gradle.kts                            # অ্যাপ ডিপেন্ডেন্সি ও 64/32-bit ABI স্প্লিট কনফিগ
+│       └── src/main/
+│           ├── AndroidManifest.xml                     # পারমিশন, Share মেনু ইন্টেন্ট ও সার্ভিস ডিক্লারেশন
+│           └── java/com/asadullahalmunib/cliphaven/
+│               ├── MainActivity.kt                     # WebView UI, JS ব্রিজ, SAF পিকার ও yt-dlp ইঞ্জিন
+│               └── DownloadForegroundService.kt        # ব্যাকগ্রাউন্ড dataSync সার্ভিস, WakeLock ও লাইভ নোটিফিকেশন
+├── docs/
+│   ├── index.html                                      # অফিশিয়াল দ্বিভাষিক ইন্টারঅ্যাক্টিভ ডকুমেন্টেশন (GitHub Pages)
+│   ├── ClipHaven_Documentation_Video_Thumbnail_EN.jpeg # ইংরেজি ওয়াকথ্রু ভিডিও থাম্বনেইল
+│   └── ClipHaven_Documentation_Video_Thumbnail_BN.jpeg # বাংলা ওয়াকথ্রু ভিডিও থাম্বনেইল
 ├── scripts/
-│   └── generate_icons.py         # logo.svg থেকে logo.ico ও Android mipmap জেনারেটর
+│   └── generate_icons.py                               # logo.svg থেকে logo.ico ও Android mipmap আইকন জেনারেটর
 ├── tests/
-│   └── test_server.py            # ইউনিট ও API ইন্টিগ্রেশন টেস্ট স্যুট
-├── logo.svg                      # ভেক্টর অ্যাপ লোগো ও ফেভিকন
-├── index.html                    # পরিচ্ছন্ন, রেসপন্সিভ ওয়েব UI
-├── style.css                     # ডার্ক ও লাইট মোডের ডিজাইন টোকেন ও অ্যানিমেশন
-├── app.js                        # ক্লায়েন্ট স্টেট, প্রিভিউ রেন্ডারিং, ফোল্ডার পিকার ও পোলিং
-├── server.py                     # লোকাল HTTP সার্ভার ও yt-dlp ব্যাকএন্ড ব্রিজ
-├── setup-and-run.bat             # Windows এক-ক্লিক রানার ও এনভায়রনমেন্ট বিল্ডার
-├── requirements.txt              # মূল Python ডিপেন্ডেন্সি (yt-dlp + imageio-ffmpeg + mutagen)
-├── pyproject.toml                # প্রজেক্ট কনফিগারেশন ও মেটাডেটা
-├── CHANGELOG.md                  # আপডেট ও ভার্সন পরিবর্তনের বিস্তারিত রেকর্ড
-└── LICENSE                       # MIT ওপেন সোর্স লাইসেন্স
+│   └── test_server.py                                  # ইউনিট ও API ইন্টিগ্রেশন টেস্ট স্যুট
+├── logo.svg                                            # ভেক্টর অ্যাপ্লিকেশন লোগো ও ফ্যাভিকন
+├── index.html                                          # পরিচ্ছন্ন ও রেসপন্সিভ ওয়েব UI
+├── style.css                                           # ডার্ক ও লাইট মোড ডিজাইন টোকেন ও অ্যানিমেশন
+├── app.js                                              # ক্লায়েন্ট স্টেট, প্রোগ্রেসিভ প্লেলিস্ট UI, ফোল্ডার পিকার ও পোলিং
+├── server.py                                           # লোকাল HTTP সার্ভার এবং yt-dlp / FFmpeg ব্যাকএন্ড ব্রিজ
+├── setup-and-run.bat                                   # Windows এক-ক্লিক রানার ও এনভায়রনমেন্ট বিল্ডার
+├── requirements.txt                                    # মূল Python ডিপেন্ডেন্সি (yt-dlp + imageio-ffmpeg + mutagen)
+├── pyproject.toml                                      # প্রজেক্ট কনফিগারেশন ও মেটাডেটা
+├── README.md                                           # ইংরেজি ডকুমেন্টেশন
+├── README_BN.md                                        # বাংলা ডকুমেন্টেশন
+├── CHANGELOG.md                                        # সব আপডেট ও ভার্সন পরিবর্তনের বিস্তারিত রেকর্ড
+└── LICENSE                                             # MIT ওপেন-সোর্স লাইসেন্স
 ```
 
+<br />
 
 <a id="developer"></a>
-
 ## 👨‍💻 ডেভেলপার
 
-* **ডেভেলপার:** [Md Asadullah Al Munib](https://github.com/AsadullahAlMunib)
-* **অফিশিয়াল রিপোজিটরি:** [https://github.com/AsadullahAlMunib/ClipHaven/](https://github.com/AsadullahAlMunib/ClipHaven/)
+- **ডেভেলপার:** [Md Asadullah Al Munib](https://github.com/AsadullahAlMunib)
+- **অফিশিয়াল ডকুমেন্টেশন:** [https://asadullahalmunib.github.io/ClipHaven/](https://asadullahalmunib.github.io/ClipHaven/)
+- **অফিশিয়াল রিপোজিটরি:** [https://github.com/AsadullahAlMunib/ClipHaven/](https://github.com/AsadullahAlMunib/ClipHaven/)
 
+<br />
 
 ## 🤝 অবদান ও মতামত
 
-অবদান, পরামর্শ ও বাগ রিপোর্ট সবসময়ই স্বাগত!
-* 🐛 **বাগ পেয়েছেন?** একটি [Issue](https://github.com/AsadullahAlMunib/ClipHaven/issues) খুলুন।
-* 💡 **নতুন ফিচারের আইডিয়া আছে?** আলোচনা শুরু করুন অথবা একটি [Pull Request](https://github.com/AsadullahAlMunib/ClipHaven/pulls) জমা দিন।
-* 📜 **কী কী বদলেছে জানতে চান?** [CHANGELOG.md](CHANGELOG.md) দেখুন অথবা [সর্বশেষ রিলিজ নোট](https://github.com/AsadullahAlMunib/ClipHaven/releases/latest) পড়ুন।
+যেকোনো অবদান, পরামর্শ এবং বাগ রিপোর্ট সাদরে গ্রহণ করা হয়!
+- 🐛 **কোনো বাগ পেয়েছেন?** একটি [Issue](https://github.com/AsadullahAlMunib/ClipHaven/issues) ওপেন করুন।
+- 💡 **নতুন কোনো ফিচার আইডিয়া আছে?** আলোচনা শুরু করুন অথবা একটি [Pull Request](https://github.com/AsadullahAlMunib/ClipHaven/pulls) সাবমিট করুন।
+- 📜 **কী কী পরিবর্তন হয়েছে দেখতে চান?** [CHANGELOG.md](CHANGELOG.md) দেখুন অথবা [সর্বশেষ রিলিজ নোট](https://github.com/AsadullahAlMunib/ClipHaven/releases/latest) পড়ুন।
 
+<br />
 
 ## 📄 লাইসেন্স
 
-এই প্রজেক্টটি [MIT লাইসেন্স](LICENSE)-এর অধীনে লাইসেন্সপ্রাপ্ত — Copyright (c) 2026 **Md Asadullah Al Munib**।
+এই প্রজেক্টটি [MIT License](LICENSE)-এর অধীনে লাইসেন্সকৃত — কপিরাইট (c) ২০২৬ **Md Asadullah Al Munib**।
