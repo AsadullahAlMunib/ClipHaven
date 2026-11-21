@@ -127,7 +127,58 @@ class DownloadForegroundService : Service() {
             }
         }
 
-        fun showCompleted(context: Context, videoTitle: String, detailText: String, filePath: String = "") {
+        fun buildOpenFolderIntent(context: Context, rawTarget: String): Intent {
+            try {
+                val trimmed = rawTarget.trim()
+                val dirPath = if (trimmed.isNotEmpty()) {
+                    val f = java.io.File(trimmed)
+                    if (f.isFile || (!f.exists() && trimmed.substringAfterLast('/').contains('.'))) {
+                        f.parent ?: trimmed
+                    } else {
+                        trimmed
+                    }
+                } else {
+                    ""
+                }
+                val extRoot = android.os.Environment.getExternalStorageDirectory().absolutePath.trimEnd('/')
+                val docId = when {
+                    dirPath.isEmpty() -> "primary:Download/ClipHaven"
+                    dirPath.startsWith("/storage/") && !dirPath.startsWith("/storage/emulated/") -> {
+                        val rest = dirPath.removePrefix("/storage/").trimStart('/')
+                        val vol = rest.substringBefore("/")
+                        val sub = rest.substringAfter("/", "").trim('/')
+                        if (vol.isNotEmpty()) "$vol:$sub" else "primary:Download/ClipHaven"
+                    }
+                    dirPath == extRoot -> "primary:"
+                    dirPath.startsWith("$extRoot/") -> "primary:${dirPath.removePrefix("$extRoot/").trim('/')}"
+                    else -> {
+                        val rel = dirPath
+                            .replaceFirst(Regex("""^/(?:storage/emulated/\d+|storage/sdcard\d+|sdcard)/?""", RegexOption.IGNORE_CASE), "")
+                            .replaceFirst(Regex("""^Internal Storage/?""", RegexOption.IGNORE_CASE), "")
+                            .replaceFirst(Regex("""^Downloads(?=/|$)""", RegexOption.IGNORE_CASE), "Download")
+                            .trim('/', '\\')
+                        "primary:$rel"
+                    }
+                }
+                val folderUri = android.provider.DocumentsContract.buildDocumentUri(
+                    "com.android.externalstorage.documents",
+                    docId
+                )
+                val docIntent = Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(folderUri, android.provider.DocumentsContract.Document.MIME_TYPE_DIR)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                if (docIntent.resolveActivity(context.packageManager) != null) {
+                    return docIntent
+                }
+            } catch (_: Throwable) {
+            }
+            return Intent(android.app.DownloadManager.ACTION_VIEW_DOWNLOADS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+        }
+
+        fun showCompleted(context: Context, videoTitle: String, detailText: String, filePath: String = "", folderPath: String = "") {
             try {
                 val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -198,11 +249,10 @@ class DownloadForegroundService : Service() {
                     }
                 }
 
-                // 2. [ 📂 Open Folder ] Action Button (Opens folder in Downloads / file manager)
+                // 2. [ 📂 Open Folder ] Action Button (Opens the exact saved folder via DocumentsContract)
                 try {
-                    val folderIntent = Intent(android.app.DownloadManager.ACTION_VIEW_DOWNLOADS).apply {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
+                    val targetFolder = folderPath.ifEmpty { filePath }
+                    val folderIntent = buildOpenFolderIntent(context, targetFolder)
                     val folderPending = PendingIntent.getActivity(context, 102, folderIntent, pendingFlags)
                     notifBuilder.addAction(0, if (isBangla) "ফোল্ডার খুলুন" else "Open Folder", folderPending)
                 } catch (_: Throwable) {
@@ -407,8 +457,7 @@ class DownloadForegroundService : Service() {
         if (subText.isNotEmpty()) {
             builder.setSubText(subText)
         }
-        (currentLargeIcon ?: getFallbackLogo())?.let { builder.setLargeIcon(it) }
-
+        val thumbBmp = currentLargeIcon ?: getFallbackLogo()
         val safeTitle = title.ifEmpty { if (isBangla) "ClipHaven ডাউনলোড হচ্ছে…" else "ClipHaven Downloading…" }
         val safePct = percent.coerceIn(0, 100)
         try {
@@ -416,12 +465,19 @@ class DownloadForegroundService : Service() {
                 setTextViewText(R.id.notif_title, safeTitle)
                 setProgressBar(R.id.notif_progress, 100, if (indeterminate) 0 else safePct, indeterminate)
                 setTextViewText(R.id.notif_detail, detail)
+                if (thumbBmp != null) {
+                    setImageViewBitmap(R.id.notif_thumb, thumbBmp)
+                    setViewVisibility(R.id.notif_thumb, android.view.View.VISIBLE)
+                } else {
+                    setViewVisibility(R.id.notif_thumb, android.view.View.GONE)
+                }
             }
             builder
                 .setStyle(NotificationCompat.DecoratedCustomViewStyle())
                 .setCustomContentView(customViews)
                 .setCustomBigContentView(customViews)
         } catch (_: Throwable) {
+            thumbBmp?.let { builder.setLargeIcon(it) }
             if (indeterminate) {
                 builder.setProgress(100, 0, true)
             } else {

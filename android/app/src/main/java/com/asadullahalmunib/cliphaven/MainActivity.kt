@@ -195,6 +195,7 @@ class MainActivity : AppCompatActivity() {
         wv.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
+                mediaPlaybackRequiresUserGesture = false
             allowFileAccess = false
             mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
         }
@@ -1564,6 +1565,29 @@ class MainActivity : AppCompatActivity() {
 
     inner class ClipHavenBridge {
         @JavascriptInterface
+        fun readClipboard(): String {
+            val latch = CountDownLatch(1)
+            var result = ""
+            runOnUiThread {
+                try {
+                    val cm = getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                    val clip = cm?.primaryClip
+                    if (clip != null && clip.itemCount > 0) {
+                        result = clip.getItemAt(0).coerceToText(this@MainActivity)?.toString() ?: ""
+                    }
+                } catch (_: Throwable) {
+                } finally {
+                    latch.countDown()
+                }
+            }
+            try {
+                latch.await(1500, TimeUnit.MILLISECONDS)
+            } catch (_: Throwable) {
+            }
+            return result
+        }
+
+        @JavascriptInterface
         fun requestAsync(reqId: String, path: String, method: String, bodyRaw: String) {
             if (apiExecutor.isShutdown) return
             apiExecutor.execute {
@@ -1931,11 +1955,7 @@ class MainActivity : AppCompatActivity() {
                         runOnUiThread {
                             var opened = false
                             try {
-                                val targetDir = if (File(resolvedTarget).isDirectory) File(resolvedTarget) else File(resolvedTarget).parentFile ?: defaultDownloadDir
-                                val intent = Intent(Intent.ACTION_VIEW).apply {
-                                    setDataAndType(Uri.fromFile(targetDir), "resource/folder")
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                }
+                                val intent = DownloadForegroundService.buildOpenFolderIntent(this@MainActivity, resolvedTarget)
                                 startActivity(intent)
                                 opened = true
                             } catch (_: Throwable) {
@@ -2463,7 +2483,7 @@ class MainActivity : AppCompatActivity() {
                         }
                         val completedDetail = finalUpdates["detail"] as? String ?: "Saved to ${formatDisplayFolder(outDir.absolutePath)}"
                         val playFilePath = if (exportedFiles.size == 1) firstSaved.absolutePath else ""
-                        DownloadForegroundService.showCompleted(applicationContext, completedTitle, completedDetail, playFilePath)
+                        DownloadForegroundService.showCompleted(applicationContext, completedTitle, completedDetail, playFilePath, outDir.absolutePath)
                     }
                 } catch (t: Throwable) {
                     subWatcherRunning.set(false)
@@ -2490,7 +2510,7 @@ class MainActivity : AppCompatActivity() {
                                     "file_path" to firstSaved.absolutePath
                                 )
                             )
-                            DownloadForegroundService.showCompleted(applicationContext, notifVideoTitle, "Saved: ${firstSaved.name}", firstSaved.absolutePath)
+                            DownloadForegroundService.showCompleted(applicationContext, notifVideoTitle, "Saved: ${firstSaved.name}", firstSaved.absolutePath, outDir.absolutePath)
                         } else {
                             updateJob(
                                 jid,
