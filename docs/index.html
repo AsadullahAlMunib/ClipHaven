@@ -62,20 +62,20 @@
     @custom-variant dark (&:where(.dark, .dark *));
 
     @theme {
-      --font-sans: 'Inter', 'Hind Siliguri', system-ui, -apple-system, sans-serif;
+      --font-sans: 'Inter', 'Noto Sans Bengali', system-ui, -apple-system, sans-serif;
       --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
 
-      --color-brand-50: #f5f3ff;
-      --color-brand-100: #ede9fe;
-      --color-brand-200: #ddd6fe;
-      --color-brand-300: #c4b5fd;
-      --color-brand-400: #a78bfa;
-      --color-brand-500: #8b5cf6;
-      --color-brand-600: #7c3aed;
-      --color-brand-700: #6d28d9;
-      --color-brand-800: #5b21b6;
-      --color-brand-900: #4c1d95;
-      --color-brand-950: #2e1065;
+      --color-brand-50: #f0fdfa;
+      --color-brand-100: #ccfbf1;
+      --color-brand-200: #99f6e4;
+      --color-brand-300: #5eead4;
+      --color-brand-400: #2dd4bf;
+      --color-brand-500: #14b8a6;
+      --color-brand-600: #0d9488;
+      --color-brand-700: #0f766e;
+      --color-brand-800: #115e59;
+      --color-brand-900: #134e4a;
+      --color-brand-950: #042f2e;
     }
   </style>
 
@@ -84,11 +84,11 @@
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 
   <style>
     body {
-      font-family: 'Inter', 'Hind Siliguri', system-ui, -apple-system, sans-serif;
+      font-family: 'Inter', 'Noto Sans Bengali', system-ui, -apple-system, sans-serif;
       overflow-x: hidden;
     }
     .glass-nav {
@@ -464,12 +464,12 @@
                 <span class="asset-size rounded-md bg-black/15 px-1.5 py-0.5 font-mono text-[10px]">arm64</span>
               </a>
 
-              <a data-asset="ClipHaven-Android-32bit.apk" href="https://github.com/AsadullahAlMunib/ClipHaven/releases/latest/download/ClipHaven-Android-32bit.apk" target="_blank" rel="noopener noreferrer" class="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:bg-slate-800 transition-colors">
+              <a data-asset="ClipHaven-Android-32bit.apk" href="https://github.com/AsadullahAlMunib/ClipHaven/releases/latest/download/ClipHaven-Android-32bit.apk" target="_blank" rel="noopener noreferrer" class="flex w-full items-center justify-between rounded-2xl bg-amber-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-amber-500 transition-colors">
                 <span class="flex items-center gap-2">
-                  <i class="fa-solid fa-mobile-screen text-slate-400"></i>
+                  <i class="fa-solid fa-download"></i>
                   <span data-i18n="dlBtnAnd32">32-bit APK (Older Devices / TV)</span>
                 </span>
-                <span class="asset-size font-mono text-[10px] text-slate-400">arm32</span>
+                <span class="asset-size rounded-md bg-black/15 px-1.5 py-0.5 font-mono text-[10px]">arm32</span>
               </a>
             </div>
           </div>
@@ -688,7 +688,7 @@
               <i class="fa-solid fa-scissors text-lg"></i>
             </div>
             <h3 class="font-bold text-slate-900 dark:text-white" data-i18n="f1Title">Precision Clip Cutter &amp; Subtitle Sync</h3>
-            <p class="mt-1.5 text-xs sm:text-sm leading-relaxed text-slate-600 dark:text-slate-400" data-i18n="f1Desc">Trim exact Start Time to End Time (MM:SS or HH:MM:SS) 3x–5x faster with -preset ultrafast. Automatically trims and time-shifts .vtt/.srt subtitles to 00:00 and strips [%(id)s] while preserving [clip ...] tags.</p>
+            <p class="mt-1.5 text-xs sm:text-sm leading-relaxed text-slate-600 dark:text-slate-400" data-i18n="f1Desc">Trim exact Start Time to End Time using the visual dual-handle timeline slider or manual input (with automatic max-duration clamping guard) 3x–5x faster with -preset ultrafast. Automatically trims and time-shifts .vtt/.srt subtitles to 00:00 while preserving [clip ...] tags.</p>
           </div>
 
           <div class="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/60">
@@ -696,7 +696,7 @@
               <i class="fa-solid fa-bolt text-lg"></i>
             </div>
             <h3 class="font-bold text-slate-900 dark:text-white" data-i18n="f2Title">Sub-Second oEmbed Preview (~0.2s)</h3>
-            <p class="mt-1.5 text-xs sm:text-sm leading-relaxed text-slate-600 dark:text-slate-400" data-i18n="f2Desc">Resolves title, thumbnail, and channel in ~0.2s via oEmbed and a 64-entry LRU cache while fetching full duration in the background. Automatically cancels active previews when a download starts.</p>
+            <p class="mt-1.5 text-xs sm:text-sm leading-relaxed text-slate-600 dark:text-slate-400" data-i18n="f2Desc">Resolves title, thumbnail, and channel in ~0.2s via oEmbed with auto platform icon detection across all 13 supported platforms, Drag-and-Drop URL support, one-click Save Thumbnail, and background duration loading.</p>
           </div>
 
           <div class="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/60">
@@ -704,7 +704,7 @@
               <i class="fa-solid fa-layer-group text-lg"></i>
             </div>
             <h3 class="font-bold text-slate-900 dark:text-white" data-i18n="f3Title">Unlimited Progressive Playlists</h3>
-            <p class="mt-1.5 text-xs sm:text-sm leading-relaxed text-slate-600 dark:text-slate-400" data-i18n="f3Desc">Removes the 100-video cap and streams playlists of any size in 500ms DocumentFragment batches. Download all or selected items using smart range compression (1-2,4-500).</p>
+            <p class="mt-1.5 text-xs sm:text-sm leading-relaxed text-slate-600 dark:text-slate-400" data-i18n="f3Desc">Streams playlists of any size in 500ms DocumentFragment batches with live title search, Select All / Single Video validation, smart range compression (1-2,4-500), and sequential Up Next queueing.</p>
           </div>
 
           <div class="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/60">
@@ -720,7 +720,7 @@
               <i class="fa-solid fa-bell text-lg"></i>
             </div>
             <h3 class="font-bold text-slate-900 dark:text-white" data-i18n="f5Title">Android Background Service &amp; Share Menu</h3>
-            <p class="mt-1.5 text-xs sm:text-sm leading-relaxed text-slate-600 dark:text-slate-400" data-i18n="f5Desc">Powered by Android 14 dataSync Foreground Service and WakeLock for screen-off downloads. Rich notifications show live MB/s speed and ETA with one-tap Play and Open Folder actions.</p>
+            <p class="mt-1.5 text-xs sm:text-sm leading-relaxed text-slate-600 dark:text-slate-400" data-i18n="f5Desc">Powered by Android 14 dataSync Foreground Service, bounded ExecutorService pools, WebViewAssetLoader hardening, and WakeLock. Bilingual notifications feature 1:1 square thumbnails, silent progress, completion sound, and Play / Open Folder actions.</p>
           </div>
 
           <div class="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/60">
@@ -728,7 +728,7 @@
               <i class="fa-solid fa-arrows-rotate text-lg"></i>
             </div>
             <h3 class="font-bold text-slate-900 dark:text-white" data-i18n="f6Title">Play Protect Safe Auto-Updater</h3>
-            <p class="mt-1.5 text-xs sm:text-sm leading-relaxed text-slate-600 dark:text-slate-400" data-i18n="f6Desc">Uses Android's native DownloadManager without REQUEST_INSTALL_PACKAGES permission, complete with automatic file renaming and old-APK cleanup.</p>
+            <p class="mt-1.5 text-xs sm:text-sm leading-relaxed text-slate-600 dark:text-slate-400" data-i18n="f6Desc">Uses Android's native DownloadManager without REQUEST_INSTALL_PACKAGES permission, strict vX.Y.Z public release filtering (ignoring test tags), versioned file renaming, and old-APK cleanup.</p>
           </div>
         </div>
       </section>
@@ -932,24 +932,35 @@ pytest -v</pre>
 ├── .github/
 │   ├── dependabot.yml        # Weekly dependency updates
 │   └── workflows/
-│       ├── ci.yml            # Multi-OS + Python CI
+│       ├── ci.yml            # Multi-OS Python + Android Gradle CI
 │       └── release.yml       # Automated 11-asset builder
-├── android/                  # Android APK (WebView + youtubedl-android)
-│   └── app/src/main/java/com/asadullahalmunib/cliphaven/
-│       ├── MainActivity.kt
-│       └── DownloadForegroundService.kt
+├── android/                  # Android APK (WebViewAssetLoader + youtubedl-android)
+│   └── app/src/main/
+│       ├── res/drawable/ic_stat_cliphaven.xml
+│       └── java/com/asadullahalmunib/cliphaven/
+│           ├── MainActivity.kt
+│           ├── DownloadForegroundService.kt
+│           ├── FormatUtils.kt
+│           ├── PlaylistHelper.kt
+│           └── SubtitleSyncHelper.kt
+├── core/                     # Modular Python backend helpers
+│   ├── __init__.py
+│   ├── playlist.py           # Direct playlist continuation &amp; fast Page-1
+│   └── subtitles.py          # Clipped .vtt/.srt sync &amp; time-shifting
+├── docs/                     # Interactive GitHub Pages documentation
 ├── scripts/
 │   └── generate_icons.py     # logo.svg -> logo.ico &amp; mipmaps
 ├── tests/
 │   └── test_server.py        # Unit &amp; API integration test suite
 ├── logo.svg                  # Vector application logo &amp; favicon
-├── index.html                # Responsive web UI
-├── style.css                 # Dark &amp; light design tokens
-├── app.js                    # State, 500ms batch DOM &amp; polling
+├── index.html                # Bilingual EN/বাংলা Studio UI
+├── style.css                 # Deep Slate + Teal design tokens
+├── app.js                    # Queue, clip slider, 500ms batch DOM &amp; polling
 ├── server.py                 # Local HTTP server &amp; yt-dlp bridge
 ├── setup-and-run.bat         # Windows one-click launcher
 ├── requirements.txt          # yt-dlp, imageio-ffmpeg, mutagen
 ├── pyproject.toml            # Package configurations
+├── README.md / README_BN.md  # English &amp; Bangla documentation
 ├── CHANGELOG.md              # Full release history
 └── LICENSE                   # MIT Open Source License</pre>
           </div>
@@ -1052,7 +1063,7 @@ pytest -v</pre>
                 <span class="flex h-8 w-8 items-center justify-center rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400">
                   <i class="fa-solid fa-rocket text-sm"></i>
                 </span>
-                <h3 id="dyn-release-title" class="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">ClipHaven — Latest Release Highlights</h3>
+                <h3 id="dyn-release-title" class="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">ClipHaven — Latest Release Notes</h3>
               </div>
               <span id="dyn-release-date" class="inline-flex items-center gap-1.5 rounded-full bg-brand-500/10 px-3 py-1 text-[11px] font-bold text-brand-700 dark:text-brand-300">
                 <i class="fa-regular fa-calendar"></i>
@@ -1060,7 +1071,7 @@ pytest -v</pre>
               </span>
             </div>
             <div id="dyn-release-body" class="mt-4 space-y-2.5 text-xs sm:text-sm leading-relaxed text-slate-600 dark:text-slate-300">
-              <p data-i18n="clFallback">• Unlimited progressive playlist selector, 500ms DocumentFragment batch rendering, and smart range compression. • Play Protect safe DownloadManager auto-updater, live notifications (Play &amp; Open Folder), and clipped video subtitle sync.</p>
+              <p data-i18n="clFallback">• Redesigned bilingual (EN / বাংলা) Studio UI with Download Next / Up Next sequential queue, visual dual-handle clip trimmer, and playlist search. • Android WebViewAssetLoader &amp; bounded ExecutorService pools, localhost Host validation, and strict vX.Y.Z public release filtering.</p>
             </div>
           </div>
         </div>
@@ -1098,6 +1109,37 @@ pytest -v</pre>
               <i class="fa-solid fa-plus text-xs text-brand-500 transition-transform group-open:rotate-45"></i>
             </summary>
             <p class="mt-2.5 text-xs sm:text-sm leading-relaxed text-slate-600 dark:text-slate-400" data-i18n="a3">Yes! ClipHaven automatically trims .vtt/.srt subtitle cues to your [Start Time, End Time] window and shifts timestamps back by -Start Time so captions start at 00:00 in sync with the cut clip.</p>
+          </details>
+          <details class="group rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 dark:border-slate-800 dark:bg-slate-900/60">
+            <summary class="flex cursor-pointer list-none items-center justify-between gap-2 text-sm sm:text-base font-semibold text-slate-900 dark:text-white">
+              <span data-i18n="q4">How do I queue multiple videos without slowing down my internet speed?</span>
+              <i class="fa-solid fa-plus text-xs text-brand-500 transition-transform group-open:rotate-45"></i>
+            </summary>
+            <p class="mt-2.5 text-xs sm:text-sm leading-relaxed text-slate-600 dark:text-slate-400" data-i18n="a4">Start your first download, then paste any new video URL. The primary button automatically switches to "Download Next" (amber). Added videos wait in the "Up Next" list and download one by one at full speed without splitting bandwidth or CPU.</p>
+          </details>
+
+          <details class="group rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 dark:border-slate-800 dark:bg-slate-900/60">
+            <summary class="flex cursor-pointer list-none items-center justify-between gap-2 text-sm sm:text-base font-semibold text-slate-900 dark:text-white">
+              <span data-i18n="q5">Does ClipHaven work on public Wi-Fi and let me choose any custom save folder?</span>
+              <i class="fa-solid fa-plus text-xs text-brand-500 transition-transform group-open:rotate-45"></i>
+            </summary>
+            <p class="mt-2.5 text-xs sm:text-sm leading-relaxed text-slate-600 dark:text-slate-400" data-i18n="a5">Yes. All supported platforms use encrypted HTTPS, so ClipHaven works safely on public Wi-Fi and mobile data. You can pick any accessible save folder via the Browse button or type a custom path on both Desktop and Android.</p>
+          </details>
+
+          <details class="group rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 dark:border-slate-800 dark:bg-slate-900/60">
+            <summary class="flex cursor-pointer list-none items-center justify-between gap-2 text-sm sm:text-base font-semibold text-slate-900 dark:text-white">
+              <span data-i18n="q6">Why does Android download app updates via DownloadManager instead of auto-installing?</span>
+              <i class="fa-solid fa-plus text-xs text-brand-500 transition-transform group-open:rotate-45"></i>
+            </summary>
+            <p class="mt-2.5 text-xs sm:text-sm leading-relaxed text-slate-600 dark:text-slate-400" data-i18n="a6">Removing REQUEST_INSTALL_PACKAGES keeps ClipHaven 100% Google Play Protect compliant with zero dropper warnings. Updates download safely through Android's native DownloadManager and automatically open Downloads so you can tap to install.</p>
+          </details>
+
+          <details class="group rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 dark:border-slate-800 dark:bg-slate-900/60">
+            <summary class="flex cursor-pointer list-none items-center justify-between gap-2 text-sm sm:text-base font-semibold text-slate-900 dark:text-white">
+              <span data-i18n="q7">How do I switch ClipHaven between English and Bangla (বাংলা)?</span>
+              <i class="fa-solid fa-plus text-xs text-brand-500 transition-transform group-open:rotate-45"></i>
+            </summary>
+            <p class="mt-2.5 text-xs sm:text-sm leading-relaxed text-slate-600 dark:text-slate-400" data-i18n="a7">Tap the language toggle button in the top-right header (shows বাংলা when in English, and English when in Bangla). Your choice is saved automatically and also syncs with Android download notifications.</p>
           </details>
         </div>
       </section>
@@ -1187,17 +1229,17 @@ pytest -v</pre>
         featHeading: "Key Features",
         featSub: "High-speed extraction, precision clip trimming, and 100% local privacy.",
         f1Title: "Precision Clip Cutter & Subtitle Sync",
-        f1Desc: "Trim exact Start Time to End Time (MM:SS or HH:MM:SS) 3x–5x faster with -preset ultrafast. Automatically trims and time-shifts .vtt/.srt subtitles to 00:00 and strips [%(id)s] while preserving [clip ...] tags.",
+        f1Desc: "Trim exact Start Time to End Time using the visual dual-handle timeline slider or manual input (with automatic max-duration clamping guard) 3x–5x faster with -preset ultrafast. Automatically trims and time-shifts .vtt/.srt subtitles to 00:00 while preserving [clip ...] tags.",
         f2Title: "Sub-Second oEmbed Preview (~0.2s)",
-        f2Desc: "Resolves title, thumbnail, and channel in ~0.2s via oEmbed and a 64-entry LRU cache while fetching full duration in the background. Automatically cancels active previews when a download starts.",
+        f2Desc: "Resolves title, thumbnail, and channel in ~0.2s via oEmbed with auto platform icon detection across all 13 supported platforms, Drag-and-Drop URL support, one-click Save Thumbnail, and background duration loading.",
         f3Title: "Unlimited Progressive Playlists",
-        f3Desc: "Removes the 100-video cap and streams playlists of any size in 500ms DocumentFragment batches. Download all or selected items using smart range compression (1-2,4-500).",
+        f3Desc: "Streams playlists of any size in 500ms DocumentFragment batches with live title search, Select All / Single Video validation, smart range compression (1-2,4-500), and sequential Up Next queueing.",
         f4Title: "Multi-Language Subtitles (CC) & Cover Art",
         f4Desc: "Embeds original spoken language captions (.*-orig, YouTube CC style) plus manual Bangla (bn) and English (en) subtitles while skipping robotic translations (skip=translated_subs). Embeds cover art into MP4, MKV, MP3, and M4A.",
         f5Title: "Android Background Service & Share Menu",
-        f5Desc: "Powered by Android 14 dataSync Foreground Service and WakeLock for screen-off downloads. Rich notifications show live MB/s speed and ETA with one-tap Play and Open Folder actions.",
+        f5Desc: "Powered by Android 14 dataSync Foreground Service, bounded ExecutorService pools, WebViewAssetLoader hardening, and WakeLock. Bilingual notifications feature 1:1 square thumbnails, silent progress, completion sound, and Play / Open Folder actions.",
         f6Title: "Play Protect Safe Auto-Updater",
-        f6Desc: "Uses Android's native DownloadManager without REQUEST_INSTALL_PACKAGES permission, complete with automatic file renaming and old-APK cleanup.",
+        f6Desc: "Uses Android's native DownloadManager without REQUEST_INSTALL_PACKAGES permission, strict vX.Y.Z public release filtering (ignoring test tags), versioned file renaming, and old-APK cleanup.",
         platHeading: "Supported Platforms, Formats & Resolutions",
         platSub: "Full support for major social media domains, short share links, and media containers.",
         platWebTitle: "1. Supported Platforms & Domains",
@@ -1248,7 +1290,7 @@ pytest -v</pre>
         clSub: "Dynamically fetched in real time from the official GitHub Releases API.",
         clRefresh: "Refresh",
         clViewGithub: "View on GitHub",
-        clFallback: "• Unlimited progressive playlist selector, 500ms DocumentFragment batch rendering, and smart range compression. • Play Protect safe DownloadManager auto-updater, live notifications (Play & Open Folder), and clipped video subtitle sync.",
+        clFallback: "• Redesigned bilingual (EN / বাংলা) Studio UI with Download Next / Up Next sequential queue, visual dual-handle clip trimmer, and playlist search. • Android WebViewAssetLoader & bounded ExecutorService pools, localhost Host validation, and strict vX.Y.Z public release filtering.",
         faqHeading: "Frequently Asked Questions (FAQ)",
         q1: "Does ClipHaven send any of my data or download history to external servers?",
         a1: "No. ClipHaven runs 100% locally on your device (127.0.0.1:8765) with zero ads, zero tracking, zero telemetry, and no external server relays.",
@@ -1256,6 +1298,14 @@ pytest -v</pre>
         a2: "We recommend the All-in-One bundle (-All.zip) on Desktop. It comes pre-extracted with FFmpeg and all dependencies for instant startup and avoids antivirus false positives.",
         q3: "Do embedded subtitles stay in sync when I cut a specific clip from a video?",
         a3: "Yes! ClipHaven automatically trims .vtt/.srt subtitle cues to your [Start Time, End Time] window and shifts timestamps back by -Start Time so captions start at 00:00 in sync with the cut clip.",
+        q4: "How do I queue multiple videos without slowing down my internet speed?",
+        a4: "Start your first download, then paste any new video URL. The primary button automatically switches to \"Download Next\" (amber). Added videos wait in the \"Up Next\" list and download one by one at full speed without splitting bandwidth or CPU.",
+        q5: "Does ClipHaven work on public Wi-Fi and let me choose any custom save folder?",
+        a5: "Yes. All supported platforms use encrypted HTTPS, so ClipHaven works safely on public Wi-Fi and mobile data. You can pick any accessible save folder via the Browse button or type a custom path on both Desktop and Android.",
+        q6: "Why does Android download app updates via DownloadManager instead of auto-installing?",
+        a6: "Removing REQUEST_INSTALL_PACKAGES keeps ClipHaven 100% Google Play Protect compliant with zero dropper warnings. Updates download safely through Android's native DownloadManager and automatically open Downloads so you can tap to install.",
+        q7: "How do I switch ClipHaven between English and Bangla (বাংলা)?",
+        a7: "Tap the language toggle button in the top-right header (shows বাংলা when in English, and English when in Bangla). Your choice is saved automatically and also syncs with Android download notifications.",
         footerText: "Open-source under MIT License • Developed by"
       },
       bn: {
@@ -1310,17 +1360,17 @@ pytest -v</pre>
         featHeading: "প্রধান ফিচারসমূহ",
         featSub: "দ্রুতগতি, নিখুঁত ক্লিপ ট্রিমিং এবং সম্পূর্ণ অফলাইন গোপনীয়তার সমন্বয়।",
         f1Title: "নির্ভুল ক্লিপ কাটার ও সাবটাইটেল সিঙ্ক",
-        f1Desc: "Start Time থেকে End Time (MM:SS বা HH:MM:SS) সেট করে -preset ultrafast দিয়ে ৩–৫ গুণ দ্রুত ক্লিপ কাটুন। কাটা অংশের সাবটাইটেল স্বয়ংক্রিয়ভাবে 00:00 থেকে টাইম-শিফট হয়ে সিঙ্ক থাকে এবং ফাইলের নাম থেকে [%(id)s] বাদ দিয়ে [clip ...] ট্যাগ রাখে।",
+        f1Desc: "ভিজ্যুয়াল ডুয়াল-হ্যান্ডেল স্লাইডার অথবা ম্যানুয়াল ইনপুট (ম্যাক্স-টাইম অটো ক্ল্যাম্পিং গার্ডসহ) ব্যবহার করে -preset ultrafast দিয়ে ৩–৫ গুণ দ্রুত ক্লিপ কাটুন। কাটা অংশের সাবটাইটেল স্বয়ংক্রিয়ভাবে 00:00 থেকে সিঙ্ক হয়ে [clip ...] ট্যাগসহ সেভ হয়।",
         f2Title: "সাব-সেকেন্ড oEmbed প্রিভিউ (~0.2s)",
-        f2Desc: "লিংক পেস্ট করার সাথে সাথেই oEmbed ও ৬৪-এন্ট্রি LRU ক্যাশের মাধ্যমে ভিডিওর নাম, থাম্বনেইল ও চ্যানেল দেখায় এবং ব্যাকগ্রাউন্ডে ডিউরেশন ফেচ করে। ডাউনলোড শুরু করলেই প্রিভিউ প্রসেস অটো-ক্যানসেল হয়।",
+        f2Desc: "লিংক পেস্ট বা ড্র্যাগ-অ্যান্ড-ড্রপ করার সাথে সাথেই ~0.2s-এ oEmbed প্রিভিউ, ১৩টি সাপোর্টেড প্ল্যাটফর্মের অটো আইকন, এক-ক্লিক Save Thumbnail এবং ব্যাকগ্রাউন্ডে ভিডিও ডিউরেশন লোড করে।",
         f3Title: "আনলিমিটেড প্রোগ্রেসিভ প্লেলিস্ট",
-        f3Desc: "১০০-ভিডিওর সীমা ছাড়াই শত শত ভিডিওর প্লেলিস্ট 500ms DocumentFragment ব্যাচে রেন্ডার হয়। পুরো প্লেলিস্ট এক ক্লিকে অথবা বাছাই করে স্মার্ট রেঞ্জ কমপ্রেশনের (1-2,4-500) মাধ্যমে ডাউনলোড করুন।",
+        f3Desc: "১০০-ভিডিওর সীমা ছাড়াই 500ms ব্যাচে প্লেলিস্ট লোড, লাইভ টাইটেল সার্চ, স্মার্ট রেঞ্জ কমপ্রেশন (1-2,4-500) এবং ডাউনলোড চলাকালীন নতুন লিংক পরবর্তী ডাউনলোড (Up Next) তালিকায় রাখার সুবিধা।",
         f4Title: "বহুভাষিক সাবটাইটেল (CC) ও থাম্বনেইল",
         f4Desc: "ভিডিওর মূল কথ্য ভাষার ক্যাপশন (.*-orig, YouTube CC স্টাইল) এবং ম্যানুয়াল বাংলা (bn) ও ইংরেজি (en) সাবটাইটেল এমবেড করে, রোবটিক অটো-ট্রান্সলেশন বাদ দেয় (skip=translated_subs)। MP4, MKV, MP3 ও M4A-তে কভার আর্ট যুক্ত করে।",
         f5Title: "Android ব্যাকগ্রাউন্ড সার্ভিস ও Share মেনু",
-        f5Desc: "Android 14 dataSync Foreground Service ও WakeLock থাকায় স্ক্রিন বন্ধ থাকলেও ডাউনলোড চলে। নোটিফিকেশনে লাইভ MB/s স্পিড এবং শেষে Play ও Open Folder বাটন থাকে।",
+        f5Desc: "Android 14 dataSync Foreground Service, বাউন্ডেড ExecutorService পুল, WebViewAssetLoader সুরক্ষা ও WakeLock সাপোর্ট। বাংলা/ইংরেজি নোটিফিকেশনে ১:১ স্কয়ার থাম্বনেইল, সাইলেন্ট প্রগ্রেস, কমপ্লিট সাউন্ড ও Play / Open Folder বাটন থাকে।",
         f6Title: "Play Protect সেফ অটো-আপডেটার",
-        f6Desc: "REQUEST_INSTALL_PACKAGES ছাড়াই নেটিভ DownloadManager দিয়ে আপডেট ডাউনলোড হয়, স্বয়ংক্রিয়ভাবে ফাইল রিনেম করে এবং পুরনো APK ক্লিনআপ করে।",
+        f6Desc: "REQUEST_INSTALL_PACKAGES ছাড়াই নেটিভ DownloadManager আপডেট, স্ট্রিক্ট vX.Y.Z পাবলিক রিলিজ ফিল্টার (টেস্ট ট্যাগ ইগনোর করে), ভার্সনড রিনেম এবং পুরনো APK ক্লিনআপ।",
         platHeading: "সমর্থিত প্ল্যাটফর্ম, ফরম্যাট ও রেজোলিউশন",
         platSub: "জনপ্রিয় সব সোশ্যাল মিডিয়া ডোমেইন, শর্ট লিংক এবং অডিও/ভিডিও কন্টেইনার সাপোর্ট।",
         platWebTitle: "১. সমর্থিত প্ল্যাটফর্ম ও ডোমেইন",
@@ -1371,7 +1421,7 @@ pytest -v</pre>
         clSub: "অফিশিয়াল GitHub Releases API থেকে রিয়েল-টাইমে সর্বশেষ রিলিজের তথ্য লোড করা হয়েছে।",
         clRefresh: "রিফ্রেশ",
         clViewGithub: "GitHub-এ দেখুন",
-        clFallback: "• আনলিমিটেড প্রোগ্রেসিভ প্লেলিস্ট সিলেক্টর, 500ms DocumentFragment ব্যাচ রেন্ডারিং ও স্মার্ট রেঞ্জ কমপ্রেশন। • Play Protect সেফ DownloadManager অটো-আপডেটার, লাইভ নোটিফিকেশন (Play ও Open Folder) এবং ট্রিম করা ক্লিপের সাবটাইটেল সিঙ্ক।",
+        clFallback: "• নতুন দ্বিভাষিক (EN / বাংলা) স্টুডিও UI, পরে ডাউনলোড করুন (Up Next) সিকিউয়েনশিয়াল কিউ, ভিজ্যুয়াল ক্লিপ স্লাইডার ও প্লেলিস্ট সার্চ। • Android WebViewAssetLoader ও বাউন্ডেড ExecutorService পুল, Host হেডার সুরক্ষা এবং স্ট্রিক্ট vX.Y.Z রিলিজ ফিল্টার।",
         faqHeading: "সাধারণ প্রশ্নোত্তর (FAQ)",
         q1: "ClipHaven কি আমার কোনো ডেটা বা ডাউনলোড হিস্ট্রি বাইরের সার্ভারে পাঠায়?",
         a1: "না। ClipHaven ১০০% লোকালভাবে আপনার ডিভাইসে (127.0.0.1:8765) চলে। এতে কোনো বিজ্ঞাপন, ট্র্যাকিং, টেলিমেট্রি বা এক্সটার্নাল সার্ভার রিলে নেই।",
@@ -1379,6 +1429,14 @@ pytest -v</pre>
         a2: "ডেস্কটপে অল-ইন-ওয়ান বান্ডেল (-All.zip) ব্যবহার করাই সবচেয়ে ভালো। এতে FFmpeg ও সব ডিপেন্ডেন্সি আগে থেকেই এক্সট্র্যাক্ট করা থাকে, ফলে অ্যাপ তাৎক্ষণিক চালু হয় এবং অ্যান্টিভাইরাস ফলস-পজিটিভ সতর্কতা দেয় না।",
         q3: "ভিডিওর নির্দিষ্ট অংশ কেটে ডাউনলোড করলে সাবটাইটেল কি মিলবে?",
         a3: "হ্যাঁ! ক্লিপ কাটার সময় .vtt/.srt সাবটাইটেল স্বয়ংক্রিয়ভাবে [Start Time, End Time] অনুযায়ী কেটে -Start Time পরিমাণ পেছনে শিফট করে 00:00 থেকে সিঙ্ক করা হয়।",
+        q4: "স্পিড না কমিয়ে একসাথে একাধিক ভিডিও কীভাবে ডাউনলোড সিরিয়ালে রাখব?",
+        a4: "প্রথম ভিডিওটি ডাউনলোড শুরু করে নতুন আরেকটি লিংক পেস্ট করুন। মূল বাটনটি নিজেই অ্যাম্বার রঙে \"পরে ডাউনলোড করুন\" হয়ে যাবে। এতে ক্লিক করলে ভিডিওটি \"পরবর্তী ডাউনলোড\" তালিকায় থাকবে এবং একের পর এক ফুল স্পিডে ডাউনলোড হবে।",
+        q5: "পাবলিক Wi-Fi-তে কি ডাউনলোড হবে এবং ইচ্ছেমতো ফোল্ডার বাছাই করা যাবে?",
+        a5: "হ্যাঁ। সব সাপোর্টেড প্ল্যাটফর্ম নিরাপদ HTTPS ব্যবহার করে, তাই পাবলিক Wi-Fi ও মোবাইল ডেটায় স্বাভাবিকভাবেই ডাউনলোড হয়। ডেস্কটপ ও Android উভয় জায়গাতেই Browse দিয়ে যেকোনো ফোল্ডার সিলেক্ট করা যায়।",
+        q6: "Android-এ ইন-অ্যাপ আপডেট কেন DownloadManager দিয়ে নামে?",
+        a6: "REQUEST_INSTALL_PACKAGES পারমিশন বাদ দেওয়ায় ClipHaven Google Play Protect-এর কোনো ওয়ার্নিং ছাড়াই চলে। আপডেট নিরাপদভাবে Android-এর নেটিভ DownloadManager দিয়ে নেমে অটো Downloads স্ক্রিন খুলে দেয়।",
+        q7: "ClipHaven-এ ইংরেজি ও বাংলা ভাষার মধ্যে কীভাবে সুইচ করব?",
+        a7: "অ্যাপের উপরের ডানদিকে থাকা ভাষা বাটনে ক্লিক করলেই সাথে সাথে ইংরেজি ও বাংলা বদলানো যাবে। আপনার পছন্দ অটো সেভ থাকে এবং Android নোটিফিকেশনের ভাষাও এর সাথে সিঙ্ক হয়।",
         footerText: "MIT লাইসেন্সের অধীনে ওপেন-সোর্স • ডেভেলপার:"
       }
     };
@@ -1592,13 +1650,25 @@ pytest -v</pre>
 
       if (refreshIcon) refreshIcon.classList.add('fa-spin');
       try {
-        const [repoRes, relRes] = await Promise.all([
-          fetch('https://api.github.com/repos/AsadullahAlMunib/ClipHaven'),
-          fetch('https://api.github.com/repos/AsadullahAlMunib/ClipHaven/releases/latest')
+        const [repoOut, relOut] = await Promise.allSettled([
+          fetch('https://api.github.com/repos/AsadullahAlMunib/ClipHaven', { headers: { Accept: 'application/vnd.github+json' } }),
+          fetch('https://api.github.com/repos/AsadullahAlMunib/ClipHaven/releases/latest', { headers: { Accept: 'application/vnd.github+json' } })
         ]);
 
-        const repo = repoRes.ok ? await repoRes.json() : null;
-        const rel = relRes.ok ? await relRes.json() : null;
+        const repo = (repoOut.status === 'fulfilled' && repoOut.value.ok) ? await repoOut.value.json() : null;
+        let rel = (relOut.status === 'fulfilled' && relOut.value.ok) ? await relOut.value.json() : null;
+        const pubTagRe = /^[vV]\d+\.\d+\.\d+(?:[-+].*)?$/;
+        if (!rel || !pubTagRe.test(String(rel.tag_name || '').trim())) {
+          try {
+            const listRes = await fetch('https://api.github.com/repos/AsadullahAlMunib/ClipHaven/releases?per_page=6', { headers: { Accept: 'application/vnd.github+json' } });
+            if (listRes.ok) {
+              const arr = await listRes.json();
+              if (Array.isArray(arr)) {
+                rel = arr.find(r => !r.draft && !r.prerelease && pubTagRe.test(String(r.tag_name || '').trim())) || rel;
+              }
+            }
+          } catch (_) {}
+        }
         applyGitHubData(repo, rel);
 
         if (repo || rel) {
@@ -1722,17 +1792,31 @@ pytest -v</pre>
 
     document.querySelectorAll('.copy-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const text = btn.getAttribute('data-copy');
+        const text = btn.getAttribute('data-copy') || '';
         try {
-          await navigator.clipboard.writeText(text);
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(text);
+          } else {
+            throw new Error('fallback');
+          }
         } catch (_) {
-          const ta = document.createElement('textarea');
-          ta.value = text;
-          document.body.appendChild(ta);
-          ta.select();
-          document.execCommand('copy');
-          document.body.removeChild(ta);
+          try {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+          } catch (__) {}
         }
+        if (!btn.dataset.origHtml) btn.dataset.origHtml = btn.innerHTML;
+        btn.innerHTML = '<i class="fa-solid fa-check text-emerald-400"></i><span>' + (currentLang === 'bn' ? 'কপি হয়েছে!' : 'Copied!') + '</span>';
+        clearTimeout(btn._copyTimer);
+        btn._copyTimer = setTimeout(() => {
+          if (btn.dataset.origHtml) btn.innerHTML = btn.dataset.origHtml;
+        }, 1700);
         showToast(currentLang === 'bn' ? 'কপি করা হয়েছে!' : 'Copied to clipboard!');
       });
     });
@@ -1771,5 +1855,32 @@ pytest -v</pre>
     applyLang(currentLang);
     syncFromGitHub();
   </script>
-</body>
+    <script>
+      (function () {
+        const osBtn = document.getElementById("smart-os-dl-btn");
+        const osLbl = document.getElementById("smart-os-label");
+        const osIcon = document.getElementById("smart-os-icon");
+        if (!osBtn || !osLbl || !osIcon) return;
+        const ua = navigator.userAgent || "";
+        const base = "https://github.com/AsadullahAlMunib/ClipHaven/releases/latest/download/";
+        if (/Android/i.test(ua)) {
+          osBtn.href = "#downloads";
+          osIcon.className = "fa-brands fa-android";
+          osLbl.textContent = "Download for Android";
+        } else if (/Win/i.test(ua)) {
+          osBtn.href = base + "ClipHaven-Windows-All.zip";
+          osIcon.className = "fa-brands fa-windows";
+          osLbl.textContent = "Download for Windows";
+        } else if (/Mac/i.test(ua)) {
+          osBtn.href = base + "ClipHaven-macOS-All.zip";
+          osIcon.className = "fa-brands fa-apple";
+          osLbl.textContent = "Download for macOS";
+        } else if (/Linux/i.test(ua)) {
+          osBtn.href = base + "ClipHaven-Linux-x64-All.zip";
+          osIcon.className = "fa-brands fa-linux";
+          osLbl.textContent = "Download for Linux";
+        }
+      })();
+    </script>
+  </body>
 </html>
