@@ -696,7 +696,7 @@
               <i class="fa-solid fa-bolt text-lg"></i>
             </div>
             <h3 class="font-bold text-slate-900 dark:text-white" data-i18n="f2Title">Sub-Second oEmbed Preview (~0.2s)</h3>
-            <p class="mt-1.5 text-xs sm:text-sm leading-relaxed text-slate-600 dark:text-slate-400" data-i18n="f2Desc">Resolves title, thumbnail, and channel in ~0.2s via oEmbed with auto platform icon detection across all 13 supported platforms, Drag-and-Drop URL support, one-click Save Thumbnail, and background duration loading.</p>
+            <p class="mt-1.5 text-xs sm:text-sm leading-relaxed text-slate-600 dark:text-slate-400" data-i18n="f2Desc">Resolves title, thumbnail, and channel in ~0.2s via oEmbed with auto platform icon detection across all 13 supported platforms, Drag-and-Drop URL support, one-click and background duration loading.</p>
           </div>
 
           <div class="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/60">
@@ -937,6 +937,8 @@ pytest -v</pre>
 ├── android/                  # Android APK (WebViewAssetLoader + youtubedl-android)
 │   └── app/src/main/
 │       ├── res/drawable/ic_stat_cliphaven.xml
+
+│       ├── res/layout/notification_download_progress.xml
 │       └── java/com/asadullahalmunib/cliphaven/
 │           ├── MainActivity.kt
 │           ├── DownloadForegroundService.kt
@@ -1231,7 +1233,7 @@ pytest -v</pre>
         f1Title: "Precision Clip Cutter & Subtitle Sync",
         f1Desc: "Trim exact Start Time to End Time using the visual dual-handle timeline slider or manual input (with automatic max-duration clamping guard) 3x–5x faster with -preset ultrafast. Automatically trims and time-shifts .vtt/.srt subtitles to 00:00 while preserving [clip ...] tags.",
         f2Title: "Sub-Second oEmbed Preview (~0.2s)",
-        f2Desc: "Resolves title, thumbnail, and channel in ~0.2s via oEmbed with auto platform icon detection across all 13 supported platforms, Drag-and-Drop URL support, one-click Save Thumbnail, and background duration loading.",
+        f2Desc: "Resolves title, thumbnail, and channel in ~0.2s via oEmbed with auto platform icon detection across all 13 supported platforms, Drag-and-Drop URL support, one-click and background duration loading.",
         f3Title: "Unlimited Progressive Playlists",
         f3Desc: "Streams playlists of any size in 500ms DocumentFragment batches with live title search, Select All / Single Video validation, smart range compression (1-2,4-500), and sequential Up Next queueing.",
         f4Title: "Multi-Language Subtitles (CC) & Cover Art",
@@ -1362,7 +1364,7 @@ pytest -v</pre>
         f1Title: "নির্ভুল ক্লিপ কাটার ও সাবটাইটেল সিঙ্ক",
         f1Desc: "ভিজ্যুয়াল ডুয়াল-হ্যান্ডেল স্লাইডার অথবা ম্যানুয়াল ইনপুট (ম্যাক্স-টাইম অটো ক্ল্যাম্পিং গার্ডসহ) ব্যবহার করে -preset ultrafast দিয়ে ৩–৫ গুণ দ্রুত ক্লিপ কাটুন। কাটা অংশের সাবটাইটেল স্বয়ংক্রিয়ভাবে 00:00 থেকে সিঙ্ক হয়ে [clip ...] ট্যাগসহ সেভ হয়।",
         f2Title: "সাব-সেকেন্ড oEmbed প্রিভিউ (~0.2s)",
-        f2Desc: "লিংক পেস্ট বা ড্র্যাগ-অ্যান্ড-ড্রপ করার সাথে সাথেই ~0.2s-এ oEmbed প্রিভিউ, ১৩টি সাপোর্টেড প্ল্যাটফর্মের অটো আইকন, এক-ক্লিক Save Thumbnail এবং ব্যাকগ্রাউন্ডে ভিডিও ডিউরেশন লোড করে।",
+        f2Desc: "লিংক পেস্ট বা ড্র্যাগ-অ্যান্ড-ড্রপ করার সাথে সাথেই ~0.2s-এ oEmbed প্রিভিউ, ১৩টি সাপোর্টেড প্ল্যাটফর্মের অটো আইকন এবং ব্যাকগ্রাউন্ডে ভিডিও ডিউরেশন লোড করে।",
         f3Title: "আনলিমিটেড প্রোগ্রেসিভ প্লেলিস্ট",
         f3Desc: "১০০-ভিডিওর সীমা ছাড়াই 500ms ব্যাচে প্লেলিস্ট লোড, লাইভ টাইটেল সার্চ, স্মার্ট রেঞ্জ কমপ্রেশন (1-2,4-500) এবং ডাউনলোড চলাকালীন নতুন লিংক পরবর্তী ডাউনলোড (Up Next) তালিকায় রাখার সুবিধা।",
         f4Title: "বহুভাষিক সাবটাইটেল (CC) ও থাম্বনেইল",
