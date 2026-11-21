@@ -13,6 +13,7 @@ import android.graphics.BitmapFactory
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import java.net.HttpURLConnection
@@ -408,10 +409,24 @@ class DownloadForegroundService : Service() {
         }
         (currentLargeIcon ?: getFallbackLogo())?.let { builder.setLargeIcon(it) }
 
-        if (indeterminate) {
-            builder.setProgress(100, 0, true)
-        } else {
-            builder.setProgress(100, percent.coerceIn(0, 100), false)
+        val safeTitle = title.ifEmpty { if (isBangla) "ClipHaven ডাউনলোড হচ্ছে…" else "ClipHaven Downloading…" }
+        val safePct = percent.coerceIn(0, 100)
+        try {
+            val customViews = RemoteViews(packageName, R.layout.notification_download_progress).apply {
+                setTextViewText(R.id.notif_title, safeTitle)
+                setProgressBar(R.id.notif_progress, 100, if (indeterminate) 0 else safePct, indeterminate)
+                setTextViewText(R.id.notif_detail, detail)
+            }
+            builder
+                .setStyle(NotificationCompat.DecoratedCustomViewStyle())
+                .setCustomContentView(customViews)
+                .setCustomBigContentView(customViews)
+        } catch (_: Throwable) {
+            if (indeterminate) {
+                builder.setProgress(100, 0, true)
+            } else {
+                builder.setProgress(100, safePct, false)
+            }
         }
 
         return builder.build()

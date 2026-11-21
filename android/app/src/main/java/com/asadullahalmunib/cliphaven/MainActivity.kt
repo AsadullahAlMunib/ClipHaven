@@ -570,14 +570,61 @@ class MainActivity : AppCompatActivity() {
                             Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or
                             Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
                     )
-                    // If supported (Android 8+), hint picker to open right inside Download/ClipHaven
+                    // If supported (Android 8+), open picker directly inside the currently selected folder (Scoped Storage safe)
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                         try {
-                            val initialDocUri = DocumentsContract.buildDocumentUri(
-                                "com.android.externalstorage.documents",
-                                "primary:Download/ClipHaven"
-                            )
-                            putExtra(DocumentsContract.EXTRA_INITIAL_URI, initialDocUri)
+                            val rawTrim = currentFolder.trim()
+                            val savedTreeUriStr = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getString("custom_tree_uri", null)
+                            var initialDocUri: Uri? = null
+
+                            // 1. If currentFolder matches the last SAF-picked tree URI, reuse its exact document URI
+                            if (!savedTreeUriStr.isNullOrBlank() && rawTrim.isNotEmpty()) {
+                                try {
+                                    val treeUri = Uri.parse(savedTreeUriStr)
+                                    val treeDocId = DocumentsContract.getTreeDocumentId(treeUri)
+                                    val savedDisplay = formatDisplayFolder(
+                                        if (treeDocId.startsWith("primary:", ignoreCase = true)) {
+                                            "${Environment.getExternalStorageDirectory().absolutePath}/${treeDocId.substringAfter(":")}"
+                                        } else {
+                                            "/storage/${treeDocId.replace(":", "/")}"
+                                        }
+                                    )
+                                    if (savedDisplay.equals(rawTrim, ignoreCase = true) ||
+                                        savedDisplay.removePrefix("Internal Storage/").equals(rawTrim.removePrefix("Internal Storage/"), ignoreCase = true)
+                                    ) {
+                                        initialDocUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, treeDocId)
+                                    }
+                                } catch (_: Throwable) {
+                                }
+                            }
+
+                            // 2. Otherwise parse currentFolder path directly into an externalstorage Document ID without File.exists() fallback
+                            if (initialDocUri == null) {
+                                val docId = when {
+                                    rawTrim.isEmpty() -> "primary:Download/ClipHaven"
+                                    rawTrim.startsWith("/storage/") && !rawTrim.startsWith("/storage/emulated/") -> {
+                                        val rest = rawTrim.removePrefix("/storage/").trimStart('/')
+                                        val vol = rest.substringBefore("/")
+                                        val sub = rest.substringAfter("/", "").trim('/')
+                                        if (vol.isNotEmpty()) "$vol:$sub" else "primary:Download/ClipHaven"
+                                    }
+                                    else -> {
+                                        val rel = rawTrim
+                                            .replaceFirst(Regex("""^/(?:storage/emulated/\d+|storage/sdcard\d+|sdcard)/?""", RegexOption.IGNORE_CASE), "")
+                                            .replaceFirst(Regex("""^Internal Storage/?""", RegexOption.IGNORE_CASE), "")
+                                            .replaceFirst(Regex("""^Downloads(?=/|$)""", RegexOption.IGNORE_CASE), "Download")
+                                            .trim('/', '\')
+                                        "primary:$rel"
+                                    }
+                                }
+                                initialDocUri = DocumentsContract.buildDocumentUri(
+                                    "com.android.externalstorage.documents",
+                                    docId
+                                )
+                            }
+                            if (initialDocUri != null) {
+                                putExtra(DocumentsContract.EXTRA_INITIAL_URI, initialDocUri)
+                            }
                         } catch (_: Throwable) {
                         }
                     }
@@ -1118,6 +1165,65 @@ class MainActivity : AppCompatActivity() {
             .replace("&gt;", ">")
     }
 
+
+    private fun parseIso8601Duration(raw: String?): Int {
+        val v = (raw ?: "").trim().uppercase()
+        if (v.isEmpty()) return 0
+        v.toIntOrNull()?.let { return it.coerceAtLeast(0) }
+        val m = Regex("""^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?$""").matchEntire(v) ?: return 0
+        val h = m.groupValues[1].toIntOrNull() ?: 0
+        val mn = m.groupValues[2].toIntOrNull() ?: 0
+        val sec = m.groupValues[3].toDoubleOrNull()?.toInt() ?: 0
+        return h * 3600 + mn * 60 + sec
+    }
+
+    private fun extractDurationFromHtml(html: String): Int {
+        if (html.isEmpty()) return 0
+        val patterns = listOf(
+            Regex("""<meta[^>]+(?:property|name|itemprop)=["'](?:video:duration|duration)["'][^>]+content=["']([^"']+)["']""", RegexOption.IGNORE_CASE),
+            Regex("""<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name|itemprop)=["'](?:video:duration|duration)["']""", RegexOption.IGNORE_CASE),
+            Regex(""""duration"\s*:\s*"(PT[0-9HMS.]+)"""", RegexOption.IGNORE_CASE),
+            Regex(""""lengthSeconds"\s*:\s*"(\d+)"""")
+        )
+        for (pat in patterns) {
+            val found = pat.find(html)?.groupValues?.getOrNull(1) ?: continue
+            val sec = parseIso8601Duration(found)
+            if (sec in 1 until 86400 * 7) return sec
+        }
+        return 0
+    }
+
+    private fun fetchFastYouTubeDuration(cleanUrl: String): Int {
+        val ytId = YT_ID_REGEX.find(cleanUrl)?.groupValues?.getOrNull(1) ?: ""
+        if (ytId.isEmpty()) return 0
+        var conn: HttpURLConnection? = null
+        return try {
+            conn = (URL("https://www.youtube.com/watch?v=$ytId&hl=en&gl=US").openConnection() as HttpURLConnection).apply {
+                connectTimeout = 2500
+                readTimeout = 2500
+                requestMethod = "GET"
+                setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36")
+                setRequestProperty("Accept-Language", "en-US,en;q=0.9")
+                setRequestProperty("Cookie", "CONSENT=YES+cb.20210328-17-p0.en+FX+410")
+            }
+            if (conn.responseCode != 200) return 0
+            val buf = ByteArray(163840)
+            var total = 0
+            conn.inputStream.use { ins ->
+                while (total < buf.size) {
+                    val r = ins.read(buf, total, buf.size - total)
+                    if (r <= 0) break
+                    total += r
+                }
+            }
+            extractDurationFromHtml(String(buf, 0, total, Charsets.UTF_8))
+        } catch (_: Throwable) {
+            0
+        } finally {
+            try { conn?.disconnect() } catch (_: Throwable) {}
+        }
+    }
+
     private fun fetchFastOpenGraphInfo(cleanUrl: String, parsedUri: Uri, hasVideoAndList: Boolean): JSONObject? {
         val host = (parsedUri.host ?: "").lowercase().trimEnd('.')
         val ogDomains = listOf(
@@ -1182,12 +1288,14 @@ class MainActivity : AppCompatActivity() {
             if (!thumb.lowercase().startsWith("http://") && !thumb.lowercase().startsWith("https://")) {
                 return null
             }
+            val durSec = extractDurationFromHtml(html)
             val fallbackUploader = host.removePrefix("www.").substringBefore(".").replaceFirstChar { it.uppercase() }
             JSONObject()
                 .put("title", title.take(200))
                 .put("uploader", site.ifEmpty { fallbackUploader }.take(80))
-                .put("duration", "")
-                .put("duration_seconds", 0)
+                .put("duration", if (durSec > 0) formatSeconds(durSec) else "")
+                .put("duration_seconds", durSec)
+                .put("duration_approx", durSec > 0)
                 .put("thumbnail", thumb)
                 .put("is_playlist", hasVideoAndList)
                 .put("playlist_count", if (hasVideoAndList) 2 else 1)
@@ -1442,9 +1550,9 @@ class MainActivity : AppCompatActivity() {
             } else {
                 addOption("--no-playlist")
                 if (useFallbackClient) {
-                    addOption("--extractor-args", "youtube:player_client=android,default")
+                    addOption("--extractor-args", "youtube:player_client=android,web,default")
                 } else {
-                    addOption("--extractor-args", "youtube:player_client=android,web,default;player_skip=configs")
+                    addOption("--extractor-args", "youtube:player_client=android;player_skip=webpage,configs")
                 }
             }
             if (useFallbackClient) {
@@ -1537,7 +1645,16 @@ class MainActivity : AppCompatActivity() {
                         if (!isValidUrl(url)) {
                             return JSONObject().put("ok", false).put("error", "Enter a valid HTTPS link (YouTube, Facebook, Instagram, LinkedIn, TikTok, X, etc.).").toString()
                         }
+                        if (body.optBoolean("fast_duration", false)) {
+                            val durSec = fetchFastYouTubeDuration(url)
+                            val durObj = JSONObject()
+                                .put("duration", if (durSec > 0) formatSeconds(durSec) else "")
+                                .put("duration_seconds", durSec)
+                                .put("duration_approx", true)
+                            return JSONObject().put("ok", true).put("info", durObj).toString()
+                        }
                         val full = body.optBoolean("full", false)
+                        val verify = body.optBoolean("verify", false)
                         val isPoll = body.optBoolean("poll", false)
                         synchronized(jobsLock) {
                             infoCache[url]?.let { cached ->
@@ -1546,7 +1663,8 @@ class MainActivity : AppCompatActivity() {
                                 val eLen = cached.optJSONArray("entries")?.length() ?: 0
                                 val pCnt = cached.optInt("playlist_count", 0)
                                 val incompletePl = isPl && !isLoad && pCnt > eLen && eLen <= 100
-                                if (isPoll || (!incompletePl && (!full || cached.optString("duration", "").isNotEmpty() || isPl))) {
+                                val hasVerifiedDur = cached.optString("duration", "").isNotEmpty() && !cached.optBoolean("duration_approx", false)
+                                if (isPoll || (!incompletePl && (!full || (hasVerifiedDur && !verify) || isPl))) {
                                     return JSONObject().put("ok", true).put("info", JSONObject(cached.toString())).toString()
                                 }
                             }
@@ -1669,6 +1787,7 @@ class MainActivity : AppCompatActivity() {
                             .put("uploader", data.optString("uploader").ifEmpty { data.optString("channel").ifEmpty { data.optString("creator").ifEmpty { data.optString("extractor_key", "Video") } } })
                             .put("duration", if (dur > 0) formatSeconds(dur.toInt()) else "")
                             .put("duration_seconds", if (dur > 0) dur.toInt() else 0)
+                            .put("duration_approx", false)
                             .put("thumbnail", thumb)
                             .put("is_playlist", isPlaylist)
                             .put("playlist_count", plCount)
@@ -1880,9 +1999,9 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 if (useFallbackClient) {
-                    addOption("--extractor-args", "youtube:player_client=android,default;skip=translated_subs")
-                } else {
                     addOption("--extractor-args", "youtube:player_client=android,web,default;skip=translated_subs")
+                } else {
+                    addOption("--extractor-args", "youtube:player_client=android;skip=translated_subs")
                 }
                 addOption("--force-ipv4")
                 addOption("--concurrent-fragments", concurrentFragments.toString())
