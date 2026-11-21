@@ -17,7 +17,9 @@ import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
+import android.view.ViewGroup
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -29,6 +31,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.webkit.WebViewAssetLoader
 import com.yausername.ffmpeg.FFmpeg
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
@@ -42,10 +45,10 @@ import java.util.LinkedHashMap
 import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
-import kotlin.concurrent.thread
-import kotlin.math.roundToLong
 
 class MainActivity : AppCompatActivity() {
 
@@ -53,9 +56,9 @@ class MainActivity : AppCompatActivity() {
         private const val REQ_STORAGE_PERMISSION = 1001
         private const val REQ_OPEN_DOCUMENT_TREE = 1002
         private const val MAX_JOBS = 40
-        private const val APP_VERSION = "3.2.3"
+        private const val APP_VERSION = "3.3.0"
         private const val PREFS_NAME = "cliphaven_engine_prefs"
-        private const val KEY_YTDLP_UPDATED_AT = "ytdlp_nightly_updated_at_v323"
+        private const val KEY_YTDLP_UPDATED_AT = "ytdlp_nightly_updated_at_v330"
         private const val KEY_REL_CHECKED_AT = "github_rel_checked_at"
         private const val KEY_REL_CACHED_JSON = "github_rel_cached_json"
         private const val KEY_LAST_UPDATE_DL_ID = "last_update_dm_id"
@@ -92,6 +95,8 @@ class MainActivity : AppCompatActivity() {
         .put("detail", "")
 
     private var webView: WebView? = null
+    private val apiExecutor: ExecutorService = Executors.newFixedThreadPool(4)
+    private val bgExecutor: ExecutorService = Executors.newCachedThreadPool()
     private val jobsLock = Any()
     private val updateLock = Any()
     private val jobs = LinkedHashMap<String, JSONObject>()
@@ -183,15 +188,22 @@ class MainActivity : AppCompatActivity() {
         webView = wv
         setContentView(wv)
 
+        val assetLoader = WebViewAssetLoader.Builder()
+            .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
+            .build()
+
         wv.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
-            allowFileAccess = true
-            @Suppress("DEPRECATION")
-            allowUniversalAccessFromFileURLs = true
-            mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            allowFileAccess = false
+            mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
         }
         wv.webViewClient = object : WebViewClient() {
+            override fun shouldInterceptRequest(
+                view: WebView,
+                request: WebResourceRequest
+            ): WebResourceResponse? = assetLoader.shouldInterceptRequest(request.url)
+
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
                 handleIncomingShareIntent(intent)
@@ -199,6 +211,9 @@ class MainActivity : AppCompatActivity() {
 
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                 val u = request?.url ?: return false
+                if (u.host == "appassets.androidplatform.net") {
+                    return false
+                }
                 if (u.scheme == "http" || u.scheme == "https") {
                     try {
                         startActivity(Intent(Intent.ACTION_VIEW, u))
@@ -211,10 +226,10 @@ class MainActivity : AppCompatActivity() {
         }
         wv.webChromeClient = WebChromeClient()
         wv.addJavascriptInterface(ClipHavenBridge(), "ClipHavenAndroid")
-        wv.loadUrl("file:///android_asset/index.html")
+        wv.loadUrl("https://appassets.androidplatform.net/assets/index.html")
 
         // 2. Unpack embedded Python/yt-dlp & FFmpeg in background and ensure yt-dlp is updated before first command
-        thread {
+        bgExecutor.execute {
             try {
                 initEngines()
             } catch (_: Throwable) {
@@ -241,7 +256,7 @@ class MainActivity : AppCompatActivity() {
             val now = System.currentTimeMillis()
             if (lastUpdated == 0L || now - lastUpdated > UPDATE_INTERVAL_MS) {
                 // Always run yt-dlp binary updates asynchronously in the background so startup and previews never block
-                thread {
+                bgExecutor.execute {
                     syncUpdateYtDlp(YoutubeDL.UpdateChannel.NIGHTLY)
                 }
             }
@@ -278,6 +293,22 @@ class MainActivity : AppCompatActivity() {
             ?: lines.lastOrNull()
             ?: "Download failed."
         return errLine.replace(Regex("""^ERROR:\s*""", RegexOption.IGNORE_CASE), "").trim().take(500)
+    }
+
+    private fun isSslCertificateError(msg: String?): Boolean {
+        val m = (msg ?: "").lowercase()
+        return m.contains("certificate verify failed") || m.contains("ssl:") || m.contains("tlsv1") || m.contains("cert_has_expired")
+    }
+
+    private fun isRateLimitError(msg: String?): Boolean {
+        val m = (msg ?: "").lowercase()
+        return m.contains("http error 429") ||
+            m.contains("429: too many requests") ||
+            m.contains("too many requests") ||
+            m.contains("rate limit") ||
+            m.contains("rate-limit") ||
+            m.contains("ratelimit") ||
+            m.contains("throttl")
     }
 
     private fun isYouTubeClientBlockError(msg: String?): Boolean {
@@ -329,6 +360,22 @@ class MainActivity : AppCompatActivity() {
             }
         } catch (_: Throwable) {
         }
+    }
+
+    override fun onDestroy() {
+        cancelActivePreview()
+        try { apiExecutor.shutdownNow() } catch (_: Throwable) {}
+        try { bgExecutor.shutdownNow() } catch (_: Throwable) {}
+        webView?.let { wv ->
+            try {
+                wv.stopLoading()
+                wv.removeJavascriptInterface("ClipHavenAndroid")
+                (wv.parent as? ViewGroup)?.removeView(wv)
+                wv.destroy()
+            } catch (_: Throwable) {}
+        }
+        webView = null
+        super.onDestroy()
     }
 
     override fun onNewIntent(intent: Intent?) {
@@ -413,41 +460,9 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun isAllowedHost(host: String?): Boolean {
-        val h = (host ?: "").lowercase().trimEnd('.')
-        if (h.isEmpty()) return false
-        return ALLOWED_DOMAINS.any { d -> h == d || h.endsWith(".$d") }
-    }
-
-    private fun extractUrl(raw: String?): String {
-        if (raw.isNullOrBlank()) return ""
-        val s = raw.trim()
-        val httpMatch = Regex("""https?://[^\s<>"']+""", RegexOption.IGNORE_CASE).find(s)
-        if (httpMatch != null) {
-            val cleaned = httpMatch.value.trimEnd('.', ',', ';', ')', '!', ']', '>')
-            return cleaned.replaceFirst(Regex("""^http://""", RegexOption.IGNORE_CASE), "https://")
-        }
-        val bareMatch = Regex("""(?:www\.)?(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}/[^\s<>"']*""").find(s)
-        if (bareMatch != null) {
-            val candidate = bareMatch.value.trimEnd('.', ',', ';', ')', '!', ']', '>')
-            val hostPart = candidate.substringBefore('/').lowercase()
-            if (isAllowedHost(hostPart)) {
-                return "https://$candidate"
-            }
-        }
-        return s
-    }
-
-    private fun isValidUrl(raw: String?): Boolean {
-        val url = extractUrl(raw)
-        return try {
-            val u = Uri.parse(url)
-            u.scheme?.lowercase() == "https" && isAllowedHost(u.host)
-        } catch (_: Throwable) {
-            false
-        }
-    }
-
+    private fun isAllowedHost(host: String?): Boolean = FormatUtils.isAllowedHost(host)
+    private fun extractUrl(raw: String?): String = FormatUtils.extractUrl(raw)
+    private fun isValidUrl(raw: String?): Boolean = FormatUtils.isValidUrl(raw)
     private fun formatDisplayFolder(path: String?): String {
         if (path.isNullOrBlank()) return "Download/ClipHaven"
         val p = path.trim()
@@ -507,200 +522,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun parseTimestamp(ts: String): Int? {
-        val s = ts.trim()
-        if (s.isEmpty() || !Regex("""^\d{1,3}(:\d{1,2}){0,2}$""").matches(s)) return null
-        val parts = s.split(":").map { it.toInt() }
-        return when (parts.size) {
-            1 -> parts[0]
-            2 -> if (parts[1] < 60) parts[0] * 60 + parts[1] else null
-            3 -> if (parts[1] < 60 && parts[2] < 60) parts[0] * 3600 + parts[1] * 60 + parts[2] else null
-            else -> null
-        }
-    }
-
-    private fun formatSeconds(sec: Int): String {
-        val clean = sec.coerceAtLeast(0)
-        val h = clean / 3600
-        val m = (clean % 3600) / 60
-        val s = clean % 60
-        return if (h > 0) String.format(Locale.US, "%02d:%02d:%02d", h, m, s) else String.format(Locale.US, "%02d:%02d", m, s)
-    }
-
-    private fun parseSubTimestampMs(ts: String): Long {
-        val clean = ts.trim().replace(',', '.')
-        val parts = clean.split(":")
-        return try {
-            when (parts.size) {
-                3 -> {
-                    val h = parts[0].toLong()
-                    val m = parts[1].toLong()
-                    val s = parts[2].toDouble()
-                    ((h * 3600L + m * 60L + s) * 1000.0).roundToLong()
-                }
-                2 -> {
-                    val m = parts[0].toLong()
-                    val s = parts[1].toDouble()
-                    ((m * 60L + s) * 1000.0).roundToLong()
-                }
-                else -> 0L
-            }
-        } catch (_: Throwable) {
-            0L
-        }
-    }
-
-    private fun formatSubTimestampMs(ms: Long, sep: Char): String {
-        val clean = ms.coerceAtLeast(0L)
-        val h = clean / 3600000L
-        val rem1 = clean % 3600000L
-        val m = rem1 / 60000L
-        val rem2 = rem1 % 60000L
-        val s = rem2 / 1000L
-        val millis = rem2 % 1000L
-        return String.format(Locale.US, "%02d:%02d:%02d%c%03d", h, m, s, sep, millis)
-    }
-
-    private data class SubtitleCue(
-        val startMs: Long,
-        val endMs: Long,
-        val settings: String,
-        val payload: MutableList<String>
-    )
-
-    private fun trimAndShiftSubtitleText(content: String, startSec: Int, endSec: Int?, isVtt: Boolean): String {
-        if (content.isEmpty() || content.contains(SUB_SHIFT_MARKER)) return content
-        val startMs = (startSec.coerceAtLeast(0)).toLong() * 1000L
-        val endMs = endSec?.let { it.toLong() * 1000L }
-        if (startMs == 0L && endMs == null) return content
-
-        val sep = if (isVtt) '.' else ','
-        val blocks = content.removePrefix("\uFEFF").trim().split(Regex("""\r?\n\r?\n+"""))
-        val headerBlocks = mutableListOf<String>()
-        val cueBlocks = mutableListOf<SubtitleCue>()
-
-        for (block in blocks) {
-            val lines = block.split("\n").map { it.trimEnd('\r') }
-            var tsIdx = -1
-            for (i in lines.indices) {
-                if (lines[i].contains("-->") && SUB_TS_LINE_REGEX.containsMatchIn(lines[i])) {
-                    tsIdx = i
-                    break
-                }
-            }
-            if (tsIdx == -1) {
-                if (isVtt && cueBlocks.isEmpty() && lines.isNotEmpty() && (
-                        lines[0].startsWith("WEBVTT") ||
-                            lines[0].startsWith("Kind:") ||
-                            lines[0].startsWith("Language:") ||
-                            lines[0].startsWith("NOTE") ||
-                            lines[0].startsWith("STYLE")
-                        )
-                ) {
-                    headerBlocks.add(lines.joinToString("\n"))
-                }
-                continue
-            }
-
-            val m = SUB_TS_LINE_REGEX.find(lines[tsIdx]) ?: continue
-            val cStart = parseSubTimestampMs(m.groupValues[1])
-            val cEnd = parseSubTimestampMs(m.groupValues[2])
-            val settings = m.groupValues[3]
-
-            if (cEnd <= startMs) continue
-            if (endMs != null && cStart >= endMs) continue
-
-            val newStart = (cStart - startMs).coerceAtLeast(0L)
-            val clampedEnd = if (endMs != null) cEnd.coerceAtMost(endMs) else cEnd
-            val newEnd = clampedEnd - startMs
-            if (newEnd <= newStart) continue
-
-            val payload = lines.drop(tsIdx + 1)
-                .filter { it.isNotBlank() }
-                .map { ln ->
-                    SUB_INLINE_TS_REGEX.replace(ln) { match ->
-                        val rawMs = parseSubTimestampMs(match.groupValues[1])
-                        var shifted = (rawMs - startMs).coerceAtLeast(0L)
-                        if (endMs != null) {
-                            shifted = shifted.coerceAtMost((endMs - startMs).coerceAtLeast(0L))
-                        }
-                        "<${formatSubTimestampMs(shifted, sep)}>"
-                    }
-                }
-                .toMutableList()
-            if (payload.isEmpty()) continue
-            cueBlocks.add(SubtitleCue(newStart, newEnd, settings, payload))
-        }
-
-        if (cueBlocks.isEmpty()) {
-            cueBlocks.add(SubtitleCue(0L, 100L, "", mutableListOf("\u200B")))
-        }
-
-        val firstPayload = cueBlocks[0].payload
-        firstPayload[firstPayload.lastIndex] = firstPayload.last() + SUB_SHIFT_MARKER
-
-        val outBlocks = mutableListOf<String>()
-        if (isVtt) {
-            if (headerBlocks.isNotEmpty()) outBlocks.addAll(headerBlocks) else outBlocks.add("WEBVTT")
-        }
-        for ((index, cue) in cueBlocks.withIndex()) {
-            val tsLine = "${formatSubTimestampMs(cue.startMs, sep)} --> ${formatSubTimestampMs(cue.endMs, sep)}${cue.settings}"
-            if (isVtt) {
-                outBlocks.add(tsLine + "\n" + cue.payload.joinToString("\n"))
-            } else {
-                outBlocks.add("${index + 1}\n$tsLine\n" + cue.payload.joinToString("\n"))
-            }
-        }
-        return outBlocks.joinToString("\n\n") + "\n"
-    }
-
-    private fun hasActiveVideoFileInWorkDir(workDir: File): Boolean {
-        return try {
-            val files = workDir.listFiles() ?: return false
-            files.any { f ->
-                if (!f.isFile) return@any false
-                val nameLow = f.name.lowercase()
-                if (nameLow.endsWith(".tmp") || nameLow.endsWith(".ytdl")) return@any false
-                val cleanName = nameLow.replace(Regex("""\.(?:part|temp)(?:-\w+)?$"""), "")
-                val ext = cleanName.substringAfterLast('.', "")
-                ext in setOf("mp4", "mkv", "webm", "m4a")
-            }
-        } catch (_: Throwable) {
-            false
-        }
-    }
-
-    private fun syncClipSubtitlesInDir(workDir: File, startSec: Int, endSec: Int?, expectSrt: Boolean) {
-        try {
-            val files = workDir.listFiles() ?: return
-            if (expectSrt && files.any { it.isFile && it.extension.lowercase() == "vtt" }) {
-                // Wait until SubtitlesConvertor (before_dl) has finished converting and deleting all .vtt files in workDir
-                return
-            }
-            for (f in files) {
-                if (!f.isFile || f.length() <= 0L) continue
-                val ext = f.extension.lowercase()
-                if (ext !in SUB_TEXT_EXTS || f.name.endsWith(".tmp")) continue
-                if (expectSrt && ext != "srt") continue
-                val raw = try {
-                    f.readText(Charsets.UTF_8)
-                } catch (_: Throwable) {
-                    continue
-                }
-                if (raw.contains(SUB_SHIFT_MARKER)) continue
-                val shifted = trimAndShiftSubtitleText(raw, startSec, endSec, isVtt = (ext == "vtt"))
-                if (shifted == raw) continue
-                val tmpFile = File(workDir, "${f.name}.cliphaven.tmp")
-                tmpFile.writeText(shifted, Charsets.UTF_8)
-                if (!tmpFile.renameTo(f)) {
-                    f.writeText(shifted, Charsets.UTF_8)
-                    tmpFile.delete()
-                }
-            }
-        } catch (_: Throwable) {
-        }
-    }
-
+    private fun parseTimestamp(ts: String): Int? = FormatUtils.parseTimestamp(ts)
+    private fun formatSeconds(sec: Int): String = FormatUtils.formatSeconds(sec)
+    private fun hasActiveVideoFileInWorkDir(workDir: File): Boolean = SubtitleSyncHelper.hasActiveVideoFileInWorkDir(workDir)
+    private fun syncClipSubtitlesInDir(workDir: File, startSec: Int, endSec: Int?, expectSrt: Boolean) =
+        SubtitleSyncHelper.syncClipSubtitlesInDir(workDir, startSec, endSec, expectSrt)
     private fun updateJob(jid: String, updates: Map<String, Any?>) {
         synchronized(jobsLock) {
             val job = jobs[jid] ?: return
@@ -854,24 +680,8 @@ class MainActivity : AppCompatActivity() {
         return exported
     }
 
-    private fun parseSemver(ver: String?): List<Int> {
-        if (ver.isNullOrBlank()) return listOf(0, 0, 0)
-        val nums = Regex("""\d+""").findAll(ver).mapNotNull { it.value.toIntOrNull() }.take(4).toList()
-        return if (nums.isEmpty()) listOf(0, 0, 0) else nums
-    }
-
-    private fun isNewerVersion(latest: String?, current: String = APP_VERSION): Boolean {
-        val a = parseSemver(latest)
-        val b = parseSemver(current)
-        val maxLen = maxOf(a.size, b.size)
-        for (i in 0 until maxLen) {
-            val av = a.getOrElse(i) { 0 }
-            val bv = b.getOrElse(i) { 0 }
-            if (av != bv) return av > bv
-        }
-        return false
-    }
-
+    private fun parseSemver(ver: String?): List<Int> = FormatUtils.parseSemver(ver)
+    private fun isNewerVersion(latest: String?, current: String = APP_VERSION): Boolean = FormatUtils.isNewerVersion(latest, current)
     private fun checkGitHubAppUpdate(force: Boolean = false): JSONObject {
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val now = System.currentTimeMillis()
@@ -901,8 +711,25 @@ class MainActivity : AppCompatActivity() {
             if (conn.responseCode != 200) throw IllegalStateException("HTTP ${conn.responseCode}")
             val raw = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
             val rel = JSONObject(raw)
-            val tag = rel.optString("tag_name", "").trim().trimStart('t', 'T', 'v', 'V')
-            if (tag.isEmpty()) throw IllegalStateException("Empty tag")
+            val rawTag = rel.optString("tag_name", "").trim()
+            val tag = FormatUtils.extractPublicReleaseVersion(rawTag)
+            if (tag.isNullOrEmpty()) {
+                val ignored = JSONObject()
+                    .put("ok", true)
+                    .put("update_available", false)
+                    .put("current_version", APP_VERSION)
+                    .put("latest_version", APP_VERSION)
+                    .put("release_title", "")
+                    .put("release_notes", "")
+                    .put("release_url", "https://github.com/AsadullahAlMunib/ClipHaven/releases/latest")
+                    .put("apk_url", "")
+                    .put("is_android", true)
+                prefs.edit()
+                    .putLong(KEY_REL_CHECKED_AT, now)
+                    .putString(KEY_REL_CACHED_JSON, ignored.toString())
+                    .apply()
+                return ignored
+            }
 
             val is64Bit = Build.SUPPORTED_ABIS.any { it.contains("64") }
             val preferredAssetName = if (is64Bit) "ClipHaven-Android-64bit.apk" else "ClipHaven-Android-32bit.apk"
@@ -1093,7 +920,7 @@ class MainActivity : AppCompatActivity() {
                 .put("detail", "Starting download: $targetFileName…")
         }
 
-        thread {
+        bgExecutor.execute {
             try {
                 val dm = getSystemService(Context.DOWNLOAD_SERVICE) as? DownloadManager
                     ?: throw IllegalStateException("System DownloadManager unavailable.")
@@ -1220,6 +1047,8 @@ class MainActivity : AppCompatActivity() {
                 "https://soundcloud.com/oembed?format=json&url=${URLEncoder.encode(cleanUrl, "UTF-8")}"
             host == "reddit.com" || host.endsWith(".reddit.com") || host == "redd.it" ->
                 "https://www.reddit.com/oembed?url=${URLEncoder.encode(cleanUrl, "UTF-8")}"
+            host == "twitter.com" || host.endsWith(".twitter.com") || host == "x.com" || host.endsWith(".x.com") ->
+                "https://publish.twitter.com/oembed?omit_script=true&url=${URLEncoder.encode(cleanUrl, "UTF-8")}"
             else -> ""
         }
         if (oembedUrl.isEmpty()) return null
@@ -1227,8 +1056,8 @@ class MainActivity : AppCompatActivity() {
         var conn: HttpURLConnection? = null
         return try {
             conn = (URL(oembedUrl).openConnection() as HttpURLConnection).apply {
-                connectTimeout = 3500
-                readTimeout = 3500
+                connectTimeout = 3000
+                readTimeout = 3000
                 requestMethod = "GET"
                 setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14) Chrome/124.0.0.0 Mobile Safari/537.36")
                 setRequestProperty("Accept", "application/json")
@@ -1236,7 +1065,21 @@ class MainActivity : AppCompatActivity() {
             if (conn.responseCode != 200) return null
             val raw = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
             val data = JSONObject(raw)
-            val title = data.optString("title", "").trim()
+            var title = data.optString("title", "").trim()
+            if (title.isEmpty() && (host == "twitter.com" || host.endsWith(".twitter.com") || host == "x.com" || host.endsWith(".x.com"))) {
+                val rawHtml = data.optString("html", "")
+                val pMatch = Regex("""<p[^>]*>([\s\S]*?)</p>""", RegexOption.IGNORE_CASE).find(rawHtml)
+                if (pMatch != null) {
+                    title = unescapeHtmlEntities(pMatch.groupValues[1].replace(Regex("""<[^>]+>"""), " "))
+                        .replace(Regex("""\s+"""), " ")
+                        .trim()
+                        .take(140)
+                }
+                if (title.isEmpty()) {
+                    val author = data.optString("author_name", "").trim()
+                    if (author.isNotEmpty()) title = "$author on X"
+                }
+            }
             if (title.isEmpty()) return null
             var thumb = data.optString("thumbnail_url", "").trim()
             if (thumb.isEmpty() && ytId.isNotEmpty()) {
@@ -1255,6 +1098,99 @@ class MainActivity : AppCompatActivity() {
                 .put("thumbnail", thumb)
                 .put("is_playlist", isPlaylist)
                 .put("playlist_count", if (isPlaylist) 2 else 1)
+                .put("webpage_url", cleanUrl)
+        } catch (_: Throwable) {
+            null
+        } finally {
+            try { conn?.disconnect() } catch (_: Throwable) {}
+        }
+    }
+
+
+    private fun unescapeHtmlEntities(raw: String): String {
+        return raw
+            .replace("&amp;", "&")
+            .replace("&quot;", "\"")
+            .replace("&#39;", "'")
+            .replace("&#x27;", "'")
+            .replace("&#039;", "'")
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+    }
+
+    private fun fetchFastOpenGraphInfo(cleanUrl: String, parsedUri: Uri, hasVideoAndList: Boolean): JSONObject? {
+        val host = (parsedUri.host ?: "").lowercase().trimEnd('.')
+        val ogDomains = listOf(
+            "facebook.com", "fb.watch", "fb.com", "fb.gg",
+            "instagram.com", "instagr.am",
+            "threads.net", "threads.com",
+            "linkedin.com", "lnkd.in",
+            "pinterest.com", "pin.it",
+            "twitch.tv"
+        )
+        if (ogDomains.none { host == it || host.endsWith(".$it") }) return null
+
+        var conn: HttpURLConnection? = null
+        return try {
+            conn = (URL(cleanUrl).openConnection() as HttpURLConnection).apply {
+                connectTimeout = 2500
+                readTimeout = 2500
+                instanceFollowRedirects = true
+                requestMethod = "GET"
+                setRequestProperty("User-Agent", "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)")
+                setRequestProperty("Accept", "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8")
+                setRequestProperty("Accept-Language", "en-US,en;q=0.9")
+            }
+            if (conn.responseCode != 200) return null
+            val buf = ByteArray(65536)
+            var total = 0
+            conn.inputStream.use { ins ->
+                while (total < buf.size) {
+                    val r = ins.read(buf, total, buf.size - total)
+                    if (r <= 0) break
+                    total += r
+                }
+            }
+            val html = String(buf, 0, total, Charsets.UTF_8)
+
+            fun findMeta(names: List<String>): String {
+                for (nm in names) {
+                    val esc = Regex.escape(nm)
+                    val p1 = Regex("""<meta[^>]+(?:property|name)=["']$esc["'][^>]+content=["']([^"']+)["']""", RegexOption.IGNORE_CASE)
+                    val p2 = Regex("""<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']$esc["']""", RegexOption.IGNORE_CASE)
+                    val m1 = p1.find(html)?.groupValues?.getOrNull(1)?.trim()
+                    if (!m1.isNullOrEmpty()) return unescapeHtmlEntities(m1)
+                    val m2 = p2.find(html)?.groupValues?.getOrNull(1)?.trim()
+                    if (!m2.isNullOrEmpty()) return unescapeHtmlEntities(m2)
+                }
+                return ""
+            }
+
+            val title = findMeta(listOf("og:title", "twitter:title"))
+            val thumb = findMeta(listOf("og:image", "og:image:secure_url", "twitter:image"))
+            val site = findMeta(listOf("og:site_name"))
+
+            val tLow = title.lowercase().trim()
+            val generic = setOf(
+                "log in", "login", "sign in", "sign up", "facebook", "instagram", "threads",
+                "linkedin", "pinterest", "twitch", "x", "twitter", "just a moment...",
+                "just a moment", "page not found", "content not found", "error", "watch"
+            )
+            if (tLow.length < 3 || tLow in generic || tLow.startsWith("log in") || tLow.startsWith("sign in") || tLow.contains("log into facebook")) {
+                return null
+            }
+            if (!thumb.lowercase().startsWith("http://") && !thumb.lowercase().startsWith("https://")) {
+                return null
+            }
+            val fallbackUploader = host.removePrefix("www.").substringBefore(".").replaceFirstChar { it.uppercase() }
+            JSONObject()
+                .put("title", title.take(200))
+                .put("uploader", site.ifEmpty { fallbackUploader }.take(80))
+                .put("duration", "")
+                .put("duration_seconds", 0)
+                .put("thumbnail", thumb)
+                .put("is_playlist", hasVideoAndList)
+                .put("playlist_count", if (hasVideoAndList) 2 else 1)
                 .put("webpage_url", cleanUrl)
         } catch (_: Throwable) {
             null
@@ -1285,232 +1221,19 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun compressPlaylistIndices(raw: String): String {
-        val cleaned = raw.replace(Regex("""\s+"""), "")
-        if (cleaned.isEmpty() || cleaned.contains("-") || !cleaned.contains(",")) return cleaned
-        val nums = cleaned.split(",").mapNotNull { it.toIntOrNull() }.filter { it > 0 }.distinct().sorted()
-        if (nums.isEmpty()) return cleaned
-        val ranges = mutableListOf<String>()
-        var start = nums[0]
-        var prev = nums[0]
-        for (i in 1 until nums.size) {
-            val cur = nums[i]
-            if (cur == prev + 1) {
-                prev = cur
-            } else {
-                ranges.add(if (start == prev) "$start" else "$start-$prev")
-                start = cur
-                prev = cur
-            }
-        }
-        ranges.add(if (start == prev) "$start" else "$start-$prev")
-        return ranges.joinToString(",")
-    }
-
-    private fun findInnerContinuationToken(node: Any?): String {
-        when (node) {
-            is JSONObject -> {
-                for (key in listOf("token", "continuation")) {
-                    val direct = node.optString(key, "").trim()
-                    if (direct.length > 12) return direct
-                }
-                val keys = node.keys()
-                while (keys.hasNext()) {
-                    val k = keys.next()
-                    val found = findInnerContinuationToken(node.opt(k))
-                    if (found.isNotEmpty()) return found
-                }
-            }
-            is JSONArray -> {
-                for (i in 0 until node.length()) {
-                    val found = findInnerContinuationToken(node.opt(i))
-                    if (found.isNotEmpty()) return found
-                }
-            }
-        }
-        return ""
-    }
-
-    private fun parseYouTubeVideoItem(item: JSONObject): Triple<String, String, String>? {
-        val unwrapped = item.optJSONObject("richItemRenderer")?.optJSONObject("content") ?: item
-
-        // 1. Legacy shape: playlistVideoRenderer
-        val pvr = unwrapped.optJSONObject("playlistVideoRenderer")
-        if (pvr != null) {
-            val vid = pvr.optString("videoId", "").trim()
-            if (vid.isEmpty()) return null
-            val titleObj = pvr.optJSONObject("title")
-            val title = titleObj?.optJSONArray("runs")?.optJSONObject(0)?.optString("text", "")
-                ?.ifEmpty { titleObj.optString("simpleText", "") }
-                ?: pvr.optString("title", "")
-            var dur = pvr.optJSONObject("lengthText")?.optString("simpleText", "")?.trim() ?: ""
-            if (dur.isEmpty()) {
-                val lSec = pvr.optInt("lengthSeconds", 0)
-                if (lSec > 0) dur = formatSeconds(lSec)
-            }
-            return Triple(vid, title.ifEmpty { "Video" }, dur)
-        }
-
-        // 2. Current 2026 shape: lockupViewModel
-        val lvm = unwrapped.optJSONObject("lockupViewModel")
-        if (lvm != null) {
-            val vid = lvm.optString("contentId", "").trim()
-            if (vid.isEmpty()) return null
-            val title = lvm.optJSONObject("metadata")
-                ?.optJSONObject("lockupMetadataViewModel")
-                ?.optJSONObject("title")
-                ?.optString("content", "")
-                ?.trim()
-                ?: ""
-            var dur = ""
-            val overlays = lvm.optJSONObject("contentImage")
-                ?.optJSONObject("thumbnailViewModel")
-                ?.optJSONArray("overlays")
-            if (overlays != null) {
-                for (i in 0 until overlays.length()) {
-                    val ov = overlays.optJSONObject(i) ?: continue
-                    val badges = ov.optJSONObject("thumbnailBottomOverlayViewModel")?.optJSONArray("badges")
-                    if (badges != null) {
-                        for (j in 0 until badges.length()) {
-                            val bText = badges.optJSONObject(j)
-                                ?.optJSONObject("thumbnailBadgeViewModel")
-                                ?.optString("text", "")
-                                ?.trim()
-                                ?: ""
-                            if (bText.contains(":")) {
-                                dur = bText
-                                break
-                            }
-                        }
-                    }
-                    if (dur.isEmpty()) {
-                        val tText = ov.optJSONObject("thumbnailOverlayTimeStatusRenderer")
-                            ?.optJSONObject("text")
-                            ?.optString("simpleText", "")
-                            ?.trim()
-                            ?: ""
-                        if (tText.contains(":")) dur = tText
-                    }
-                    if (dur.isNotEmpty()) break
-                }
-            }
-            return Triple(vid, title.ifEmpty { "Video" }, dur)
-        }
-        return null
-    }
-
+    private fun compressPlaylistIndices(raw: String): String = FormatUtils.compressPlaylistIndices(raw)
     private fun collectPlaylistVideosAndTokens(
         node: Any?,
         videosOut: MutableList<Triple<String, String, String>>,
         tokensOut: MutableList<String>
-    ) {
-        when (node) {
-            is JSONObject -> {
-                if (node.has("playlistVideoRenderer") || node.has("lockupViewModel")) {
-                    val parsed = parseYouTubeVideoItem(node)
-                    if (parsed != null) {
-                        videosOut.add(parsed)
-                        return
-                    }
-                }
-                if (node.has("continuationItemViewModel") || node.has("continuationItemRenderer") || node.has("nextContinuationData")) {
-                    val sub = node.opt("continuationItemViewModel")
-                        ?: node.opt("continuationItemRenderer")
-                        ?: node.opt("nextContinuationData")
-                    val tok = findInnerContinuationToken(sub)
-                    if (tok.isNotEmpty() && tok !in tokensOut) {
-                        tokensOut.add(tok)
-                    }
-                    return
-                }
-                // Traverse itemSectionRenderer / playlistVideoListRenderer / appendContinuationItemsAction / contents first
-                // so inner video-list tokens are always collected BEFORE outer sectionListRenderer tokens!
-                val priorityKeys = listOf(
-                    "contents",
-                    "twoColumnBrowseResultsRenderer",
-                    "singleColumnBrowseResultsRenderer",
-                    "tabs",
-                    "tabRenderer",
-                    "content",
-                    "sectionListRenderer",
-                    "itemSectionRenderer",
-                    "playlistVideoListRenderer",
-                    "onResponseReceivedActions",
-                    "onResponseReceivedEndpoints",
-                    "appendContinuationItemsAction",
-                    "reloadContinuationItemsCommand",
-                    "continuationItems",
-                    "continuationContents",
-                    "playlistVideoListContinuation",
-                    "continuations"
-                )
-                val visited = mutableSetOf<String>()
-                for (pk in priorityKeys) {
-                    if (node.has(pk)) {
-                        visited.add(pk)
-                        collectPlaylistVideosAndTokens(node.opt(pk), videosOut, tokensOut)
-                    }
-                }
-                val keys = node.keys()
-                while (keys.hasNext()) {
-                    val k = keys.next()
-                    if (k !in visited) {
-                        collectPlaylistVideosAndTokens(node.opt(k), videosOut, tokensOut)
-                    }
-                }
-            }
-            is JSONArray -> {
-                for (i in 0 until node.length()) {
-                    collectPlaylistVideosAndTokens(node.opt(i), videosOut, tokensOut)
-                }
-            }
-        }
-    }
-
+    ) = PlaylistHelper.collectPlaylistVideosAndTokens(node, videosOut, tokensOut)
     private fun postYouTubeInnerTubeBrowse(
         payload: JSONObject,
         apiKey: String = "",
         visitorData: String = "",
         clientVersion: String = "2.20261101.01.00",
         cookieHeader: String = ""
-    ): JSONObject? {
-        val keyParam = if (apiKey.isNotEmpty()) "&key=$apiKey" else ""
-        val endpoint = URL("https://www.youtube.com/youtubei/v1/browse?prettyPrint=false$keyParam")
-        val conn = (endpoint.openConnection() as HttpURLConnection).apply {
-            requestMethod = "POST"
-            connectTimeout = 8000
-            readTimeout = 10000
-            doOutput = true
-            setRequestProperty("Content-Type", "application/json")
-            setRequestProperty("Accept", "application/json")
-            setRequestProperty("Origin", "https://www.youtube.com")
-            setRequestProperty("Referer", "https://www.youtube.com/")
-            setRequestProperty("X-YouTube-Client-Name", "1")
-            setRequestProperty("X-YouTube-Client-Version", clientVersion)
-            if (visitorData.isNotEmpty()) {
-                setRequestProperty("X-Goog-Visitor-Id", visitorData)
-            }
-            if (cookieHeader.isNotEmpty()) {
-                setRequestProperty("Cookie", cookieHeader)
-            }
-            setRequestProperty(
-                "User-Agent",
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
-            )
-        }
-        return try {
-            val bytes = payload.toString().toByteArray(Charsets.UTF_8)
-            conn.outputStream.use { it.write(bytes) }
-            if (conn.responseCode != 200) return null
-            val text = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
-            JSONObject(text)
-        } catch (_: Throwable) {
-            null
-        } finally {
-            conn.disconnect()
-        }
-    }
-
+    ): JSONObject? = PlaylistHelper.postYouTubeInnerTubeBrowse(payload, apiKey, visitorData, clientVersion, cookieHeader)
     private fun fetchYouTubePlaylistDirectContinuations(listId: String, url: String, myToken: Int): Boolean {
         if (listId.isEmpty() || listId.startsWith("RD")) return false
         var apiKey = ""
@@ -1724,7 +1447,9 @@ class MainActivity : AppCompatActivity() {
                     addOption("--extractor-args", "youtube:player_client=android,web,default;player_skip=configs")
                 }
             }
-            addOption("--no-check-certificates")
+            if (useFallbackClient) {
+                addOption("--no-check-certificates")
+            }
             addOption("--no-warnings")
         }
     }
@@ -1732,16 +1457,20 @@ class MainActivity : AppCompatActivity() {
     inner class ClipHavenBridge {
         @JavascriptInterface
         fun requestAsync(reqId: String, path: String, method: String, bodyRaw: String) {
-            thread {
+            if (apiExecutor.isShutdown) return
+            apiExecutor.execute {
                 try {
                     val resJson = request(path, method, bodyRaw)
                     val qId = JSONObject.quote(reqId)
-                    val wv = webView ?: return@thread
+                    val wv = webView ?: return@execute
+                    if (isFinishing || isDestroyed) return@execute
                     wv.post {
-                        wv.evaluateJavascript(
-                            "window.__onAndroidApiResult && window.__onAndroidApiResult($qId, $resJson);",
-                            null
-                        )
+                        if (!isFinishing && !isDestroyed) {
+                            wv.evaluateJavascript(
+                                "window.__onAndroidApiResult && window.__onAndroidApiResult($qId, $resJson);",
+                                null
+                            )
+                        }
                     }
                 } catch (_: Throwable) {
                 }
@@ -1827,9 +1556,10 @@ class MainActivity : AppCompatActivity() {
                         val hasVideoAndList = !parsedUri.getQueryParameter("list").isNullOrEmpty() &&
                             (!parsedUri.getQueryParameter("v").isNullOrEmpty() || parsedUri.host?.lowercase() == "youtu.be")
 
-                        // 1. Instant oEmbed fast-path (~0.2s) for single videos
+                        // 1. Instant oEmbed (~0.2s) or OpenGraph (~0.4s) fast-path for single videos
                         if (!hasListParam && !full) {
                             val fastInfo = fetchFastOembedInfo(url, parsedUri, false)
+                                ?: fetchFastOpenGraphInfo(url, parsedUri, false)
                             if (fastInfo != null) {
                                 fastInfo.put("entries", JSONArray())
                                 fastInfo.put("playlist_loading", false)
@@ -1843,36 +1573,47 @@ class MainActivity : AppCompatActivity() {
                             }
                         }
 
-                        // 2. Playlist (Page 1: 1..100 fast fetch + background pages 101..N) or Fallback extraction via yt-dlp
-                        ensureEnginesInitialized()
+                        // 2. Playlist (Page 1: direct ytInitialData ~0.5-1s -> fallback yt-dlp) or Fallback extraction via yt-dlp
                         val myToken = previewSeqGen.incrementAndGet()
                         activePreviewUrl = if (hasListParam) url else ""
-                        try { YoutubeDL.getInstance().destroyProcessById("bg_info_dur") } catch (_: Throwable) {}
-
-                        val res = try {
-                            YoutubeDL.getInstance().execute(buildInfoRequest(url, hasListParam, false, 1, 100), "bg_info_dur", null)
-                        } catch (t: Throwable) {
-                            if (isYouTubeClientBlockError(t.message)) {
-                                thread { syncUpdateYtDlp(YoutubeDL.UpdateChannel.NIGHTLY) }
-                            }
-                            try {
-                                YoutubeDL.getInstance().execute(buildInfoRequest(url, hasListParam, true, 1, 100), "bg_info_dur", null)
-                            } catch (t2: Throwable) {
-                                if (hasVideoAndList) {
-                                    val fallbackSingle = fetchFastOembedInfo(url, parsedUri, true)
-                                    if (fallbackSingle != null) {
-                                        fallbackSingle.put("entries", JSONArray())
-                                        fallbackSingle.put("playlist_loading", false)
-                                        return JSONObject().put("ok", true).put("info", fallbackSingle).toString()
-                                    }
-                                }
-                                throw t2
-                            }
+                        val fastPlaylistData = if (hasListParam) {
+                            val ytListIdFast = parsedUri.getQueryParameter("list")?.trim() ?: ""
+                            if (ytListIdFast.isNotEmpty()) PlaylistHelper.fetchYouTubePlaylistPage1Fast(ytListIdFast) else null
+                        } else {
+                            null
                         }
 
-                        val rawOut = res.out.trim()
-                        val jsonLine = rawOut.lineSequence().lastOrNull { it.trim().startsWith("{") } ?: rawOut
-                        val data = JSONObject(jsonLine)
+                        val data: JSONObject = if (fastPlaylistData != null) {
+                            fastPlaylistData
+                        } else {
+                            ensureEnginesInitialized()
+                            try { YoutubeDL.getInstance().destroyProcessById("bg_info_dur") } catch (_: Throwable) {}
+
+                            val res = try {
+                                YoutubeDL.getInstance().execute(buildInfoRequest(url, hasListParam, false, 1, 100), "bg_info_dur", null)
+                            } catch (t: Throwable) {
+                                if (isYouTubeClientBlockError(t.message)) {
+                                    bgExecutor.execute { syncUpdateYtDlp(YoutubeDL.UpdateChannel.NIGHTLY) }
+                                }
+                                try {
+                                    YoutubeDL.getInstance().execute(buildInfoRequest(url, hasListParam, true, 1, 100), "bg_info_dur", null)
+                                } catch (t2: Throwable) {
+                                    if (hasVideoAndList) {
+                                        val fallbackSingle = fetchFastOembedInfo(url, parsedUri, true)
+                                        if (fallbackSingle != null) {
+                                            fallbackSingle.put("entries", JSONArray())
+                                            fallbackSingle.put("playlist_loading", false)
+                                            return JSONObject().put("ok", true).put("info", fallbackSingle).toString()
+                                        }
+                                    }
+                                    throw t2
+                                }
+                            }
+
+                            val rawOut = res.out.trim()
+                            val jsonLine = rawOut.lineSequence().lastOrNull { it.trim().startsWith("{") } ?: rawOut
+                            JSONObject(jsonLine)
+                        }
                         val entries = data.optJSONArray("entries")
                         val entriesList = JSONArray()
                         if (entries != null) {
@@ -1880,11 +1621,14 @@ class MainActivity : AppCompatActivity() {
                             for (i in 0 until entries.length()) {
                                 val item = entries.optJSONObject(i) ?: continue
                                 val edur = item.optDouble("duration", 0.0)
+                                val edurStr = item.optString("duration_str", "").ifEmpty {
+                                    if (edur > 0) formatSeconds(edur.toInt()) else ""
+                                }
                                 val entryObj = JSONObject()
                                     .put("index", idxCounter)
                                     .put("id", item.optString("id", ""))
                                     .put("title", item.optString("title", "Video $idxCounter"))
-                                    .put("duration", if (edur > 0) formatSeconds(edur.toInt()) else "")
+                                    .put("duration", edurStr)
                                 entriesList.put(entryObj)
                                 idxCounter++
                             }
@@ -1941,7 +1685,7 @@ class MainActivity : AppCompatActivity() {
                         // 3. If playlist has >100 items, fetch remaining pages (101..200, 201..N) progressively in background
                         if (hasMorePages) {
                             val ytListId = parsedUri.getQueryParameter("list")?.trim() ?: ""
-                            thread {
+                            bgExecutor.execute {
                                 var nextStart = 101
                                 val pageSize = 150
                                 try {
@@ -1951,6 +1695,7 @@ class MainActivity : AppCompatActivity() {
                                     } else {
                                         false
                                     }
+                                    if (!handledByInnerTube && previewSeqGen.get() == myToken) ensureEnginesInitialized()
                                     while (!handledByInnerTube && previewSeqGen.get() == myToken) {
                                         val nextEnd = nextStart + pageSize - 1
                                         try { YoutubeDL.getInstance().destroyProcessById("bg_info_dur") } catch (_: Throwable) {}
@@ -2123,7 +1868,8 @@ class MainActivity : AppCompatActivity() {
             subtitles: Boolean,
             embedThumb: Boolean,
             workDir: File,
-            useFallbackClient: Boolean
+            useFallbackClient: Boolean,
+            concurrentFragments: Int = 6
         ): YoutubeDLRequest {
             return YoutubeDLRequest(url).apply {
                 addOption(if (allowPlaylist) "--yes-playlist" else "--no-playlist")
@@ -2139,11 +1885,17 @@ class MainActivity : AppCompatActivity() {
                     addOption("--extractor-args", "youtube:player_client=android,web,default;skip=translated_subs")
                 }
                 addOption("--force-ipv4")
-                addOption("--concurrent-fragments", "4")
+                addOption("--concurrent-fragments", concurrentFragments.toString())
+                addOption("--buffer-size", "32K")
+                if (!isClipJob) {
+                    addOption("--http-chunk-size", "10M")
+                }
                 addOption("--newline")
                 addOption("--progress")
                 addOption("--no-mtime")
-                addOption("--no-check-certificates")
+                if (useFallbackClient) {
+                    addOption("--no-check-certificates")
+                }
                 addOption("--windows-filenames")
                 addOption("--retries", "10")
                 addOption("--fragment-retries", "10")
@@ -2195,6 +1947,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         private fun startDownloadJob(body: JSONObject): String {
+            DownloadForegroundService.isBangla = body.optString("lang", "en").equals("bn", ignoreCase = true)
             val url = extractUrl(body.optString("url", ""))
             if (!isValidUrl(url)) {
                 return JSONObject().put("ok", false).put("error", "Enter a valid HTTPS link (YouTube, Facebook, Instagram, LinkedIn, TikTok, X, etc.).").toString()
@@ -2279,7 +2032,7 @@ class MainActivity : AppCompatActivity() {
                 cachedThumb
             )
 
-            thread {
+            bgExecutor.execute {
                 val workDir = File(cacheDir, "dl_$jid").apply { mkdirs() }
                 val expectSrtSubs = subtitles && fmt in setOf("mp4", "mkv")
                 val subWatcherRunning = AtomicBoolean(true)
@@ -2304,7 +2057,7 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 if (isClipJob && subtitles) {
-                    thread {
+                    bgExecutor.execute {
                         while (subWatcherRunning.get()) {
                             try {
                                 trySyncSubs()
@@ -2524,18 +2277,24 @@ class MainActivity : AppCompatActivity() {
                         )
                     }
 
-                    val primaryReq = createDownloadRequest(url, allowPlaylist, rawPlaylistItems, fmt, quality, isClipJob, sSec, eSec, clipDuration, startTime, endTime, subtitles, embedThumb, workDir, false)
+                    val primaryReq = createDownloadRequest(url, allowPlaylist, rawPlaylistItems, fmt, quality, isClipJob, sSec, eSec, clipDuration, startTime, endTime, subtitles, embedThumb, workDir, false, 6)
                     try {
                         YoutubeDL.getInstance().execute(primaryReq, jid, progressCallback)
                     } catch (firstErr: Throwable) {
                         val isCancelledNow = getJobSnapshot(jid)?.optString("state") == "Cancelled"
                         val newlyExported = exportStagedFilesToTargetDir(workDir, outDir)
                         allExportedFiles.addAll(newlyExported)
-                        if (!isCancelledNow && allExportedFiles.isEmpty() && isYouTubeClientBlockError(firstErr.message)) {
+                        if (!isCancelledNow && allExportedFiles.isEmpty() && isRateLimitError(firstErr.message)) {
+                            mediaPhaseStarted = false
+                            updateJob(jid, mapOf("title" to "Rate limited — retrying safely…", "detail" to "Switching to 4 parallel fragments…", "indeterminate" to true))
+                            try { Thread.sleep(1500) } catch (_: Throwable) {}
+                            val safeReq = createDownloadRequest(url, allowPlaylist, rawPlaylistItems, fmt, quality, isClipJob, sSec, eSec, clipDuration, startTime, endTime, subtitles, embedThumb, workDir, false, 4)
+                            YoutubeDL.getInstance().execute(safeReq, jid, progressCallback)
+                        } else if (!isCancelledNow && allExportedFiles.isEmpty() && (isYouTubeClientBlockError(firstErr.message) || isSslCertificateError(firstErr.message))) {
                             mediaPhaseStarted = false
                             updateJob(jid, mapOf("title" to "Updating extractor & retrying…", "detail" to "Syncing latest YouTube extractor…", "indeterminate" to true))
                             syncUpdateYtDlp(YoutubeDL.UpdateChannel.NIGHTLY)
-                            val fallbackReq = createDownloadRequest(url, allowPlaylist, rawPlaylistItems, fmt, quality, isClipJob, sSec, eSec, clipDuration, startTime, endTime, subtitles, embedThumb, workDir, true)
+                            val fallbackReq = createDownloadRequest(url, allowPlaylist, rawPlaylistItems, fmt, quality, isClipJob, sSec, eSec, clipDuration, startTime, endTime, subtitles, embedThumb, workDir, true, 4)
                             YoutubeDL.getInstance().execute(fallbackReq, jid, progressCallback)
                         } else if (allExportedFiles.isEmpty()) {
                             throw firstErr
