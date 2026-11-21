@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local-only backend for ClipHaven Video & Audio Downloader (v3.2.3).
+"""Local-only backend for ClipHaven Video & Audio Downloader (v3.3.0).
 Developed by Md Asadullah Al Munib (https://github.com/AsadullahAlMunib/ClipHaven/)."""
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, quote
@@ -17,8 +17,9 @@ import re
 import time
 import webbrowser
 import logging
+import html as _html_mod
 
-VERSION = "3.2.3"
+VERSION = "3.3.0"
 AUTHOR = "Md Asadullah Al Munib"
 REPO_URL = "https://github.com/AsadullahAlMunib/ClipHaven/"
 IS_FROZEN = getattr(sys, "frozen", False)
@@ -37,11 +38,29 @@ ALLOWED = {
 }
 VALID_FORMATS = {"mp4", "mkv", "webm", "mp3", "m4a", "wav"}
 VALID_QUALITIES = {"best", "2160", "1440", "1080", "720", "480", "360"}
-SUB_OR_THUMB_EXTS = {".vtt", ".srt", ".ass", ".ssa", ".ttml", ".srv1", ".srv2", ".srv3", ".json3", ".webp", ".jpg", ".jpeg", ".png"}
-SUB_TEXT_EXTS = {".vtt", ".srt"}
-SUB_SHIFT_MARKER = "\u2060"
-_SUB_TS_LINE_RE = re.compile(r"((?:\d{1,2}:)?\d{2}:\d{2}[.,]\d{3})\s*-->\s*((?:\d{1,2}:)?\d{2}:\d{2}[.,]\d{3})(.*)")
-_SUB_INLINE_TS_RE = re.compile(r"<((?:\d{1,2}:)?\d{2}:\d{2}[.,]\d{3})>")
+from core.subtitles import (
+    SUB_OR_THUMB_EXTS,
+    SUB_TEXT_EXTS,
+    SUB_SHIFT_MARKER,
+    _SUB_TS_LINE_RE,
+    _SUB_INLINE_TS_RE,
+    parse_sub_timestamp_ms,
+    format_sub_timestamp_ms,
+    trim_and_shift_subtitle_text,
+    trim_and_shift_subtitle_file,
+    _has_active_video_file_in_dir,
+    sync_clip_subtitles_in_dir,
+)
+from core.playlist import (
+    _format_playlist_entry,
+    _find_inner_continuation_token,
+    _parse_youtube_video_item,
+    _collect_playlist_videos_and_tokens,
+    _extract_yt_items_and_token,
+    _post_youtube_innertube_browse,
+    _fetch_youtube_playlist_direct_continuations as _yt_fetch_direct_continuations,
+    fetch_youtube_playlist_page1_fast as _yt_fetch_playlist_page1_fast,
+)
 MAX_JOBS = 40
 
 lock = threading.Lock()
@@ -198,195 +217,6 @@ def format_seconds(sec: int) -> str:
     return f"{h:02d}:{m:02d}:{s:02d}" if h > 0 else f"{m:02d}:{s:02d}"
 
 
-def parse_sub_timestamp_ms(ts: str) -> int:
-    clean = str(ts).strip().replace(",", ".")
-    parts = clean.split(":")
-    if len(parts) == 3:
-        h, m, s = int(parts[0]), int(parts[1]), float(parts[2])
-    elif len(parts) == 2:
-        h, m, s = 0, int(parts[0]), float(parts[1])
-    else:
-        return 0
-    return int(round((h * 3600 + m * 60 + s) * 1000))
-
-
-def format_sub_timestamp_ms(ms: int, sep: str = ".") -> str:
-    clean = max(0, int(ms))
-    h, rem = divmod(clean, 3600000)
-    m, rem = divmod(rem, 60000)
-    s, millis = divmod(rem, 1000)
-    return f"{h:02d}:{m:02d}:{s:02d}{sep}{millis:03d}"
-
-
-def trim_and_shift_subtitle_text(content: str, start_sec: float, end_sec: float | None, is_vtt: bool = True) -> str:
-    """Trim subtitle cues to [start_sec, end_sec] and shift timestamps back by start_sec so clips start at 00:00:00."""
-    if not content or SUB_SHIFT_MARKER in content:
-        return content
-    start_ms = max(0, int(round((start_sec or 0) * 1000)))
-    end_ms = int(round(end_sec * 1000)) if end_sec is not None else None
-    if start_ms == 0 and end_ms is None:
-        return content
-
-    sep = "." if is_vtt else ","
-    blocks = re.split(r"\r?\n\r?\n+", content.lstrip("\ufeff").strip())
-    header_blocks: list[str] = []
-    cue_blocks: list[tuple[int, int, str, list[str]]] = []
-
-    def _shift_inline(match: re.Match) -> str:
-        raw_ms = parse_sub_timestamp_ms(match.group(1))
-        shifted = max(0, raw_ms - start_ms)
-        if end_ms is not None:
-            shifted = min(shifted, max(0, end_ms - start_ms))
-        return f"<{format_sub_timestamp_ms(shifted, sep)}>"
-
-    for block in blocks:
-        lines = [ln.rstrip("\r") for ln in block.split("\n")]
-        ts_idx = None
-        for idx, ln in enumerate(lines):
-            if "-->" in ln and _SUB_TS_LINE_RE.search(ln):
-                ts_idx = idx
-                break
-        if ts_idx is None:
-            if is_vtt and not cue_blocks and lines and (
-                lines[0].startswith("WEBVTT")
-                or lines[0].startswith("Kind:")
-                or lines[0].startswith("Language:")
-                or lines[0].startswith("NOTE")
-                or lines[0].startswith("STYLE")
-            ):
-                header_blocks.append("\n".join(lines))
-            continue
-
-        m = _SUB_TS_LINE_RE.search(lines[ts_idx])
-        if not m:
-            continue
-        c_start = parse_sub_timestamp_ms(m.group(1))
-        c_end = parse_sub_timestamp_ms(m.group(2))
-        settings = m.group(3) or ""
-        if c_end <= start_ms:
-            continue
-        if end_ms is not None and c_start >= end_ms:
-            continue
-
-        new_start = max(0, c_start - start_ms)
-        new_end = (min(c_end, end_ms) if end_ms is not None else c_end) - start_ms
-        if new_end <= new_start:
-            continue
-
-        payload = [_SUB_INLINE_TS_RE.sub(_shift_inline, ln) for ln in lines[ts_idx + 1:] if ln.strip()]
-        if not payload:
-            continue
-        cue_blocks.append((new_start, new_end, settings, payload))
-
-    if not cue_blocks:
-        cue_blocks.append((0, 100, "", ["\u200b"]))
-
-    first_s, first_e, first_set, first_pay = cue_blocks[0]
-    first_pay = list(first_pay)
-    first_pay[-1] = first_pay[-1] + SUB_SHIFT_MARKER
-    cue_blocks[0] = (first_s, first_e, first_set, first_pay)
-
-    out_blocks: list[str] = []
-    if is_vtt:
-        out_blocks.extend(header_blocks if header_blocks else ["WEBVTT"])
-    for idx, (ns, ne, settings, payload) in enumerate(cue_blocks, 1):
-        ts_line = f"{format_sub_timestamp_ms(ns, sep)} --> {format_sub_timestamp_ms(ne, sep)}{settings}"
-        if is_vtt:
-            out_blocks.append(ts_line + "\n" + "\n".join(payload))
-        else:
-            out_blocks.append(f"{idx}\n{ts_line}\n" + "\n".join(payload))
-    return "\n\n".join(out_blocks) + "\n"
-
-
-def trim_and_shift_subtitle_file(sub_path: Path, start_sec: float, end_sec: float | None) -> bool:
-    """Trim and time-shift a .vtt or .srt file atomically in-place if not already shifted."""
-    try:
-        if not sub_path.is_file() or sub_path.stat().st_size == 0:
-            return False
-        ext = sub_path.suffix.lower()
-        if ext not in SUB_TEXT_EXTS:
-            return False
-        raw = sub_path.read_text(encoding="utf-8", errors="replace")
-        if SUB_SHIFT_MARKER in raw:
-            return False
-        shifted = trim_and_shift_subtitle_text(raw, start_sec, end_sec, is_vtt=(ext == ".vtt"))
-        if shifted == raw:
-            return False
-        tmp_path = sub_path.with_name(f"{sub_path.name}.{os.getpid()}.cliphaven.tmp")
-        tmp_path.write_text(shifted, encoding="utf-8")
-        os.replace(tmp_path, sub_path)
-        return True
-    except Exception:
-        return False
-
-
-def _has_active_video_file_in_dir(folder: Path, started_at: float, clip_suffix: str) -> bool:
-    """Check if yt-dlp/ffmpeg has started creating the clipped video stream file on disk (which happens only after before_dl finishes)."""
-    try:
-        for f in folder.iterdir():
-            if not f.is_file():
-                continue
-            name_low = f.name.lower()
-            if name_low.endswith(".cliphaven.tmp") or name_low.endswith(".ytdl"):
-                continue
-            if clip_suffix and clip_suffix not in f.name:
-                continue
-            st = f.stat()
-            if max(st.st_mtime, st.st_ctime) < started_at - 5:
-                continue
-            # Strip .part or .temp to inspect the media extension
-            clean_name = re.sub(r"\.(?:part|temp)(?:-\w+)?$", "", name_low)
-            ext = Path(clean_name).suffix.lower()
-            if ext in {".mp4", ".mkv", ".webm", ".m4a"}:
-                return True
-    except Exception:
-        pass
-    return False
-
-
-def sync_clip_subtitles_in_dir(
-    folder: Path,
-    started_at: float,
-    start_sec: float,
-    end_sec: float | None,
-    clip_suffix: str = "",
-    expect_srt: bool = False,
-) -> int:
-    """Trim and time-shift all completed subtitle files for a clip job before FFmpeg embeds them."""
-    count = 0
-    try:
-        entries = list(folder.iterdir())
-        if expect_srt:
-            # Wait until SubtitlesConvertor (before_dl) has finished converting and deleting all .vtt files for this job
-            for f in entries:
-                if not f.is_file() or f.suffix.lower() != ".vtt":
-                    continue
-                if clip_suffix and clip_suffix not in f.name:
-                    continue
-                st = f.stat()
-                if max(st.st_mtime, st.st_ctime) >= started_at - 5:
-                    return 0
-
-        for f in entries:
-            if not f.is_file():
-                continue
-            ext = f.suffix.lower()
-            if ext not in SUB_TEXT_EXTS or f.name.endswith(".cliphaven.tmp"):
-                continue
-            if expect_srt and ext != ".srt":
-                continue
-            st = f.stat()
-            if max(st.st_mtime, st.st_ctime) < started_at - 5:
-                continue
-            if clip_suffix and clip_suffix not in f.name:
-                continue
-            if trim_and_shift_subtitle_file(f, start_sec, end_sec):
-                count += 1
-    except Exception:
-        pass
-    return count
-
-
 def terminate_process(proc: subprocess.Popen):
     if not proc:
         return
@@ -482,6 +312,15 @@ UPDATE_CACHE_TTL = 4 * 3600  # 4 hours to respect GitHub API rate limits
 GITHUB_LATEST_RELEASE_API = "https://api.github.com/repos/AsadullahAlMunib/ClipHaven/releases/latest"
 
 
+PUBLIC_RELEASE_TAG_RE = re.compile(r"^[vV](\d+\.\d+\.\d+)(?:[-+].*)?$")
+
+
+def extract_public_release_version(tag_name: str) -> str | None:
+    """Return normalized X.Y.Z only for public tags starting with v/V + X.Y.Z (allows -beta/+meta)."""
+    m = PUBLIC_RELEASE_TAG_RE.match(str(tag_name or "").strip())
+    return m.group(1) if m else None
+
+
 def parse_semver(ver: str) -> tuple[int, ...]:
     nums = re.findall(r"\d+", str(ver or ""))
     return tuple(int(x) for x in nums[:4]) if nums else (0, 0, 0)
@@ -511,9 +350,23 @@ def check_github_update(force: bool = False) -> dict:
                 raise RuntimeError(f"GitHub API HTTP {resp.status}")
             rel = json.loads(resp.read().decode("utf-8", errors="replace"))
 
-        tag = str(rel.get("tag_name") or "").strip().lstrip("vV")
+        raw_tag = str(rel.get("tag_name") or "").strip()
+        tag = extract_public_release_version(raw_tag)
         if not tag:
-            raise RuntimeError("Missing release tag")
+            result = {
+                "ok": True,
+                "update_available": False,
+                "current_version": VERSION,
+                "latest_version": VERSION,
+                "release_title": "",
+                "release_notes": "",
+                "release_url": f"{REPO_URL.rstrip('/')}/releases/latest",
+                "is_android": False,
+            }
+            with lock:
+                _update_cache["checked_at"] = now
+                _update_cache["data"] = dict(result)
+            return result
         notes = str(rel.get("body") or "Bug fixes and performance improvements.").strip()
         html_url = str(rel.get("html_url") or f"{REPO_URL.rstrip('/')}/releases/latest").strip()
         result = {
@@ -576,6 +429,8 @@ def _fetch_fast_oembed_info(clean_url: str, parsed, has_video_and_list: bool) ->
         oembed_url = f"https://soundcloud.com/oembed?format=json&url={quote(clean_url, safe='')}"
     elif any(host == d or host.endswith("." + d) for d in ("reddit.com", "redd.it")):
         oembed_url = f"https://www.reddit.com/oembed?url={quote(clean_url, safe='')}"
+    elif any(host == d or host.endswith("." + d) for d in ("twitter.com", "x.com")):
+        oembed_url = f"https://publish.twitter.com/oembed?omit_script=true&url={quote(clean_url, safe='')}"
 
     if not oembed_url:
         return None
@@ -585,11 +440,19 @@ def _fetch_fast_oembed_info(clean_url: str, parsed, has_video_and_list: bool) ->
             oembed_url,
             headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0 Safari/537.36", "Accept": "application/json"},
         )
-        with urllib.request.urlopen(req, timeout=3.5) as resp:
+        with urllib.request.urlopen(req, timeout=3.0) as resp:
             if resp.status != 200:
                 return None
             data = json.loads(resp.read().decode("utf-8", errors="replace"))
         title = (data.get("title") or "").strip()
+        if not title and any(host == d or host.endswith("." + d) for d in ("twitter.com", "x.com")):
+            raw_html = str(data.get("html") or "")
+            pm = re.search(r"<p[^>]*>([\s\S]*?)</p>", raw_html, re.I)
+            if pm:
+                title = _html_mod.unescape(re.sub(r"<[^>]+>", " ", pm.group(1))).strip()
+                title = re.sub(r"\s+", " ", title)[:140]
+            if not title and data.get("author_name"):
+                title = f"{str(data.get('author_name')).strip()} on X"
         if not title:
             return None
         thumb = (data.get("thumbnail_url") or "").strip()
@@ -610,6 +473,150 @@ def _fetch_fast_oembed_info(clean_url: str, parsed, has_video_and_list: bool) ->
     except Exception:
         return None
 
+
+
+_OG_GENERIC_TITLES = {
+    "log in", "login", "sign in", "sign up", "facebook", "instagram", "threads",
+    "linkedin", "pinterest", "twitch", "x", "twitter", "just a moment...",
+    "just a moment", "page not found", "content not found", "error", "watch",
+}
+
+
+def _extract_opengraph_from_html(html_text: str) -> tuple[str, str, str]:
+    """Extract (title, image_url, site_name) from HTML <head> meta tags, rejecting login walls."""
+    if not html_text:
+        return ("", "", "")
+
+    def _meta(names: tuple[str, ...]) -> str:
+        for nm in names:
+            esc = re.escape(nm)
+            for pat in (
+                rf"""<meta[^>]+(?:property|name)=["']{esc}["'][^>]+content=["']([^"']+)["']""",
+                rf"""<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']{esc}["']""",
+            ):
+                m = re.search(pat, html_text, re.I)
+                if m and m.group(1).strip():
+                    return _html_mod.unescape(m.group(1).strip())
+        return ""
+
+    title = _meta(("og:title", "twitter:title"))
+    image = _meta(("og:image", "og:image:secure_url", "twitter:image"))
+    site = _meta(("og:site_name",))
+
+    t_low = title.lower().strip()
+    if (
+        len(t_low) < 3
+        or t_low in _OG_GENERIC_TITLES
+        or t_low.startswith("log in")
+        or t_low.startswith("sign in")
+        or "log into facebook" in t_low
+    ):
+        return ("", "", "")
+    if not image or not image.lower().startswith(("http://", "https://")):
+        return ("", "", "")
+    return (title[:200], image, site[:80])
+
+
+
+def _parse_iso8601_duration(raw: str) -> int:
+    """Parse ISO-8601 duration (e.g. PT1H2M3S, PT4M20S, PT45S) or integer seconds."""
+    val = (raw or "").strip().upper()
+    if not val:
+        return 0
+    if val.isdigit():
+        return int(val)
+    m = re.match(r"^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?$", val)
+    if not m:
+        return 0
+    h = int(m.group(1) or 0)
+    mn = int(m.group(2) or 0)
+    sec = int(float(m.group(3) or 0))
+    return h * 3600 + mn * 60 + sec
+
+
+def _extract_duration_from_html(html_text: str) -> int:
+    """Extract video duration in seconds from OpenGraph/Schema.org meta tags or JSON-LD (zero extra requests)."""
+    if not html_text:
+        return 0
+    for pat in (
+        r"""<meta[^>]+(?:property|name|itemprop)=["'](?:video:duration|duration)["'][^>]+content=["']([^"']+)["']""",
+        r"""<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name|itemprop)=["'](?:video:duration|duration)["']""",
+        r'"duration"\s*:\s*"(PT[0-9HMS.]+)"',
+        r'"lengthSeconds"\s*:\s*"(\d+)"',
+    ):
+        m = re.search(pat, html_text, re.I)
+        if m:
+            sec = _parse_iso8601_duration(m.group(1))
+            if 0 < sec < 86400 * 7:
+                return sec
+    return 0
+
+
+def _fetch_fast_youtube_duration(clean_url: str) -> int:
+    """Fast (~0.3-0.6s) YouTube single-video duration lookup from lightweight HTML head before yt-dlp verifies."""
+    yt_id = _extract_yt_id(clean_url)
+    if not yt_id:
+        return 0
+    try:
+        req = urllib.request.Request(
+            f"https://www.youtube.com/watch?v={yt_id}&hl=en&gl=US",
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Cookie": "CONSENT=YES+cb.20210328-17-p0.en+FX+410",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=2.5) as resp:
+            if resp.status != 200:
+                return 0
+            chunk = resp.read(163840).decode("utf-8", errors="replace")
+        return _extract_duration_from_html(chunk)
+    except Exception:
+        return 0
+
+def _fetch_fast_opengraph_info(clean_url: str, parsed, has_video_and_list: bool) -> dict | None:
+    """Fast (~0.3-0.8s) OpenGraph preview for Facebook, Instagram, Threads, LinkedIn, Pinterest & Twitch."""
+    host = (parsed.hostname or "").lower().rstrip(".")
+    og_domains = (
+        "facebook.com", "fb.watch", "fb.com", "fb.gg",
+        "instagram.com", "instagr.am",
+        "threads.net", "threads.com",
+        "linkedin.com", "lnkd.in",
+        "pinterest.com", "pin.it",
+        "twitch.tv",
+    )
+    if not any(host == d or host.endswith("." + d) for d in og_domains):
+        return None
+    try:
+        req = urllib.request.Request(
+            clean_url,
+            headers={
+                "User-Agent": "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
+                "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=2.5) as resp:
+            if resp.status != 200:
+                return None
+            chunk = resp.read(65536).decode("utf-8", errors="replace")
+        title, thumb, site = _extract_opengraph_from_html(chunk)
+        if not title or not thumb:
+            return None
+        dur_sec = _extract_duration_from_html(chunk)
+        return {
+            "title": title,
+            "uploader": site or host.removeprefix("www.").split(".")[0].capitalize(),
+            "duration": format_seconds(dur_sec) if dur_sec > 0 else "",
+            "duration_seconds": dur_sec,
+            "duration_approx": bool(dur_sec > 0),
+            "thumbnail": thumb,
+            "is_playlist": has_video_and_list,
+            "playlist_count": 2 if has_video_and_list else 1,
+            "webpage_url": clean_url,
+        }
+    except Exception:
+        return None
 
 _preview_lock = threading.Lock()
 _preview_proc: subprocess.Popen | None = None
@@ -640,351 +647,23 @@ def cancel_active_preview():
                     _info_cache[url]["playlist_count"] = len(entries_now)
 
 
-def _format_playlist_entry(entry: dict, idx: int) -> dict:
-    edur = entry.get("duration")
-    return {
-        "index": idx,
-        "id": str(entry.get("id") or ""),
-        "title": str(entry.get("title") or f"Video {idx}"),
-        "duration": format_seconds(int(edur)) if isinstance(edur, (int, float)) and edur > 0 else "",
-    }
-
 
 def _snapshot_cached_info(cached: dict) -> dict:
     snap = dict(cached)
-    snap["entries"] = list(cached.get("entries") or [])
-    snap["playlist_loading"] = bool(cached.get("playlist_loading", False))
+    if "entries" in cached and isinstance(cached["entries"], list):
+        snap["entries"] = list(cached["entries"])
     return snap
 
 
-def _find_inner_continuation_token(node) -> str:
-    if isinstance(node, dict):
-        for key in ("token", "continuation"):
-            tok = node.get(key)
-            if isinstance(tok, str) and len(tok.strip()) > 12:
-                return tok.strip()
-        for v in node.values():
-            found = _find_inner_continuation_token(v)
-            if found:
-                return found
-    elif isinstance(node, list):
-        for item in node:
-            found = _find_inner_continuation_token(item)
-            if found:
-                return found
-    return ""
-
-
-def _parse_youtube_video_item(item: dict) -> tuple[str, str, str] | None:
-    if not isinstance(item, dict):
-        return None
-    unwrapped = item.get("richItemRenderer", {}).get("content") if isinstance(item.get("richItemRenderer"), dict) else item
-    if not isinstance(unwrapped, dict):
-        return None
-
-    # 1. Legacy shape: playlistVideoRenderer
-    pvr = unwrapped.get("playlistVideoRenderer")
-    if isinstance(pvr, dict):
-        vid = str(pvr.get("videoId") or "").strip()
-        if not vid:
-            return None
-        title_obj = pvr.get("title")
-        title = ""
-        if isinstance(title_obj, dict):
-            runs = title_obj.get("runs")
-            if isinstance(runs, list) and runs and isinstance(runs[0], dict):
-                title = str(runs[0].get("text") or "").strip()
-            if not title:
-                title = str(title_obj.get("simpleText") or "").strip()
-        dur = ""
-        lt = pvr.get("lengthText")
-        if isinstance(lt, dict):
-            dur = str(lt.get("simpleText") or "").strip()
-        if not dur:
-            lsec = pvr.get("lengthSeconds")
-            if isinstance(lsec, (int, float, str)) and str(lsec).isdigit() and int(lsec) > 0:
-                dur = format_seconds(int(lsec))
-        return (vid, title or "Video", dur)
-
-    # 2. Current 2026 shape: lockupViewModel
-    lvm = unwrapped.get("lockupViewModel")
-    if isinstance(lvm, dict):
-        vid = str(lvm.get("contentId") or "").strip()
-        if not vid:
-            return None
-        title = (
-            str(
-                lvm.get("metadata", {})
-                .get("lockupMetadataViewModel", {})
-                .get("title", {})
-                .get("content")
-                or ""
-            ).strip()
-        )
-        dur = ""
-        overlays = (
-            lvm.get("contentImage", {})
-            .get("thumbnailViewModel", {})
-            .get("overlays")
-        )
-        if isinstance(overlays, list):
-            for ov in overlays:
-                if not isinstance(ov, dict):
-                    continue
-                badges = ov.get("thumbnailBottomOverlayViewModel", {}).get("badges")
-                if isinstance(badges, list):
-                    for b in badges:
-                        if not isinstance(b, dict):
-                            continue
-                        b_text = str(b.get("thumbnailBadgeViewModel", {}).get("text") or "").strip()
-                        if ":" in b_text:
-                            dur = b_text
-                            break
-                if not dur:
-                    t_text = str(ov.get("thumbnailOverlayTimeStatusRenderer", {}).get("text", {}).get("simpleText") or "").strip()
-                    if ":" in t_text:
-                        dur = t_text
-                if dur:
-                    break
-        return (vid, title or "Video", dur)
-    return None
-
-
-def _collect_playlist_videos_and_tokens(node, videos_out: list[tuple[str, str, str]], tokens_out: list[str]):
-    if isinstance(node, dict):
-        if "playlistVideoRenderer" in node or "lockupViewModel" in node:
-            parsed = _parse_youtube_video_item(node)
-            if parsed:
-                videos_out.append(parsed)
-                return
-        if "continuationItemViewModel" in node or "continuationItemRenderer" in node or "nextContinuationData" in node:
-            sub = node.get("continuationItemViewModel") or node.get("continuationItemRenderer") or node.get("nextContinuationData")
-            tok = _find_inner_continuation_token(sub)
-            if tok and tok not in tokens_out:
-                tokens_out.append(tok)
-            return
-        priority_keys = (
-            "contents",
-            "twoColumnBrowseResultsRenderer",
-            "singleColumnBrowseResultsRenderer",
-            "tabs",
-            "tabRenderer",
-            "content",
-            "sectionListRenderer",
-            "itemSectionRenderer",
-            "playlistVideoListRenderer",
-            "onResponseReceivedActions",
-            "onResponseReceivedEndpoints",
-            "appendContinuationItemsAction",
-            "reloadContinuationItemsCommand",
-            "continuationItems",
-            "continuationContents",
-            "playlistVideoListContinuation",
-            "continuations",
-        )
-        visited = set()
-        for pk in priority_keys:
-            if pk in node:
-                visited.add(pk)
-                _collect_playlist_videos_and_tokens(node[pk], videos_out, tokens_out)
-        for k, v in node.items():
-            if k not in visited:
-                _collect_playlist_videos_and_tokens(v, videos_out, tokens_out)
-    elif isinstance(node, list):
-        for item in node:
-            _collect_playlist_videos_and_tokens(item, videos_out, tokens_out)
-
-
-def _extract_yt_items_and_token(items_list: list) -> tuple[list[tuple[str, str, str]], str]:
-    videos: list[tuple[str, str, str]] = []
-    tokens: list[str] = []
-    _collect_playlist_videos_and_tokens(items_list, videos, tokens)
-    return (videos, tokens[0] if tokens else "")
-
-
-def _post_youtube_innertube_browse(
-    payload: dict,
-    api_key: str = "",
-    visitor_data: str = "",
-    client_version: str = "2.20261101.01.00",
-    cookie_header: str = "",
-) -> dict | None:
-    try:
-        key_param = f"&key={api_key}" if api_key else ""
-        headers = {
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "Origin": "https://www.youtube.com",
-            "Referer": "https://www.youtube.com/",
-            "X-YouTube-Client-Name": "1",
-            "X-YouTube-Client-Version": client_version,
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-        }
-        if visitor_data:
-            headers["X-Goog-Visitor-Id"] = visitor_data
-        if cookie_header:
-            headers["Cookie"] = cookie_header
-        req = urllib.request.Request(
-            f"https://www.youtube.com/youtubei/v1/browse?prettyPrint=false{key_param}",
-            data=json.dumps(payload).encode("utf-8"),
-            headers=headers,
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            if resp.status != 200:
-                return None
-            return json.loads(resp.read().decode("utf-8", errors="replace"))
-    except Exception:
-        return None
-
-
 def _fetch_youtube_playlist_direct_continuations(list_id: str, clean_url: str, stop_event: threading.Event, reported_count: int = 0) -> bool:
-    if not list_id or list_id.startswith("RD"):
-        return False
-    api_key = ""
-    client_version = "2.20261101.01.00"
-    visitor_data = ""
-    cookies_list = ["CONSENT=YES+cb.20210328-17-p0.en+FX+410", "PREF=hl=en&gl=US"]
-    pending_tokens: list[str] = []
-    seen_tokens: set[str] = set()
-    page1_videos: list[tuple[str, str, str]] = []
-
-    try:
-        req = urllib.request.Request(
-            f"https://www.youtube.com/playlist?list={list_id}&hl=en&gl=US",
-            headers={
-                "Cookie": "; ".join(cookies_list),
-                "Accept-Language": "en-US,en;q=0.9",
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-            },
-        )
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            for sc in resp.headers.get_all("Set-Cookie") or []:
-                pair = sc.split(";", 1)[0].strip()
-                if pair:
-                    cookies_list.append(pair)
-            if resp.status == 200:
-                html = resp.read().decode("utf-8", errors="replace")
-                m_key = re.search(r'"INNERTUBE_API_KEY"\s*:\s*"([^"]+)"', html)
-                if m_key:
-                    api_key = m_key.group(1)
-                m_ver = re.search(r'"INNERTUBE_CLIENT_VERSION"\s*:\s*"([^"]+)"', html)
-                if m_ver:
-                    client_version = m_ver.group(1)
-                m_vis = re.search(r'"VISITOR_DATA"\s*:\s*"([^"]+)"', html)
-                if m_vis:
-                    visitor_data = m_vis.group(1)
-                for marker in ("var ytInitialData = ", 'window["ytInitialData"] = '):
-                    m_idx = html.find(marker)
-                    if m_idx != -1:
-                        j_start = m_idx + len(marker)
-                        j_end = html.find(";</script>", j_start)
-                        if j_end != -1:
-                            root_obj = json.loads(html[j_start:j_end].strip())
-                            if not visitor_data:
-                                visitor_data = str(root_obj.get("responseContext", {}).get("visitorData") or "")
-                            init_tokens: list[str] = []
-                            _collect_playlist_videos_and_tokens(root_obj, page1_videos, init_tokens)
-                            for t in init_tokens:
-                                if t not in seen_tokens:
-                                    seen_tokens.add(t)
-                                    pending_tokens.append(t)
-                            break
-    except Exception:
-        pass
-
-    if stop_event.is_set():
-        return False
-
-    cookie_str = "; ".join(cookies_list)
-    if not pending_tokens:
-        client_obj = {"hl": "en", "gl": "US", "clientName": "WEB", "clientVersion": client_version}
-        if visitor_data:
-            client_obj["visitorData"] = visitor_data
-        browse_id = list_id if list_id.startswith("VL") else f"VL{list_id}"
-        first_resp = _post_youtube_innertube_browse(
-            {"context": {"client": client_obj}, "browseId": browse_id},
-            api_key,
-            visitor_data,
-            client_version,
-            cookie_str,
-        )
-        if isinstance(first_resp, dict):
-            if not visitor_data:
-                visitor_data = str(first_resp.get("responseContext", {}).get("visitorData") or "")
-            init_tokens = []
-            _collect_playlist_videos_and_tokens(first_resp, page1_videos, init_tokens)
-            for t in init_tokens:
-                if t not in seen_tokens:
-                    seen_tokens.add(t)
-                    pending_tokens.append(t)
-
-    any_added = False
-    if page1_videos:
-        with lock:
-            cached = _info_cache.get(clean_url)
-            if cached and len(page1_videos) > len(cached["entries"]):
-                cur_idx = len(cached["entries"])
-                for vid, v_title, v_dur in page1_videos[cur_idx:]:
-                    cur_idx += 1
-                    cached["entries"].append({
-                        "index": cur_idx,
-                        "id": vid,
-                        "title": v_title or f"Video {cur_idx}",
-                        "duration": v_dur,
-                    })
-                    any_added = True
-                cached["playlist_count"] = max(int(cached.get("playlist_count") or 0), len(cached["entries"]))
-
-    pages_fetched = 0
-    while pending_tokens and pages_fetched < 50 and not stop_event.is_set():
-        tok = pending_tokens.pop(0)
-        client_obj = {"hl": "en", "gl": "US", "clientName": "WEB", "clientVersion": client_version}
-        if visitor_data:
-            client_obj["visitorData"] = visitor_data
-        cont_resp = _post_youtube_innertube_browse(
-            {"context": {"client": client_obj}, "continuation": tok},
-            api_key,
-            visitor_data,
-            client_version,
-            cookie_str,
-        )
-        if not isinstance(cont_resp, dict) or stop_event.is_set():
-            continue
-        new_vis = str(cont_resp.get("responseContext", {}).get("visitorData") or "")
-        if new_vis:
-            visitor_data = new_vis
-        page_videos: list[tuple[str, str, str]] = []
-        next_tokens: list[str] = []
-        _collect_playlist_videos_and_tokens(cont_resp, page_videos, next_tokens)
-        if page_videos:
-            pages_fetched += 1
-            for nt in reversed(next_tokens):
-                if nt not in seen_tokens:
-                    seen_tokens.add(nt)
-                    pending_tokens.insert(0, nt)
-            with lock:
-                cached = _info_cache.get(clean_url)
-                if not cached:
-                    break
-                cur_idx = len(cached["entries"])
-                for vid, v_title, v_dur in page_videos:
-                    cur_idx += 1
-                    cached["entries"].append({
-                        "index": cur_idx,
-                        "id": vid,
-                        "title": v_title or f"Video {cur_idx}",
-                        "duration": v_dur,
-                    })
-                    any_added = True
-                cached["playlist_count"] = max(int(cached.get("playlist_count") or 0), len(cached["entries"]))
-        else:
-            for nt in next_tokens:
-                if nt not in seen_tokens:
-                    seen_tokens.add(nt)
-                    pending_tokens.append(nt)
-
-    return any_added
+    return _yt_fetch_direct_continuations(
+        list_id,
+        clean_url,
+        stop_event,
+        reported_count=reported_count,
+        info_cache=_info_cache,
+        cache_lock=lock,
+    )
 
 
 def _fetch_playlist_page_dict(clean_url: str, has_list_param: bool, start_idx: int = 1, end_idx: int = 100) -> dict | None:
@@ -1005,7 +684,7 @@ def _fetch_playlist_page_dict(clean_url: str, has_list_param: bool, start_idx: i
             if end_idx > 0:
                 ydl_opts["playlistend"] = end_idx
         else:
-            ydl_opts["extractor_args"] = {"youtube": {"player_client": ["android", "web", "default"], "player_skip": ["configs"]}}
+            ydl_opts["extractor_args"] = {"youtube": {"player_client": ["android"], "player_skip": ["webpage", "configs"]}}
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             data = ydl.extract_info(clean_url, download=False)
     except Exception:
@@ -1023,7 +702,7 @@ def _fetch_playlist_page_dict(clean_url: str, has_list_param: bool, start_idx: i
         extractor_flags: list[str] = []
     else:
         playlist_flags = ["--no-playlist"]
-        extractor_flags = ["--extractor-args", "youtube:player_client=android,web,default;player_skip=configs"]
+        extractor_flags = ["--extractor-args", "youtube:player_client=android;player_skip=webpage,configs"]
 
     cmd = get_ytdlp_cmd() + [
         "--dump-single-json",
@@ -1052,24 +731,27 @@ def _fetch_playlist_page_dict(clean_url: str, has_list_param: bool, start_idx: i
         return json.loads(json_line)
 
 
-def fetch_video_info(url: str, full: bool = False) -> dict:
+def fetch_video_info(url: str, full: bool = False, verify: bool = False) -> dict:
     global _preview_stop_event, _preview_url
     clean_url = extract_url(url)
     if not valid_url(clean_url):
         raise ValueError("Enter a valid HTTPS video URL (YouTube, Facebook, Instagram, LinkedIn, TikTok, X, etc.).")
 
     with lock:
-        if clean_url in _info_cache and (not full or _info_cache[clean_url].get("duration") or _info_cache[clean_url].get("is_playlist")):
-            return _snapshot_cached_info(_info_cache[clean_url])
+        if clean_url in _info_cache:
+            c = _info_cache[clean_url]
+            has_verified_dur = bool(c.get("duration")) and not bool(c.get("duration_approx"))
+            if not full or (has_verified_dur and not verify) or c.get("is_playlist"):
+                return _snapshot_cached_info(c)
 
     parsed = urlparse(clean_url)
     qs = parse_qs(parsed.query)
     has_list_param = bool(qs.get("list")) or "/playlist" in (parsed.path or "")
     has_video_and_list = bool(qs.get("list")) and bool(qs.get("v") or parsed.hostname in {"youtu.be"})
 
-    # 1. Fast-path: try lightweight oEmbed API (~0.2s) for single videos (when not a playlist URL)
+    # 1. Fast-path: try lightweight oEmbed API (~0.2s) or OpenGraph (~0.4s) for single videos (when not a playlist URL)
     if not has_list_param and not full:
-        fast_info = _fetch_fast_oembed_info(clean_url, parsed, False)
+        fast_info = _fetch_fast_oembed_info(clean_url, parsed, False) or _fetch_fast_opengraph_info(clean_url, parsed, False)
         if fast_info:
             fast_info["entries"] = []
             fast_info["playlist_loading"] = False
@@ -1086,9 +768,15 @@ def fetch_video_info(url: str, full: bool = False) -> dict:
             _preview_stop_event = stop_event
             _preview_url = clean_url
 
-    # 2. Fetch Page 1 (items 1..100) using proven fast flat-playlist extraction, then stream remaining pages (101..N) in background
+    # 2. Fetch Page 1 (items 1..100): try direct YouTube ytInitialData (~0.5-1s) first, then fallback to proven yt-dlp flat-playlist
+    data = None
+    if has_list_param:
+        yt_list_id_fast = (qs.get("list") or [""])[0].strip()
+        if yt_list_id_fast:
+            data = _yt_fetch_playlist_page1_fast(yt_list_id_fast)
     try:
-        data = _fetch_playlist_page_dict(clean_url, has_list_param, 1, 100)
+        if not isinstance(data, dict):
+            data = _fetch_playlist_page_dict(clean_url, has_list_param, 1, 100)
     except Exception:
         if has_video_and_list:
             fast_info = _fetch_fast_oembed_info(clean_url, parsed, True)
@@ -1156,6 +844,7 @@ def fetch_video_info(url: str, full: bool = False) -> dict:
         "uploader": data.get("uploader") or data.get("channel") or data.get("creator") or data.get("extractor_key") or "Video",
         "duration": format_seconds(int(dur)) if isinstance(dur, (int, float)) and dur > 0 else "",
         "duration_seconds": int(dur) if isinstance(dur, (int, float)) else 0,
+        "duration_approx": False,
         "thumbnail": thumb,
         "is_playlist": is_playlist,
         "playlist_count": max(len(playlist_entries), reported_count) if (playlist_entries or reported_count) else (2 if is_playlist else 1),
@@ -1282,6 +971,40 @@ def validate_playlist_items(raw: str) -> str | None:
     return cleaned
 
 
+def _is_youtube_client_error(msg: str) -> bool:
+    """Detect YouTube client/format blocks so desktop downloads can fall back to web+default clients."""
+    low = (msg or "").lower()
+    return any(
+        tok in low
+        for tok in (
+            "precondition check failed",
+            "please sign in",
+            "sign in to confirm",
+            "http error 400",
+            "http error 403",
+            "requested format is not available",
+            "nsig extraction failed",
+        )
+    )
+
+
+def _is_rate_limit_error(msg: str) -> bool:
+    """Detect HTTP 429 / throttling / rate-limit errors so downloads can retry safely with 4 fragments."""
+    low = (msg or "").lower()
+    return any(
+        tok in low
+        for tok in (
+            "http error 429",
+            "429: too many requests",
+            "too many requests",
+            "rate limit",
+            "rate-limit",
+            "ratelimit",
+            "throttl",
+        )
+    )
+
+
 def download(
     jid: str,
     url: str,
@@ -1310,30 +1033,7 @@ def download(
 
         ffmpeg_bin = get_ffmpeg_path()
         has_ffmpeg = ffmpeg_bin is not None
-        cmd = get_ytdlp_cmd() + [
-            "--yes-playlist" if allow_playlist else "--no-playlist",
-            "--force-ipv4",
-            "--concurrent-fragments",
-            "4",
-            "--retries",
-            "10",
-            "--fragment-retries",
-            "10",
-            "--socket-timeout",
-            "20",
-            "--newline",
-            "--progress",
-            "--no-mtime",
-            "--windows-filenames",
-            "--extractor-args",
-            "youtube:player_client=android,web,default;skip=translated_subs",
-        ]
-        if allow_playlist:
-            cmd.append("--ignore-errors")
-            if playlist_items:
-                cmd.extend(["--playlist-items", playlist_items])
-        if ffmpeg_bin:
-            cmd.extend(["--ffmpeg-location", ffmpeg_bin])
+        has_aria2c = bool(shutil.which("aria2c"))
 
         clip_suffix = ""
         clip_duration = 0
@@ -1343,21 +1043,8 @@ def download(
             raise ValueError("Invalid clip time range. Use MM:SS or HH:MM:SS.")
 
         is_clip_job = bool((s_sec and s_sec > 0) or e_sec is not None)
-
-        if fmt_choice in {"mp3", "m4a", "wav"}:
-            if not has_ffmpeg and fmt_choice in {"mp3", "wav"}:
-                raise RuntimeError(f"FFmpeg is required to convert audio to {fmt_choice.upper()}. Run setup-and-run.bat or choose M4A / MP4.")
-            cmd.extend(["-x", "--audio-format", fmt_choice, "--audio-quality", "0"])
-        elif has_ffmpeg:
-            h_filter = "" if quality == "best" else f"[height<={quality}]"
-            if fmt_choice == "mp4":
-                fmt = f"bv*{h_filter}[ext=mp4]+ba[ext=m4a]/bv*{h_filter}+ba/b{h_filter}[ext=mp4]/b"
-            else:
-                fmt = f"bv*{h_filter}+ba/b{h_filter}/b"
-            cmd.extend(["--format", fmt, "--merge-output-format", fmt_choice])
-        else:
-            cmd.extend(["--format", "b" if quality == "best" else f"b[height<={quality}]/b"])
-
+        if fmt_choice in {"mp3", "m4a", "wav"} and not has_ffmpeg and fmt_choice in {"mp3", "wav"}:
+            raise RuntimeError(f"FFmpeg is required to convert audio to {fmt_choice.upper()}. Run setup-and-run.bat or choose M4A / MP4.")
         if is_clip_job:
             if not has_ffmpeg:
                 raise RuntimeError("FFmpeg is required for cutting/trimming video clips.")
@@ -1365,42 +1052,102 @@ def download(
                 clip_duration = max(1, e_sec - (s_sec or 0))
             elif duration_hint and duration_hint > (s_sec or 0):
                 clip_duration = max(1, int(duration_hint) - (s_sec or 0))
-            cmd.extend([
-                "--download-sections",
-                f"*{s_sec or 0}-{e_sec if e_sec is not None else 'inf'}",
-                "--no-embed-chapters",
-                "--downloader-args",
-                "ffmpeg:-stats -v warning",
-            ])
             clip_suffix = f" [clip {(start_time or '0').replace(':', '-')}_to_{(end_time or 'end').replace(':', '-')}]"
 
         expect_srt_subs = bool(subtitles and has_ffmpeg and fmt_choice in {"mp4", "mkv"})
-        if subtitles and fmt_choice in {"mp4", "mkv", "webm"}:
-            # On YouTube, every original auto-caption track has a <lang>-orig key AND a duplicate <lang> alias.
-            # Using ".*-orig" on YouTube downloads only 1 track (cutting CC download & FFmpeg conversion time in half).
-            is_yt = any(d in clean_url.lower() for d in ("youtube.com", "youtu.be", "youtube-nocookie.com"))
-            sub_langs_expr = ".*-orig" if is_yt else ".*-orig,bn.*,en.*"
-            cmd.extend([
-                "--write-subs",
-                "--write-auto-subs",
-                "--sub-langs",
-                sub_langs_expr,
-                "--compat-options",
-                "no-keep-subs",
-                "--ignore-errors",
-            ])
-            if has_ffmpeg:
-                if fmt_choice in {"mp4", "mkv"}:
-                    cmd.extend(["--convert-subs", "srt"])
-                if is_clip_job and clip_duration > 0:
-                    cmd.extend(["--postprocessor-args", f"EmbedSubtitle+ffmpeg_o:-t {clip_duration}"])
-                cmd.append("--embed-subs")
 
-        if embed_thumbnail and has_ffmpeg and fmt_choice in {"mp4", "mkv", "mp3", "m4a"}:
-            # Convert WebP thumbnails to JPG first so MP4/M4A/MP3 containers never reject the cover art format.
-            cmd.extend(["--convert-thumbnails", "jpg", "--embed-thumbnail"])
+        def _build_cmd(concurrent_fragments: int = 6, allow_aria2c: bool = True, use_fallback_client: bool = False) -> list[str]:
+            use_aria2c = bool(allow_aria2c and has_aria2c and not is_clip_job)
+            yt_client_arg = (
+                "youtube:player_client=android,web,default;skip=translated_subs"
+                if use_fallback_client
+                else "youtube:player_client=android;skip=translated_subs"
+            )
+            c = get_ytdlp_cmd() + [
+                "--yes-playlist" if allow_playlist else "--no-playlist",
+                "--force-ipv4",
+                "--concurrent-fragments",
+                str(concurrent_fragments),
+                "--buffer-size",
+                "64K",
+                "--retries",
+                "10",
+                "--fragment-retries",
+                "10",
+                "--socket-timeout",
+                "20",
+                "--newline",
+                "--progress",
+                "--no-mtime",
+                "--windows-filenames",
+                "--extractor-args",
+                yt_client_arg,
+            ]
+            if not is_clip_job:
+                if use_aria2c:
+                    c.extend([
+                        "--downloader",
+                        "http,https:aria2c",
+                        "--downloader-args",
+                        "aria2c:-x 8 -s 8 -k 1M --file-allocation=none --console-log-level=warn",
+                    ])
+                else:
+                    c.extend(["--http-chunk-size", "10M"])
+            if allow_playlist:
+                c.append("--ignore-errors")
+                if playlist_items:
+                    c.extend(["--playlist-items", playlist_items])
+            if ffmpeg_bin:
+                c.extend(["--ffmpeg-location", ffmpeg_bin])
 
-        cmd.extend(["--output", str(out / f"%(title).160B{clip_suffix}.%(ext)s"), "--", clean_url])
+            if fmt_choice in {"mp3", "m4a", "wav"}:
+                c.extend(["-x", "--audio-format", fmt_choice, "--audio-quality", "0"])
+            elif has_ffmpeg:
+                h_filter = "" if quality == "best" else f"[height<={quality}]"
+                if fmt_choice == "mp4":
+                    fmt = f"bv*{h_filter}[ext=mp4]+ba[ext=m4a]/bv*{h_filter}+ba/b{h_filter}[ext=mp4]/b"
+                else:
+                    fmt = f"bv*{h_filter}+ba/b{h_filter}/b"
+                c.extend(["--format", fmt, "--merge-output-format", fmt_choice])
+            else:
+                c.extend(["--format", "b" if quality == "best" else f"b[height<={quality}]/b"])
+
+            if is_clip_job:
+                c.extend([
+                    "--download-sections",
+                    f"*{s_sec or 0}-{e_sec if e_sec is not None else 'inf'}",
+                    "--no-embed-chapters",
+                    "--downloader-args",
+                    "ffmpeg:-stats -v warning",
+                ])
+
+            if subtitles and fmt_choice in {"mp4", "mkv", "webm"}:
+                # On YouTube, every original auto-caption track has a <lang>-orig key AND a duplicate <lang> alias.
+                # Using ".*-orig" on YouTube downloads only 1 track (cutting CC download & FFmpeg conversion time in half).
+                is_yt = any(d in clean_url.lower() for d in ("youtube.com", "youtu.be", "youtube-nocookie.com"))
+                sub_langs_expr = ".*-orig" if is_yt else ".*-orig,bn.*,en.*"
+                c.extend([
+                    "--write-subs",
+                    "--write-auto-subs",
+                    "--sub-langs",
+                    sub_langs_expr,
+                    "--compat-options",
+                    "no-keep-subs",
+                    "--ignore-errors",
+                ])
+                if has_ffmpeg:
+                    if fmt_choice in {"mp4", "mkv"}:
+                        c.extend(["--convert-subs", "srt"])
+                    if is_clip_job and clip_duration > 0:
+                        c.extend(["--postprocessor-args", f"EmbedSubtitle+ffmpeg_o:-t {clip_duration}"])
+                    c.append("--embed-subs")
+
+            if embed_thumbnail and has_ffmpeg and fmt_choice in {"mp4", "mkv", "mp3", "m4a"}:
+                # Convert WebP thumbnails to JPG first so MP4/M4A/MP3 containers never reject the cover art format.
+                c.extend(["--convert-thumbnails", "jpg", "--embed-thumbnail"])
+
+            c.extend(["--output", str(out / f"%(title).160B{clip_suffix}.%(ext)s"), "--", clean_url])
+            return c
 
         with lock:
             if jobs.get(jid, {}).get("state") == "Cancelled":
@@ -1426,13 +1173,6 @@ def download(
             popen_kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
         else:
             popen_kwargs["start_new_session"] = True
-
-        proc = subprocess.Popen(cmd, **popen_kwargs)
-        with lock:
-            if jobs.get(jid, {}).get("state") == "Cancelled":
-                terminate_process(proc)
-            else:
-                procs[jid] = proc
 
         recent, stream_count = [], 0
         pl_idx, pl_total = 0, 0
@@ -1461,172 +1201,224 @@ def download(
 
             threading.Thread(target=_sub_watcher, daemon=True).start()
 
-        for raw in proc.stdout:
+        def _run_attempt(cmd_args: list[str]) -> int:
+            nonlocal proc, recent, stream_count, pl_idx, pl_total, clip_started_ts, media_phase_started, saved_file
+            recent, stream_count = [], 0
+            clip_started_ts = time.time()
+            media_phase_started = False
+            proc = subprocess.Popen(cmd_args, **popen_kwargs)
             with lock:
                 if jobs.get(jid, {}).get("state") == "Cancelled":
                     terminate_process(proc)
-                    break
-            line = raw.strip()
-            if not line:
-                continue
-            recent = (recent + [line])[-15:]
+                else:
+                    procs[jid] = proc
 
-            m_pl = re.search(r"\[download\] Downloading (?:item|video)\s+(\d+)\s+of\s+(\d+)", line, re.I)
-            if m_pl:
-                pl_idx, pl_total = int(m_pl.group(1)), int(m_pl.group(2))
-                stream_count = 0
-                media_phase_started = False
+            for raw in proc.stdout:
+                with lock:
+                    if jobs.get(jid, {}).get("state") == "Cancelled":
+                        terminate_process(proc)
+                        break
+                line = raw.strip()
+                if not line:
+                    continue
+                recent = (recent + [line])[-15:]
+
+                m_pl = re.search(r"\[download\] Downloading (?:item|video)\s+(\d+)\s+of\s+(\d+)", line, re.I)
+                if m_pl:
+                    pl_idx, pl_total = int(m_pl.group(1)), int(m_pl.group(2))
+                    stream_count = 0
+                    media_phase_started = False
+                    update(
+                        jid,
+                        playlist_index=pl_idx,
+                        playlist_total=pl_total,
+                        playlist_done=max(0, pl_idx - 1),
+                        playlist_left=max(0, pl_total - pl_idx),
+                        percent=0,
+                        indeterminate=False,
+                        speed="",
+                        eta="",
+                        stage=f"Video {pl_idx}/{pl_total}",
+                        title=f"Downloading video {pl_idx} of {pl_total}…",
+                        detail=line[:600],
+                    )
+                    continue
+
+                for pat, inc in (
+                    (r"\[download\] Destination:\s+(.+)$", 1),
+                    (r'\[Merger\] Merging formats into "(.+?)"', 0),
+                    (r"\[ExtractAudio\] Destination:\s+(.+)$", 0),
+                    (r"\[VideoRemuxer\] Remuxing video from \w+ to \w+; Destination:\s+(.+)$", 0),
+                    (r"\[download\]\s+(.+?)\s+has already been downloaded", 0),
+                ):
+                    m = re.search(pat, line)
+                    if m:
+                        candidate_file = m.group(1).strip().strip('"')
+                        if Path(candidate_file).suffix.lower() not in SUB_OR_THUMB_EXTS:
+                            saved_file = candidate_file
+                            media_phase_started = True
+                            stream_count += inc
+                            if inc > 0:
+                                clip_started_ts = time.time()
+
+                prog = re.search(
+                    r"\[download\]\s+([\d.]+)%(?:\s+of\s+~?\s*[\d.]+\s*\w+)?(?:\s+at\s+(?:([\d.]+\s*\w+/s)|Unknown\s*\w*/s))?(?:\s+ETA\s+([\d:]+))?",
+                    line,
+                )
+                aria_prog = None if prog else re.search(
+                    r"\[#[0-9a-fA-F]+\s+[^\s(]+\((\d+)%\).*?DL:([\d.]+\s*\w+)(?:\s+ETA:([^\s\]]+))?",
+                    line,
+                )
+                dl_elapsed = re.search(
+                    r"\[download\]\s+([\d.]+\s*\w+)(?:\s+at\s+([\d.]+\s*\w+/s))?\s+\((\d{2}):(\d{2}):(\d{2})\)",
+                    line,
+                )
+                ff_prog = re.search(r"time=(\d{2}):(\d{2}):(\d{2}(?:\.\d+)?)", line)
+                if (
+                    ff_prog
+                    or dl_elapsed
+                    or "Input #0," in line
+                    or "Output #0," in line
+                    or "Downloading 1 time ranges" in line
+                    or "[Merger]" in line
+                    or "Merging formats" in line
+                    or "[EmbedSubtitle]" in line
+                ):
+                    media_phase_started = True
+
+                if is_clip_job and subtitles:
+                    _try_sync_subs()
+
+                line_clean_units = re.sub(r"([KMGTP])iB", r"\1B", line)
+                kw = {"detail": line_clean_units[:600]}
+
+                if prog or aria_prog:
+                    m_p = prog or aria_prog
+                    pct = float(m_p.group(1))
+                    base_label = (
+                        "Cutting & downloading clip"
+                        if is_clip_job
+                        else ("Downloading audio" if fmt_choice in {"mp3", "m4a", "wav"} else ("Downloading video" if stream_count <= 1 else "Downloading audio track"))
+                    )
+                    stage_label = f"Video {pl_idx}/{pl_total}" if pl_total > 1 else ("Cutting clip" if is_clip_job else base_label)
+                    raw_sp = (m_p.group(2) or "").strip()
+                    if aria_prog and raw_sp and not raw_sp.endswith("/s"):
+                        raw_sp += "/s"
+                    sp_clean = re.sub(r"([KMGTP])iB", r"\1B", raw_sp)
+                    kw.update(
+                        percent=pct,
+                        indeterminate=False,
+                        speed=sp_clean,
+                        eta=(m_p.group(3) or "").strip(),
+                        stage=stage_label,
+                        title=f"{base_label} ({pct:.0f}%)" + (f" [{pl_idx}/{pl_total}]" if pl_total > 1 else ""),
+                    )
+                elif dl_elapsed:
+                    sp_str = re.sub(r"([KMGTP])iB", r"\1B", (dl_elapsed.group(2) or "").strip())
+                    cur_sec = int(dl_elapsed.group(3)) * 3600 + int(dl_elapsed.group(4)) * 60 + int(dl_elapsed.group(5))
+                    if clip_duration > 0 and cur_sec > 0:
+                        pct = min(99.0, max(1.0, (cur_sec / clip_duration) * 100.0))
+                        wall_elapsed = max(0.5, time.time() - clip_started_ts)
+                        rate = cur_sec / wall_elapsed
+                        eta_str = format_seconds(int(max(0.0, clip_duration - cur_sec) / rate)) if rate > 0 else ""
+                        kw.update(
+                            percent=pct,
+                            indeterminate=False,
+                            speed=sp_str,
+                            eta=eta_str,
+                            stage="Cutting clip",
+                            title=f"Cutting & downloading clip ({pct:.0f}%)",
+                        )
+                    else:
+                        kw.update(
+                            indeterminate=True,
+                            speed=sp_str,
+                            eta="",
+                            stage="Cutting clip",
+                            title=f"Cutting clip ({format_seconds(cur_sec)} processed)…",
+                        )
+                elif ff_prog and is_clip_job:
+                    cur_sec = int(ff_prog.group(1)) * 3600 + int(ff_prog.group(2)) * 60 + float(ff_prog.group(3))
+                    sp_match = re.search(r"speed=\s*([\d.]+)x", line)
+                    sp_val = float(sp_match.group(1)) if sp_match else 0.0
+                    sp_str = f"{sp_val:.1f}x" if sp_val > 0 else ""
+                    if clip_duration > 0:
+                        pct = min(99.0, max(1.0, (cur_sec / clip_duration) * 100.0))
+                        eta_str = format_seconds(int(max(0.0, clip_duration - cur_sec) / sp_val)) if sp_val > 0 else ""
+                        kw.update(
+                            percent=pct,
+                            indeterminate=False,
+                            speed=sp_str,
+                            eta=eta_str,
+                            stage="Cutting clip",
+                            title=f"Cutting & encoding clip ({pct:.0f}%)",
+                        )
+                    else:
+                        kw.update(
+                            indeterminate=True,
+                            speed=sp_str,
+                            eta="",
+                            stage="Cutting clip",
+                            title=f"Cutting clip ({format_seconds(int(cur_sec))} processed)…",
+                        )
+
+                if "Downloading 1 time ranges" in line or (
+                    "[download] Destination:" in line and saved_file and saved_file in line
+                ):
+                    if is_clip_job and "percent" not in kw:
+                        kw.update(title="Cutting & downloading clip…", stage="Cutting clip", indeterminate=True)
+                    elif not is_clip_job and "percent" not in kw:
+                        kw.update(title="Downloading media stream…", stage="Downloading", indeterminate=True)
+                elif "Merging formats" in line or "[Merger]" in line:
+                    kw.update(title="Merging video & audio (almost done)…", stage="Merging", speed="", eta="", indeterminate=True)
+                elif "[ExtractAudio]" in line:
+                    kw.update(title="Converting audio format…", stage="Converting audio", speed="", eta="", indeterminate=True)
+                elif "Writing video subtitles" in line or "[SubtitlesConvertor]" in line:
+                    kw.update(title="Preparing subtitles (CC)…", stage="Subtitles (CC)", speed="", eta="", indeterminate=True)
+                elif "[EmbedSubtitle]" in line:
+                    kw.update(title="Embedding subtitles (CC)…", stage="Subtitles (CC)", speed="", eta="", indeterminate=True)
+                elif "Downloading video thumbnail" in line or "[ThumbnailsConvertor]" in line:
+                    kw.update(title="Preparing cover art…", stage="Cover art", speed="", eta="", indeterminate=True)
+                elif "[EmbedThumbnail]" in line:
+                    kw.update(title="Embedding cover art / thumbnail…", stage="Embedding cover", speed="", eta="", indeterminate=True)
+
+                if saved_file:
+                    kw["file_path"] = saved_file
+                update(jid, **kw)
+
+            return proc.wait()
+
+        rc = _run_attempt(_build_cmd(concurrent_fragments=6, allow_aria2c=True))
+        with lock:
+            _cancelled_after_first = jobs.get(jid, {}).get("state") == "Cancelled"
+        _has_saved_after_first = bool(saved_file and Path(saved_file).is_file() and Path(saved_file).stat().st_size > 0)
+        if rc != 0 and not _cancelled_after_first and not _has_saved_after_first:
+            recent_joined = "\n".join(recent)
+            if _is_rate_limit_error(recent_joined):
+                logging.warning("Rate limit detected on [%s]; retrying safely with 4 concurrent fragments.", jid)
                 update(
                     jid,
-                    playlist_index=pl_idx,
-                    playlist_total=pl_total,
-                    playlist_done=max(0, pl_idx - 1),
-                    playlist_left=max(0, pl_total - pl_idx),
-                    percent=0,
-                    indeterminate=False,
+                    title="Rate limited — retrying safely…",
+                    detail="Server rate-limited 6 threads; automatically switching to 4 parallel fragments…",
+                    indeterminate=True,
                     speed="",
                     eta="",
-                    stage=f"Video {pl_idx}/{pl_total}",
-                    title=f"Downloading video {pl_idx} of {pl_total}…",
-                    detail=line[:600],
+                    stage="Retrying",
                 )
-                continue
-
-            for pat, inc in (
-                (r"\[download\] Destination:\s+(.+)$", 1),
-                (r'\[Merger\] Merging formats into "(.+?)"', 0),
-                (r"\[ExtractAudio\] Destination:\s+(.+)$", 0),
-                (r"\[VideoRemuxer\] Remuxing video from \w+ to \w+; Destination:\s+(.+)$", 0),
-                (r"\[download\]\s+(.+?)\s+has already been downloaded", 0),
-            ):
-                m = re.search(pat, line)
-                if m:
-                    candidate_file = m.group(1).strip().strip('"')
-                    if Path(candidate_file).suffix.lower() not in SUB_OR_THUMB_EXTS:
-                        saved_file = candidate_file
-                        media_phase_started = True
-                        stream_count += inc
-                        if inc > 0:
-                            clip_started_ts = time.time()
-
-            prog = re.search(
-                r"\[download\]\s+([\d.]+)%(?:\s+of\s+~?\s*[\d.]+\s*\w+)?(?:\s+at\s+(?:([\d.]+\s*\w+/s)|Unknown\s*\w*/s))?(?:\s+ETA\s+([\d:]+))?",
-                line,
-            )
-            dl_elapsed = re.search(
-                r"\[download\]\s+([\d.]+\s*\w+)(?:\s+at\s+([\d.]+\s*\w+/s))?\s+\((\d{2}):(\d{2}):(\d{2})\)",
-                line,
-            )
-            ff_prog = re.search(r"time=(\d{2}):(\d{2}):(\d{2}(?:\.\d+)?)", line)
-            if (
-                ff_prog
-                or dl_elapsed
-                or "Input #0," in line
-                or "Output #0," in line
-                or "Downloading 1 time ranges" in line
-                or "[Merger]" in line
-                or "Merging formats" in line
-                or "[EmbedSubtitle]" in line
-            ):
-                media_phase_started = True
-
-            if is_clip_job and subtitles:
-                _try_sync_subs()
-
-            line_clean_units = re.sub(r"([KMGTP])iB", r"\1B", line)
-            kw = {"detail": line_clean_units[:600]}
-
-            if prog:
-                pct = float(prog.group(1))
-                base_label = (
-                    "Cutting & downloading clip"
-                    if is_clip_job
-                    else ("Downloading audio" if fmt_choice in {"mp3", "m4a", "wav"} else ("Downloading video" if stream_count <= 1 else "Downloading audio track"))
+                time.sleep(1.5)
+                rc = _run_attempt(_build_cmd(concurrent_fragments=4, allow_aria2c=False))
+            elif _is_youtube_client_error(recent_joined):
+                logging.warning("YouTube fast client rejected [%s]; retrying with web+default fallback.", jid)
+                update(
+                    jid,
+                    title="Retrying with full extractor…",
+                    detail="Switching to fallback YouTube client…",
+                    indeterminate=True,
+                    speed="",
+                    eta="",
+                    stage="Retrying",
                 )
-                stage_label = f"Video {pl_idx}/{pl_total}" if pl_total > 1 else ("Cutting clip" if is_clip_job else base_label)
-                sp_clean = re.sub(r"([KMGTP])iB", r"\1B", (prog.group(2) or "").strip())
-                kw.update(
-                    percent=pct,
-                    indeterminate=False,
-                    speed=sp_clean,
-                    eta=(prog.group(3) or "").strip(),
-                    stage=stage_label,
-                    title=f"{base_label} ({pct:.0f}%)" + (f" [{pl_idx}/{pl_total}]" if pl_total > 1 else ""),
-                )
-            elif dl_elapsed:
-                sp_str = re.sub(r"([KMGTP])iB", r"\1B", (dl_elapsed.group(2) or "").strip())
-                cur_sec = int(dl_elapsed.group(3)) * 3600 + int(dl_elapsed.group(4)) * 60 + int(dl_elapsed.group(5))
-                if clip_duration > 0 and cur_sec > 0:
-                    pct = min(99.0, max(1.0, (cur_sec / clip_duration) * 100.0))
-                    wall_elapsed = max(0.5, time.time() - clip_started_ts)
-                    rate = cur_sec / wall_elapsed
-                    eta_str = format_seconds(int(max(0.0, clip_duration - cur_sec) / rate)) if rate > 0 else ""
-                    kw.update(
-                        percent=pct,
-                        indeterminate=False,
-                        speed=sp_str,
-                        eta=eta_str,
-                        stage="Cutting clip",
-                        title=f"Cutting & downloading clip ({pct:.0f}%)",
-                    )
-                else:
-                    kw.update(
-                        indeterminate=True,
-                        speed=sp_str,
-                        eta="",
-                        stage="Cutting clip",
-                        title=f"Cutting clip ({format_seconds(cur_sec)} processed)…",
-                    )
-            elif ff_prog and is_clip_job:
-                cur_sec = int(ff_prog.group(1)) * 3600 + int(ff_prog.group(2)) * 60 + float(ff_prog.group(3))
-                sp_match = re.search(r"speed=\s*([\d.]+)x", line)
-                sp_val = float(sp_match.group(1)) if sp_match else 0.0
-                sp_str = f"{sp_val:.1f}x" if sp_val > 0 else ""
-                if clip_duration > 0:
-                    pct = min(99.0, max(1.0, (cur_sec / clip_duration) * 100.0))
-                    eta_str = format_seconds(int(max(0.0, clip_duration - cur_sec) / sp_val)) if sp_val > 0 else ""
-                    kw.update(
-                        percent=pct,
-                        indeterminate=False,
-                        speed=sp_str,
-                        eta=eta_str,
-                        stage="Cutting clip",
-                        title=f"Cutting & encoding clip ({pct:.0f}%)",
-                    )
-                else:
-                    kw.update(
-                        indeterminate=True,
-                        speed=sp_str,
-                        eta="",
-                        stage="Cutting clip",
-                        title=f"Cutting clip ({format_seconds(int(cur_sec))} processed)…",
-                    )
-
-            if "Downloading 1 time ranges" in line or (
-                "[download] Destination:" in line and saved_file and saved_file in line
-            ):
-                if is_clip_job and "percent" not in kw:
-                    kw.update(title="Cutting & downloading clip…", stage="Cutting clip", indeterminate=True)
-                elif not is_clip_job and "percent" not in kw:
-                    kw.update(title="Downloading media stream…", stage="Downloading", indeterminate=True)
-            elif "Merging formats" in line or "[Merger]" in line:
-                kw.update(title="Merging video & audio (almost done)…", stage="Merging", speed="", eta="", indeterminate=True)
-            elif "[ExtractAudio]" in line:
-                kw.update(title="Converting audio format…", stage="Converting audio", speed="", eta="", indeterminate=True)
-            elif "Writing video subtitles" in line or "[SubtitlesConvertor]" in line:
-                kw.update(title="Preparing subtitles (CC)…", stage="Subtitles (CC)", speed="", eta="", indeterminate=True)
-            elif "[EmbedSubtitle]" in line:
-                kw.update(title="Embedding subtitles (CC)…", stage="Subtitles (CC)", speed="", eta="", indeterminate=True)
-            elif "Downloading video thumbnail" in line or "[ThumbnailsConvertor]" in line:
-                kw.update(title="Preparing cover art…", stage="Cover art", speed="", eta="", indeterminate=True)
-            elif "[EmbedThumbnail]" in line:
-                kw.update(title="Embedding cover art / thumbnail…", stage="Embedding cover", speed="", eta="", indeterminate=True)
-
-            if saved_file:
-                kw["file_path"] = saved_file
-            update(jid, **kw)
-
-        rc = proc.wait()
+                rc = _run_attempt(_build_cmd(concurrent_fragments=4, allow_aria2c=False, use_fallback_client=True))
         sub_watcher_stop.set()
         with lock:
             procs.pop(jid, None)
@@ -1691,7 +1483,7 @@ def open_in_explorer(target_path: str) -> bool:
         resolved = p.resolve()
         if os.name == "nt":
             if resolved.is_file():
-                subprocess.Popen(f'explorer.exe /select,"{resolved}"')
+                subprocess.Popen(["explorer.exe", f"/select,{resolved}"])
             else:
                 os.startfile(str(resolved))
         elif sys.platform == "darwin":
@@ -1701,6 +1493,24 @@ def open_in_explorer(target_path: str) -> bool:
         return True
     except Exception:
         return False
+
+
+
+def _ps_single_quote(value: str) -> str:
+    """Safely quote a literal string for PowerShell without variable or backtick expansion."""
+    return "'" + str(value).replace("'", "''") + "'"
+
+
+def _is_local_host_header(host_header: str) -> bool:
+    """Validate HTTP Host header against localhost/loopback to prevent DNS rebinding."""
+    raw = (host_header or "").strip().lower()
+    if not raw:
+        return True
+    if raw.startswith("["):
+        host = raw.split("]", 1)[0] + "]"
+    else:
+        host = raw.split(":", 1)[0]
+    return host in {"127.0.0.1", "localhost", "[::1]"}
 
 
 def pick_folder_dialog(initial_dir: str = "") -> str | None:
@@ -1718,7 +1528,7 @@ def pick_folder_dialog(initial_dir: str = "") -> str | None:
                 "$f = New-Object System.Windows.Forms.FolderBrowserDialog; "
                 "$f.Description = 'Select Save Folder for ClipHaven'; "
                 "$f.ShowNewFolderButton = $true; "
-                f"$f.SelectedPath = {json.dumps(start_str)}; "
+                f"$f.SelectedPath = {_ps_single_quote(start_str)}; "
                 "if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { "
                 "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; "
                 "Write-Output $f.SelectedPath }"
@@ -1781,6 +1591,8 @@ class Handler(SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
+        if not _is_local_host_header(self.headers.get("Host", "")):
+            return self.json(403, {"ok": False, "error": "Invalid Host header."})
         p = urlparse(self.path)
         if p.path in {"/", "/index.html", "/style.css", "/app.js", "/logo.svg"}:
             self.path = "/index.html" if p.path == "/" else p.path
@@ -1802,6 +1614,8 @@ class Handler(SimpleHTTPRequestHandler):
         return self.json(404, {"ok": False, "error": "Not found."})
 
     def do_POST(self):
+        if not _is_local_host_header(self.headers.get("Host", "")):
+            return self.json(403, {"ok": False, "error": "Invalid Host header."})
         origin = self.headers.get("Origin", "")
         if origin:
             parsed_origin = urlparse(origin)
@@ -1827,8 +1641,15 @@ class Handler(SimpleHTTPRequestHandler):
             url = extract_url(str(body.get("url", "")))
             if not valid_url(url):
                 return self.json(400, {"ok": False, "error": "Enter a valid HTTPS link (YouTube, Facebook, Instagram, LinkedIn, TikTok, X, etc.)."})
+            if body.get("fast_duration"):
+                dur_sec = _fetch_fast_youtube_duration(url)
+                return self.json(200, {"ok": True, "info": {
+                    "duration": format_seconds(dur_sec) if dur_sec > 0 else "",
+                    "duration_seconds": dur_sec,
+                    "duration_approx": True,
+                }})
             try:
-                return self.json(200, {"ok": True, "info": fetch_video_info(url, full=bool(body.get("full", False)))})
+                return self.json(200, {"ok": True, "info": fetch_video_info(url, full=bool(body.get("full", False)), verify=bool(body.get("verify", False)))})
             except Exception as e:
                 return self.json(400, {"ok": False, "error": str(e)})
 

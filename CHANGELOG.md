@@ -3,6 +3,27 @@
 All notable changes to **ClipHaven** are documented in this file.
 
 
+## [[3.3.0](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.3.0)] - 2026-11-21
+
+### Added
+- **Redesigned Bilingual Studio UI (`index.html`, `style.css`, `app.js`)**: Added real-time `EN / বাংলা` switching, responsive `Docs`/`Documentation` (`নথি`/`নির্দেশিকা`) and target-state language/theme toggles, sliding `Video / Audio` mode tabs with quick format & resolution chips, visual dual-handle clip trimmer with max-duration clamping guard, playlist search with zero-selection validation, context-aware `Download Now` → `Download Next` (`Up Next` sequential queue), auto platform icons, drag-and-drop URL support, GPU-composited micro-animations (platform icon spring-pop, animated complete checkmark, focus highlights), 0-KB offline Web Audio UI sound cues, and Android haptic feedback.
+- **Android CI Pipeline (`.github/workflows/ci.yml`)**: Added automated `gradle -p android assembleDebug lintDebug` verification on every push and pull request alongside cross-platform Python tests.
+- **Modular Backend & Android Architecture**: Extracted `core/subtitles.py` and `core/playlist.py` from `server.py`, and split `FormatUtils.kt`, `SubtitleSyncHelper.kt`, and `PlaylistHelper.kt` out of `MainActivity.kt` for cleaner maintenance and faster debugging.
+- **Expanded Automated Test Suite (`tests/test_server.py`)**: Added unit tests for HTTP `Host` header DNS rebinding protection, PowerShell literal path escaping, and recursive YouTube playlist JSON parsing.
+
+### Changed & Improved
+- **Ultra-Fast Multi-Platform Previews (`server.py`, `core/playlist.py`, `MainActivity.kt`, `PlaylistHelper.kt`)**: Added lightweight OpenGraph (`64 KB` `<head>` meta) fast-path for Facebook, Instagram, Threads, LinkedIn, Pinterest, and Twitch, official `publish.twitter.com/oembed` for X/Twitter, and direct `ytInitialData` Page-1 extraction for YouTube playlists (~0.3–1.0s previews) with automatic transparent fallback to `yt-dlp`.
+- **Adaptive Download Speed Optimization (`server.py`, `MainActivity.kt`)**: Added `--http-chunk-size 10M` to bypass YouTube single-stream throttling, upgraded parallel DASH/HLS downloads to `--concurrent-fragments 6` with automatic safe fallback retry to `4` threads on HTTP 429 rate-limit errors, tuned `--buffer-size` (`64K` Desktop / `32K` Android), and added automatic optional `aria2c` acceleration on Desktop when available in `PATH`.
+- **Upgraded Android Notifications (`DownloadForegroundService.kt`, `ic_stat_cliphaven.xml`, `notification_download_progress.xml`)**: Added 3-line `DecoratedCustomViewStyle` layout (full title on line 1, `#14B8A6` Teal progress bar on line 2, live status/speed/ETA neatly below the bar on line 3), 1:1 center-cropped square thumbnail (`192×192`), cached launcher logo fallback, custom `logo.svg` status bar silhouette, silent active channel + separate sound-enabled completion channel, and `EN / বাংলা` language sync.
+- **Instant YouTube Startup & Fast Duration Verification (`server.py`, `MainActivity.kt`, `app.js`)**: Switched primary YouTube requests to `player_client=android` to bypass slow `[jsc:quickjs]` web JS challenge solving (cutting `Preparing` time from 10–20s to ~1–2s with automatic `android,web,default` fallback), added zero-extra-request OpenGraph `video:duration`/JSON-LD parsing and lightweight `160 KB` YouTube fast duration lookup with non-blocking background `yt-dlp` reconciliation.
+- **Android UX & Lifecycle Fixes (`AndroidManifest.xml`, `MainActivity.kt`, `app.js`, `style.css`)**: Added `android:launchMode="singleTask"` to prevent duplicate ClipHaven instances on Share intents, updated `Browse` folder picker to open directly inside the currently selected folder (Scoped-Storage-safe), enforced strict Select-All sync on `Entire Playlist`, polished `Recent Downloads` 1-line truncated cards, moved preview duration badge cleanly below uploader, and upgraded `#progress-fill` & `.slider-fill` to smooth animated gradients.
+- **Android Bounded Thread Pools & Lifecycle Cleanup (`MainActivity.kt`)**: Replaced raw `thread {}` spawns with bounded `apiExecutor` (`newFixedThreadPool(4)`) and `bgExecutor` (`newCachedThreadPool()`) pools to eliminate per-poll thread creation overhead, and added `onDestroy()` cleanup for executors and `WebView`.
+
+### Security
+- **Android WebView Hardening (`MainActivity.kt`, `AndroidManifest.xml`)**: Migrated local asset loading to `androidx.webkit.WebViewAssetLoader` (`https://appassets.androidplatform.net/assets/index.html`), disabled `allowFileAccess`, `allowUniversalAccessFromFileURLs`, `MIXED_CONTENT_ALWAYS_ALLOW`, and `usesCleartextTraffic`.
+- **TLS Verification by Default (`MainActivity.kt`)**: Removed unconditional `--no-check-certificates` on primary `yt-dlp` requests and restricted it to automatic fallback retries when SSL certificate errors occur.
+- **Desktop Backend Hardening (`server.py`)**: Added localhost `Host` header validation (HTTP 403 on non-local hosts to prevent DNS rebinding), safe PowerShell single-quote escaping in `pick_folder_dialog()`, and list-argument `explorer.exe` invocation in `open_in_explorer()`.
+
 ## [[3.2.3](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.2.3)] - 2026-11-11
 
 ### Added & Improved

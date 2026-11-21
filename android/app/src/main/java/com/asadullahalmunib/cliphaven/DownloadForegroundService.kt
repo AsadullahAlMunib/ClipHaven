@@ -10,9 +10,15 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.LinearGradient
+import android.graphics.Paint
+import android.graphics.RectF
+import android.graphics.Shader
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import java.net.HttpURLConnection
@@ -23,8 +29,11 @@ class DownloadForegroundService : Service() {
 
     companion object {
         const val CHANNEL_ID = "cliphaven_downloads_channel"
+        const val COMPLETE_CHANNEL_ID = "cliphaven_complete_channel"
         const val NOTIFICATION_ID = 8765
         const val COMPLETE_NOTIFICATION_ID = 8766
+        private const val COMPLETED_GROUP_KEY = "cliphaven_completed_group"
+        private val completedNotifSeq = java.util.concurrent.atomic.AtomicInteger(9000)
 
         const val ACTION_START = "com.asadullahalmunib.cliphaven.action.START"
         const val ACTION_STOP = "com.asadullahalmunib.cliphaven.action.STOP"
@@ -38,8 +47,8 @@ class DownloadForegroundService : Service() {
         const val EXTRA_PERCENT = "extra_percent"
         const val EXTRA_INDETERMINATE = "extra_indeterminate"
 
-        private val BRAND_COLOR = 0xFF8B5CF6.toInt()
-        private val COMPLETE_COLOR = 0xFF16A34A.toInt()
+        private val BRAND_COLOR = 0xFF14B8A6.toInt()
+        private val COMPLETE_COLOR = 0xFF22C55E.toInt()
         private const val MIN_UPDATE_INTERVAL_MS = 350L
 
         @Volatile
@@ -47,6 +56,9 @@ class DownloadForegroundService : Service() {
 
         @Volatile
         var onCancelRequested: ((String) -> Unit)? = null
+
+        @Volatile
+        var isBangla: Boolean = false
 
         @Volatile
         private var lastUpdateMs: Long = 0L
@@ -60,14 +72,12 @@ class DownloadForegroundService : Service() {
                 lastStageSubText = ""
                 hasPendingUpdate = false
                 pendingJobId = jobId
-                val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
-                nm?.cancel(COMPLETE_NOTIFICATION_ID)
                 val intent = Intent(context, DownloadForegroundService::class.java).apply {
                     action = ACTION_START
                     putExtra(EXTRA_JOB_ID, jobId)
                     putExtra(EXTRA_TITLE, title)
                     putExtra(EXTRA_DETAIL, detail)
-                    putExtra(EXTRA_SUBTEXT, "Starting")
+                    putExtra(EXTRA_SUBTEXT, if (isBangla) "শুরু হচ্ছে" else "Starting")
                     putExtra(EXTRA_THUMB_URL, thumbUrl)
                     putExtra(EXTRA_PERCENT, 0)
                     putExtra(EXTRA_INDETERMINATE, true)
@@ -122,16 +132,68 @@ class DownloadForegroundService : Service() {
             }
         }
 
-        fun showCompleted(context: Context, videoTitle: String, detailText: String, filePath: String = "") {
+        fun buildOpenFolderIntent(context: Context, rawTarget: String): Intent {
+            try {
+                val trimmed = rawTarget.trim()
+                val dirPath = if (trimmed.isNotEmpty()) {
+                    val f = java.io.File(trimmed)
+                    if (f.isFile || (!f.exists() && trimmed.substringAfterLast('/').contains('.'))) {
+                        f.parent ?: trimmed
+                    } else {
+                        trimmed
+                    }
+                } else {
+                    ""
+                }
+                val extRoot = android.os.Environment.getExternalStorageDirectory().absolutePath.trimEnd('/')
+                val docId = when {
+                    dirPath.isEmpty() -> "primary:Download/ClipHaven"
+                    dirPath.startsWith("/storage/") && !dirPath.startsWith("/storage/emulated/") -> {
+                        val rest = dirPath.removePrefix("/storage/").trimStart('/')
+                        val vol = rest.substringBefore("/")
+                        val sub = rest.substringAfter("/", "").trim('/')
+                        if (vol.isNotEmpty()) "$vol:$sub" else "primary:Download/ClipHaven"
+                    }
+                    dirPath == extRoot -> "primary:"
+                    dirPath.startsWith("$extRoot/") -> "primary:${dirPath.removePrefix("$extRoot/").trim('/')}"
+                    else -> {
+                        val rel = dirPath
+                            .replaceFirst(Regex("""^/(?:storage/emulated/\d+|storage/sdcard\d+|sdcard)/?""", RegexOption.IGNORE_CASE), "")
+                            .replaceFirst(Regex("""^Internal Storage/?""", RegexOption.IGNORE_CASE), "")
+                            .replaceFirst(Regex("""^Downloads(?=/|$)""", RegexOption.IGNORE_CASE), "Download")
+                            .trim('/', '\\')
+                        "primary:$rel"
+                    }
+                }
+                val folderUri = android.provider.DocumentsContract.buildDocumentUri(
+                    "com.android.externalstorage.documents",
+                    docId
+                )
+                val docIntent = Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(folderUri, android.provider.DocumentsContract.Document.MIME_TYPE_DIR)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                if (docIntent.resolveActivity(context.packageManager) != null) {
+                    return docIntent
+                }
+            } catch (_: Throwable) {
+            }
+            return Intent(android.app.DownloadManager.ACTION_VIEW_DOWNLOADS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+        }
+
+        fun showCompleted(context: Context, videoTitle: String, detailText: String, filePath: String = "", folderPath: String = "") {
             try {
                 val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
+                val notifId = completedNotifSeq.incrementAndGet()
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     val channel = NotificationChannel(
-                        CHANNEL_ID,
-                        "ClipHaven Downloads",
-                        NotificationManager.IMPORTANCE_LOW
+                        COMPLETE_CHANNEL_ID,
+                        "ClipHaven Completed",
+                        NotificationManager.IMPORTANCE_DEFAULT
                     ).apply {
-                        description = "Shows live download and video conversion progress"
+                        description = "Notifies with sound when a download completes"
                         setShowBadge(true)
                     }
                     nm.createNotificationChannel(channel)
@@ -148,13 +210,13 @@ class DownloadForegroundService : Service() {
                 val largeBmp = instance?.currentLargeIcon
                     ?: try { BitmapFactory.decodeResource(context.resources, R.mipmap.ic_launcher) } catch (_: Throwable) { null }
 
-                val cleanTitle = videoTitle.ifEmpty { "Media saved" }
-                val notifBuilder = NotificationCompat.Builder(context, CHANNEL_ID)
+                val cleanTitle = videoTitle.ifEmpty { if (isBangla) "মিডিয়া সেভ হয়েছে" else "Media saved" }
+                val notifBuilder = NotificationCompat.Builder(context, COMPLETE_CHANNEL_ID)
                     .setSmallIcon(R.drawable.ic_stat_cliphaven)
                     .setColor(COMPLETE_COLOR)
-                    .setContentTitle("Download complete!")
+                    .setContentTitle(if (isBangla) "ডাউনলোড সম্পন্ন!" else "Download complete!")
                     .setContentText(cleanTitle)
-                    .setSubText("Completed")
+                    .setSubText(if (isBangla) "সম্পন্ন" else "Completed")
                     .setStyle(NotificationCompat.BigTextStyle().bigText("$cleanTitle\n$detailText"))
                     .setLargeIcon(largeBmp)
                     .setContentIntent(contentIntent)
@@ -186,24 +248,24 @@ class DownloadForegroundService : Service() {
                                 setDataAndType(fileUri, mime)
                                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
                             }
-                            val playPending = PendingIntent.getActivity(context, 101, playIntent, pendingFlags)
-                            notifBuilder.addAction(0, "▶️ Play", playPending)
+                            val playPending = PendingIntent.getActivity(context, notifId * 2, playIntent, pendingFlags)
+                            notifBuilder.addAction(0, if (isBangla) "▶ চালান" else "▶ Play", playPending)
                         } catch (_: Throwable) {
                         }
                     }
                 }
 
-                // 2. [ 📂 Open Folder ] Action Button (Opens folder in Downloads / file manager)
+                // 2. [ 📂 Open Folder ] Action Button (Opens the exact saved folder via DocumentsContract)
                 try {
-                    val folderIntent = Intent(android.app.DownloadManager.ACTION_VIEW_DOWNLOADS).apply {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                    val folderPending = PendingIntent.getActivity(context, 102, folderIntent, pendingFlags)
-                    notifBuilder.addAction(0, "📂 Open Folder", folderPending)
+                    val targetFolder = folderPath.ifEmpty { filePath }
+                    val folderIntent = buildOpenFolderIntent(context, targetFolder)
+                    val folderPending = PendingIntent.getActivity(context, notifId * 2 + 1, folderIntent, pendingFlags)
+                    notifBuilder.addAction(0, if (isBangla) "ফোল্ডার খুলুন" else "Open Folder", folderPending)
                 } catch (_: Throwable) {
                 }
 
-                nm.notify(COMPLETE_NOTIFICATION_ID, notifBuilder.build())
+                notifBuilder.setGroup(COMPLETED_GROUP_KEY)
+                nm.notify(notifId, notifBuilder.build())
             } catch (_: Throwable) {
             }
         }
@@ -284,13 +346,53 @@ class DownloadForegroundService : Service() {
         }
     }
 
-    private fun loadThumbnailAsync(thumbUrl: String, forJobId: String) {
-        val fallbackLogo = try {
-            BitmapFactory.decodeResource(resources, R.mipmap.ic_launcher)
+    private var cachedFallbackLogo: Bitmap? = null
+
+    private fun getFallbackLogo(): Bitmap? {
+        cachedFallbackLogo?.let { return it }
+        return try {
+            BitmapFactory.decodeResource(resources, R.mipmap.ic_launcher)?.also {
+                cachedFallbackLogo = it
+            }
         } catch (_: Throwable) {
             null
         }
-        currentLargeIcon = fallbackLogo
+    }
+
+    /** Decode and center-crop any thumbnail to a crisp 1:1 square (192x192) to stay well under Binder limits. */
+    private fun decodeSquareThumbnail(bytes: ByteArray, targetPx: Int = 192): Bitmap? {
+        return try {
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+            val rawW = bounds.outWidth
+            val rawH = bounds.outHeight
+            if (rawW <= 0 || rawH <= 0) return null
+            var sample = 1
+            val minSide = minOf(rawW, rawH)
+            while (minSide / (sample * 2) >= targetPx) {
+                sample *= 2
+            }
+            val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+            val decoded = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts) ?: return null
+            val side = minOf(decoded.width, decoded.height)
+            val x = (decoded.width - side) / 2
+            val y = (decoded.height - side) / 2
+            val cropped = Bitmap.createBitmap(decoded, x, y, side, side)
+            if (cropped !== decoded) decoded.recycle()
+            if (cropped.width == targetPx) {
+                cropped
+            } else {
+                val scaled = Bitmap.createScaledBitmap(cropped, targetPx, targetPx, true)
+                if (scaled !== cropped) cropped.recycle()
+                scaled
+            }
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    private fun loadThumbnailAsync(thumbUrl: String, forJobId: String) {
+        currentLargeIcon = getFallbackLogo()
         if (thumbUrl.isBlank() || !thumbUrl.startsWith("https://")) return
 
         thread {
@@ -304,7 +406,7 @@ class DownloadForegroundService : Service() {
                 }
                 if (conn.responseCode == 200) {
                     val bytes = conn.inputStream.use { it.readBytes() }
-                    val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                    val bmp = decodeSquareThumbnail(bytes, 192)
                     if (bmp != null && currentJobId == forJobId) {
                         currentLargeIcon = bmp
                         updateNotification(
@@ -322,6 +424,38 @@ class DownloadForegroundService : Service() {
                 try { conn?.disconnect() } catch (_: Throwable) {}
             }
         }
+    }
+
+    @Volatile
+    private var gradPhase: Float = 0f
+
+    private fun renderAnimatedProgressBarBitmap(percent: Int): Bitmap {
+        val w = 360
+        val h = 16
+        val r = h / 2f
+        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x3394A3B8 }
+        canvas.drawRoundRect(RectF(0f, 0f, w.toFloat(), h.toFloat()), r, r, trackPaint)
+
+        val fillW = ((percent.coerceIn(0, 100) / 100f) * w).coerceAtLeast(if (percent > 0) h.toFloat() else 0f)
+        if (fillW > 0f) {
+            gradPhase = (gradPhase + 0.16f) % 2f
+            val shift = gradPhase * w
+            val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                shader = LinearGradient(
+                    -shift,
+                    0f,
+                    w.toFloat() * 1.6f - shift,
+                    0f,
+                    intArrayOf(0xFF14B8A6.toInt(), 0xFF10B981.toInt(), 0xFFF59E0B.toInt(), 0xFF14B8A6.toInt()),
+                    floatArrayOf(0f, 0.36f, 0.72f, 1f),
+                    Shader.TileMode.MIRROR
+                )
+            }
+            canvas.drawRoundRect(RectF(0f, 0f, fillW, h.toFloat()), r, r, fillPaint)
+        }
+        return bmp
     }
 
     private fun buildNotification(
@@ -352,22 +486,50 @@ class DownloadForegroundService : Service() {
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_cliphaven)
             .setColor(BRAND_COLOR)
-            .setContentTitle(title.ifEmpty { "ClipHaven Downloading…" })
+            .setContentTitle(title.ifEmpty { if (isBangla) "ClipHaven ডাউনলোড হচ্ছে…" else "ClipHaven Downloading…" })
             .setContentText(detail)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            .addAction(0, "✕ Cancel", cancelPendingIntent)
+            .addAction(0, if (isBangla) "বাতিল" else "Cancel", cancelPendingIntent)
 
         if (subText.isNotEmpty()) {
             builder.setSubText(subText)
         }
-        currentLargeIcon?.let { builder.setLargeIcon(it) }
-
-        if (indeterminate) {
-            builder.setProgress(100, 0, true)
-        } else {
-            builder.setProgress(100, percent.coerceIn(0, 100), false)
+        val thumbBmp = currentLargeIcon ?: getFallbackLogo()
+        val safeTitle = title.ifEmpty { if (isBangla) "ClipHaven ডাউনলোড হচ্ছে…" else "ClipHaven Downloading…" }
+        val safePct = percent.coerceIn(0, 100)
+        try {
+            val customViews = RemoteViews(packageName, R.layout.notification_download_progress).apply {
+                setTextViewText(R.id.notif_title, safeTitle)
+                if (indeterminate) {
+                    setViewVisibility(R.id.notif_progress_img, android.view.View.GONE)
+                    setViewVisibility(R.id.notif_progress, android.view.View.VISIBLE)
+                    setProgressBar(R.id.notif_progress, 100, 0, true)
+                } else {
+                    setViewVisibility(R.id.notif_progress, android.view.View.GONE)
+                    setViewVisibility(R.id.notif_progress_img, android.view.View.VISIBLE)
+                    setImageViewBitmap(R.id.notif_progress_img, renderAnimatedProgressBarBitmap(safePct))
+                }
+                setTextViewText(R.id.notif_detail, detail)
+                if (thumbBmp != null) {
+                    setImageViewBitmap(R.id.notif_thumb, thumbBmp)
+                    setViewVisibility(R.id.notif_thumb, android.view.View.VISIBLE)
+                } else {
+                    setViewVisibility(R.id.notif_thumb, android.view.View.GONE)
+                }
+            }
+            builder
+                .setStyle(NotificationCompat.DecoratedCustomViewStyle())
+                .setCustomContentView(customViews)
+                .setCustomBigContentView(customViews)
+        } catch (_: Throwable) {
+            thumbBmp?.let { builder.setLargeIcon(it) }
+            if (indeterminate) {
+                builder.setProgress(100, 0, true)
+            } else {
+                builder.setProgress(100, safePct, false)
+            }
         }
 
         return builder.build()
@@ -443,8 +605,8 @@ class DownloadForegroundService : Service() {
         } else {
             currentJobId = jobId
             currentTitle = intent?.getStringExtra(EXTRA_TITLE) ?: "ClipHaven"
-            currentDetail = intent?.getStringExtra(EXTRA_DETAIL) ?: "Preparing download…"
-            currentSubText = intent?.getStringExtra(EXTRA_SUBTEXT) ?: "Starting"
+            currentDetail = intent?.getStringExtra(EXTRA_DETAIL) ?: if (isBangla) "ডাউনলোড প্রস্তুত হচ্ছে…" else "Preparing download…"
+            currentSubText = intent?.getStringExtra(EXTRA_SUBTEXT) ?: if (isBangla) "শুরু হচ্ছে" else "Starting"
             currentPercent = intent?.getIntExtra(EXTRA_PERCENT, 0) ?: 0
             currentIndeterminate = intent?.getBooleanExtra(EXTRA_INDETERMINATE, true) ?: true
         }

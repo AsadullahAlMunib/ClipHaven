@@ -1,6 +1,7 @@
 const $ = (id) => document.getElementById(id);
 let timer = null;
 let currentJobId = null;
+let activeDownloadUrl = "";
 let previewTimer = null;
 let previewSeq = 0;
 let lastPreviewUrl = "";
@@ -58,6 +59,74 @@ function normalizeInputUrl(raw) {
   return s;
 }
 
+
+// 0-KB Offline Subtle Sound FX (Web Audio API) & Haptic Feedback
+let _uiAudioCtx = null;
+function _ensureAudioCtx() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return null;
+    if (!_uiAudioCtx) _uiAudioCtx = new Ctx();
+    if (_uiAudioCtx.state === "suspended") _uiAudioCtx.resume().catch(() => {});
+    return _uiAudioCtx;
+  } catch (_) {
+    return null;
+  }
+}
+["pointerdown", "keydown"].forEach((ev) => {
+  window.addEventListener(ev, () => { _ensureAudioCtx(); }, { once: true, passive: true });
+});
+
+function playUiTone(kind) {
+  try {
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const ctx = _ensureAudioCtx();
+    if (!ctx) return;
+    const run = () => {
+      try {
+        const now = ctx.currentTime + 0.005;
+        const playNote = (freq, startOffset, dur, peakGain, endFreq) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(freq, now + startOffset);
+          if (endFreq) osc.frequency.exponentialRampToValueAtTime(endFreq, now + startOffset + dur);
+          gain.gain.setValueAtTime(0.0001, now + startOffset);
+          gain.gain.exponentialRampToValueAtTime(peakGain, now + startOffset + 0.012);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + startOffset + dur);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now + startOffset);
+          osc.stop(now + startOffset + dur + 0.02);
+        };
+        if (kind === "complete") {
+          playNote(523.25, 0, 0.15, 0.18);
+          playNote(659.25, 0.09, 0.22, 0.18);
+        } else if (kind === "pop") {
+          playNote(620, 0, 0.075, 0.14, 820);
+        } else if (kind === "error") {
+          playNote(240, 0, 0.18, 0.16, 175);
+        }
+      } catch (_) {}
+    };
+    if (ctx.state === "suspended") {
+      ctx.resume().then(run).catch(() => {});
+    } else {
+      run();
+    }
+  } catch (_) {}
+}
+
+function triggerHaptic(kind) {
+  try {
+    if (!navigator.vibrate) return;
+    if (kind === "complete") navigator.vibrate([14, 40, 22]);
+    else if (kind === "error") navigator.vibrate([28, 30, 28]);
+    else navigator.vibrate(10);
+  } catch (_) {}
+}
+let _lastStatusFeedbackKey = "";
+
 function status(
   title,
   detail,
@@ -71,19 +140,62 @@ function status(
   playlistInfo = null,
 ) {
   $("status").classList.add("show");
-  $("title").textContent = title;
-  $("title").className = "status-title " + cls;
+  const titleEl = $("title");
+  titleEl.className = "status-title " + cls;
+  if (cls === "ok") {
+    titleEl.textContent = "";
+    const svgNS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(svgNS, "svg");
+    svg.setAttribute("class", "status-check-svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "2.6");
+    svg.setAttribute("stroke-linecap", "round");
+    svg.setAttribute("stroke-linejoin", "round");
+    const p = document.createElementNS(svgNS, "path");
+    p.setAttribute("d", "M20 6L9 17l-5-5");
+    svg.appendChild(p);
+    titleEl.appendChild(svg);
+    titleEl.appendChild(document.createTextNode(title));
+  } else {
+    titleEl.textContent = title;
+  }
+  const fbKey = `${cls}|${pill}|${title}`;
+  if (fbKey !== _lastStatusFeedbackKey) {
+    _lastStatusFeedbackKey = fbKey;
+    if (cls === "ok") {
+      playUiTone("complete");
+      triggerHaptic("complete");
+    } else if (cls === "err" || cls === "error") {
+      playUiTone("error");
+      triggerHaptic("error");
+    }
+  }
   $("detail").textContent = String(detail || "").replace(/([KMGTP])iB/g, "$1B");
 
   const progEl = $("progress");
+  const fillEl = $("progress-fill");
+  const clampedPct = Math.max(0, Math.min(100, pct));
+  const isDoneOrErr = cls === "ok" || cls === "err" || pill === "Cancelled";
   if (indeterminate) {
     progEl.removeAttribute("value");
     progEl.classList.add("indeterminate");
+    if (fillEl) {
+      fillEl.classList.add("is-active", "is-indeterminate");
+      fillEl.style.width = "42%";
+    }
   } else {
     progEl.classList.remove("indeterminate");
-    progEl.value = Math.max(0, Math.min(100, pct));
+    progEl.value = clampedPct;
+    if (fillEl) {
+      fillEl.classList.remove("is-indeterminate");
+      fillEl.style.width = `${clampedPct}%`;
+      fillEl.classList.toggle("is-active", !isDoneOrErr && clampedPct > 0 && clampedPct < 100);
+    }
   }
   $("pill").textContent = pill;
+  $("pill").classList.toggle("done-pop", cls === "ok");
 
   const plEl = $("playlist-pill");
   if (playlistInfo && playlistInfo.total > 1) {
@@ -163,20 +275,34 @@ async function api(path, opts = {}) {
 
 // Theme management
 const themeBtn = $("theme");
-function applyTheme(t) {
+function applyTheme(t, animate = false) {
   document.documentElement.setAttribute("data-theme", t);
-  themeBtn.textContent = t === "light" ? "🌙 Dark" : "☀️ Light";
   localStorage.setItem("theme", t);
+  const isLight = t === "light";
+  const langNow = localStorage.getItem("cliphaven_lang") || "en";
+  const lbl = $("theme-label");
+  if (lbl) lbl.textContent = langNow === "bn" ? (isLight ? "ডার্ক" : "লাইট") : (isLight ? "Dark" : "Light");
+  const ic = $("theme-icon");
+  if (ic) {
+    ic.innerHTML = isLight
+      ? '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>'
+      : '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+    if (animate) {
+      ic.classList.remove("icon-spin");
+      void ic.offsetWidth;
+      ic.classList.add("icon-spin");
+    }
+  }
 }
 applyTheme(
   localStorage.getItem("theme") ||
     (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"),
+  false,
 );
 themeBtn.onclick = () =>
   applyTheme(
-    document.documentElement.getAttribute("data-theme") === "light"
-      ? "dark"
-      : "light",
+    document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light",
+    true,
   );
 
 function compressPlaylistIndices(indices) {
@@ -227,19 +353,19 @@ function getSelectedPlaylistIndices() {
 function getPlaylistItemsParam() {
   const totalKnown = Math.max(currentPlaylistEntries.length, currentPlaylistCount);
   if (!totalKnown) return "";
-  if (!$("allow-playlist").checked) {
-    return /\/playlist\b/i.test($("url").value) ? "1" : "";
-  }
   const boxes = document.querySelectorAll(".pl-item-checkbox");
+  if (!boxes.length) {
+    if (!$("allow-playlist").checked) {
+      return /\/playlist\b/i.test($("url").value) ? "1" : "";
+    }
+    return "";
+  }
   const selected = getSelectedPlaylistIndices();
   const allDomChecked =
     boxes.length > 0 &&
     Array.from(boxes).every((b) => b.checked) &&
     playlistSelectAllMode;
-  if (
-    !selected.length ||
-    (allDomChecked && selected.length >= totalKnown)
-  ) {
+  if (!selected.length || (allDomChecked && selected.length >= totalKnown)) {
     return "";
   }
   return compressPlaylistIndices(selected);
@@ -291,8 +417,10 @@ function createPlaylistRowElement(item, i, shouldCheck = true) {
   cb.value = String(idx);
   cb.checked = shouldCheck;
   cb.onchange = () => {
-    const sel = getSelectedPlaylistIndices();
-    $("allow-playlist").checked = sel.length > 0;
+    const boxes = document.querySelectorAll(".pl-item-checkbox");
+    const allChecked = boxes.length > 0 && Array.from(boxes).every((b) => b.checked);
+    playlistSelectAllMode = allChecked;
+    $("allow-playlist").checked = allChecked;
     updateExtraOptionsBadge();
   };
 
@@ -454,13 +582,17 @@ function syncPlaylistBadgeText() {
   const isAll = $("allow-playlist").checked;
   const hasCustomUncheck = boxes.length > 0 && checkedDomCount < boxes.length && checkedDomCount > 0;
 
-  if (!isAll || (boxes.length > 0 && checkedDomCount === 0)) {
+  if (boxes.length > 0 && checkedDomCount === 0) {
     const countStr = shownCount > 1 ? ` (${shownCount}${stillWorking ? "…" : ""} videos)` : "";
-    badge.textContent = `📑 Playlist${countStr} • Single`;
-    if (selBadge) selBadge.textContent = "Single Video Only";
+    badge.textContent = `📑 Playlist${countStr} • 0 Selected`;
+    if (selBadge) selBadge.textContent = "0 Selected";
   } else if (hasCustomUncheck) {
     badge.textContent = `✅ ${checkedDomCount}/${shownCount}${stillWorking ? "…" : ""} Videos Selected ▾`;
     if (selBadge) selBadge.textContent = `${checkedDomCount} of ${shownCount}${stillWorking ? "…" : ""} Selected ▾`;
+  } else if (!isAll && boxes.length === 0) {
+    const countStr = shownCount > 1 ? ` (${shownCount}${stillWorking ? "…" : ""} videos)` : "";
+    badge.textContent = `📑 Playlist${countStr} • Single`;
+    if (selBadge) selBadge.textContent = "Single Video Only";
   } else if (stillWorking) {
     const targetStr = total > shownCount ? `/${total}` : "";
     badge.textContent = `⏳ Playlist (${shownCount}${targetStr} loaded…) ▾`;
@@ -570,17 +702,9 @@ $("preview-playlist").onclick = () => {
 $("allow-playlist").addEventListener("change", () => {
   const checked = $("allow-playlist").checked;
   const boxes = document.querySelectorAll(".pl-item-checkbox");
+  playlistSelectAllMode = checked;
   if (boxes.length) {
-    const sel = getSelectedPlaylistIndices();
-    if (checked && sel.length === 0) {
-      playlistSelectAllMode = true;
-      boxes.forEach((b) => (b.checked = true));
-    } else if (!checked) {
-      playlistSelectAllMode = false;
-      boxes.forEach((b) => (b.checked = false));
-    }
-  } else {
-    playlistSelectAllMode = checked;
+    boxes.forEach((b) => (b.checked = checked));
   }
   updateExtraOptionsBadge();
 });
@@ -624,11 +748,22 @@ function extractYouTubeId(url) {
 // One-click Clipboard Paste button (triggers instant 0ms preview)
 $("paste-btn").onclick = async () => {
   try {
-    const text = await navigator.clipboard.readText();
+    let text = "";
+    if (typeof window.ClipHavenAndroid !== "undefined" && typeof window.ClipHavenAndroid.readClipboard === "function") {
+      text = String(window.ClipHavenAndroid.readClipboard() || "");
+    } else if (navigator.clipboard && navigator.clipboard.readText) {
+      text = await navigator.clipboard.readText();
+    }
     if (text && text.trim()) {
       $("url").value = normalizeInputUrl(text.trim());
       syncClearBtn();
+      if (window.__clipHavenUpdatePlatformIcon) window.__clipHavenUpdatePlatformIcon($("url").value);
+      if (window.__clipHavenSyncPrimaryBtn) window.__clipHavenSyncPrimaryBtn();
+      playUiTone("pop");
+      triggerHaptic("tap");
       triggerPreview(true);
+    } else {
+      $("url").focus();
     }
   } catch {
     $("url").focus();
@@ -637,6 +772,7 @@ $("paste-btn").onclick = async () => {
 
 // Auto Video Info Preview with sequence guard against race conditions
 function hidePreview() {
+  if (window.__clipHavenUpdatePlatformIcon && !$("url").value.trim()) window.__clipHavenUpdatePlatformIcon("");
   previewSeq++;
   lastPreviewUrl = "";
   stopPlaylistStream(true);
@@ -645,6 +781,7 @@ function hidePreview() {
   $("playlist-items-list").innerHTML = "";
   currentTitleHint = "";
   currentDurationHint = 0;
+  if (window.__clipHavenSetDuration) window.__clipHavenSetDuration(0);
   currentPlaylistCount = 0;
   currentPlaylistEntries = [];
   renderedPlaylistCount = 0;
@@ -668,6 +805,7 @@ async function fetchPreview(rawUrl) {
   stopPlaylistStream(false);
   currentTitleHint = "";
   currentDurationHint = 0;
+  if (window.__clipHavenSetDuration) window.__clipHavenSetDuration(0);
   currentPlaylistCount = 0;
   currentPlaylistEntries = [];
   renderedPlaylistCount = 0;
@@ -700,6 +838,7 @@ async function fetchPreview(rawUrl) {
     const info = d.info || {};
     currentTitleHint = info.title || "";
     currentDurationHint = info.duration_seconds || 0;
+    if (window.__clipHavenSetDuration && currentDurationHint > 0) window.__clipHavenSetDuration(currentDurationHint);
     isCurrentUrlPlaylist = Boolean(info.is_playlist);
     currentPlaylistCount = info.playlist_count || 0;
     currentPlaylistEntries = Array.isArray(info.entries) ? info.entries : [];
@@ -714,21 +853,47 @@ async function fetchPreview(rawUrl) {
       $("preview-thumb").src = info.thumbnail;
       $("preview-thumb").style.display = "block";
     }
+    let durationVerifiedByEngine = Boolean(info.duration && !info.duration_approx);
     if (info.duration) {
-      $("preview-dot").style.display = "inline";
       $("preview-duration").textContent = info.duration;
-      $("preview-duration").style.display = "inline-block";
-    } else if (!isCurrentUrlPlaylist && !currentJobId) {
+      $("preview-duration").style.display = "inline-flex";
+    }
+    if (!isCurrentUrlPlaylist && !currentJobId && (!info.duration || info.duration_approx)) {
+      // 1. Instant (~0.3-0.6s) lightweight duration fetch for YouTube single videos
+      if (!info.duration && ytId) {
+        api("/api/info", {
+          method: "POST",
+          body: JSON.stringify({ url: clean, fast_duration: true }),
+        })
+          .then((fastRes) => {
+            if (seq !== previewSeq || durationVerifiedByEngine || !fastRes || !fastRes.info || !fastRes.info.duration) return;
+            currentDurationHint = fastRes.info.duration_seconds || 0;
+            if (window.__clipHavenSetDuration && currentDurationHint > 0) window.__clipHavenSetDuration(currentDurationHint);
+            $("preview-duration").textContent = fastRes.info.duration;
+            $("preview-duration").style.display = "inline-flex";
+          })
+          .catch(() => {});
+      }
+      // 2. Non-blocking background yt-dlp verification/reconciliation & fallback
       api("/api/info", {
         method: "POST",
-        body: JSON.stringify({ url: clean, full: true }),
+        body: JSON.stringify({ url: clean, full: true, verify: true }),
       })
         .then((res) => {
-          if (seq !== previewSeq || !res || !res.info || !res.info.duration) return;
-          currentDurationHint = res.info.duration_seconds || 0;
-          $("preview-dot").style.display = "inline";
-          $("preview-duration").textContent = res.info.duration;
-          $("preview-duration").style.display = "inline-block";
+          if (seq !== previewSeq || !res || !res.info) return;
+          if (res.info.thumbnail && ($("preview-thumb").style.display === "none" || !$("preview-thumb").getAttribute("src"))) {
+            $("preview-thumb").src = res.info.thumbnail;
+            $("preview-thumb").style.display = "block";
+          }
+          if (!res.info.duration) return;
+          durationVerifiedByEngine = true;
+          const exactSec = res.info.duration_seconds || 0;
+          if (exactSec !== currentDurationHint || $("preview-duration").style.display === "none") {
+            currentDurationHint = exactSec;
+            if (window.__clipHavenSetDuration && currentDurationHint > 0) window.__clipHavenSetDuration(currentDurationHint);
+            $("preview-duration").textContent = res.info.duration;
+            $("preview-duration").style.display = "inline-flex";
+          }
         })
         .catch(() => {});
     }
@@ -749,6 +914,8 @@ async function fetchPreview(rawUrl) {
 
 function triggerPreview(immediate = false) {
   syncClearBtn();
+  if (window.__clipHavenUpdatePlatformIcon) window.__clipHavenUpdatePlatformIcon($("url").value);
+  if (window.__clipHavenSyncPrimaryBtn) window.__clipHavenSyncPrimaryBtn();
   if (previewTimer) clearTimeout(previewTimer);
   if (immediate) {
     fetchPreview($("url").value);
@@ -764,6 +931,8 @@ $("url").addEventListener("paste", () =>
     if (cleaned && cleaned !== $("url").value) {
       $("url").value = cleaned;
     }
+    if (window.__clipHavenUpdatePlatformIcon) window.__clipHavenUpdatePlatformIcon($("url").value);
+    if (window.__clipHavenSyncPrimaryBtn) window.__clipHavenSyncPrimaryBtn();
     triggerPreview(true);
   }, 20),
 );
@@ -823,25 +992,33 @@ function renderHistory() {
   container.innerHTML = "";
   list.forEach((item) => {
     const row = document.createElement("div");
-    row.className = "history-item";
+    row.className = "list-row history-item";
 
     const meta = document.createElement("div");
-    meta.className = "history-meta";
+    meta.className = "list-meta history-meta";
 
     const title = document.createElement("div");
-    title.className = "history-title";
+    title.className = "list-title history-title";
     title.textContent = item.title;
+    title.title = item.title;
 
     const sub = document.createElement("div");
-    sub.className = "history-sub";
-    sub.textContent = `${item.format} • ${item.quality} • ${item.time}`;
+    sub.className = "list-sub history-sub";
+    const fmtTag = document.createElement("span");
+    fmtTag.className = "fmt-tag";
+    fmtTag.textContent = item.format || "MP4";
+    const subInfo = document.createElement("span");
+    subInfo.textContent = `${item.quality} • ${item.time}`;
+    sub.appendChild(fmtTag);
+    sub.appendChild(subInfo);
 
     meta.appendChild(title);
     meta.appendChild(sub);
 
     const openBtn = document.createElement("button");
     openBtn.type = "button";
-    openBtn.className = "btn secondary small-btn";
+    openBtn.className = "btn secondary sm";
+    openBtn.style.flexShrink = "0";
     openBtn.textContent = "📂 Show";
     openBtn.onclick = () => openFolder({ path: item.file_path });
 
@@ -882,7 +1059,7 @@ function startPolling(jobId) {
   const b = $("start");
   const cb = $("cancel");
   b.disabled = true;
-  b.textContent = "Downloading…";
+  window.__clipHavenSetBtn && window.__clipHavenSetBtn("downloading");
   cb.style.display = "inline-block";
 
   timer = setInterval(async () => {
@@ -919,13 +1096,20 @@ function startPolling(jobId) {
         clearInterval(timer);
         timer = null;
         b.disabled = false;
-        b.textContent = "⬇ Download Another";
+        window.__clipHavenSetBtn && window.__clipHavenSetBtn("ready");
         cb.style.display = "none";
         currentJobId = null;
         localStorage.removeItem("cliphaven_active_job");
         if (isDone) {
-          addToHistory({ id: jobId, ...s });
+          const pillEl = $("pill");
+          if (pillEl) {
+            pillEl.className = "pill done-pop";
+            pillEl.textContent = "✓ Done";
+          }
+          addToHistory({ id: jobId, url: activeDownloadUrl || $("url").value.trim(), format: $("format").value, ...s });
         }
+        activeDownloadUrl = "";
+        if (window.__clipHavenOnTransferEnd) window.__clipHavenOnTransferEnd(isDone);
       }
     } catch (err) {
       if (++errCount < 4) return;
@@ -933,7 +1117,7 @@ function startPolling(jobId) {
       timer = null;
       status("Status error", err.message, 0, "Error", "error");
       b.disabled = false;
-      b.textContent = "⬇ Download Now";
+      window.__clipHavenSetBtn && window.__clipHavenSetBtn("ready");
       cb.style.display = "none";
       currentJobId = null;
       localStorage.removeItem("cliphaven_active_job");
@@ -946,14 +1130,21 @@ $("form").onsubmit = async (e) => {
   e.preventDefault();
   const b = $("start");
   const cb = $("cancel");
-  // Prevent duplicate submission if Enter is pressed in an input while a job is already active
-  if (currentJobId || b.disabled) return;
+  if (window.__clipHavenIsPlaylistZero && window.__clipHavenIsPlaylistZero()) {
+    window.__clipHavenFlashPlaylistErr && window.__clipHavenFlashPlaylistErr();
+    return;
+  }
+  if (currentJobId) {
+    if (window.__clipHavenTryAddUpNext && window.__clipHavenTryAddUpNext()) return;
+    return;
+  }
+  if (b.disabled) return;
   if (timer) clearInterval(timer);
   // Stop any active background playlist preview stream so download gets 100% bandwidth & CPU
   stopPlaylistStream(true);
 
   b.disabled = true;
-  b.textContent = "Starting…";
+  window.__clipHavenSetBtn && window.__clipHavenSetBtn("starting");
   cb.style.display = "none";
   cb.disabled = false;
   currentJobId = null;
@@ -993,17 +1184,21 @@ $("form").onsubmit = async (e) => {
         end_time: $("end-time").value.trim(),
         subtitles: !isAudio && $("subtitles").checked,
         embed_thumbnail: canThumb && $("embed-thumbnail").checked,
-        allow_playlist: $("allow-playlist").checked || /\/playlist\b/i.test(cleanUrl),
+        allow_playlist: $("allow-playlist").checked || Boolean(getPlaylistItemsParam()) || /\/playlist\b/i.test(cleanUrl),
         playlist_items: getPlaylistItemsParam(),
         title_hint: currentTitleHint,
         duration_hint: currentDurationHint,
+        lang: localStorage.getItem("cliphaven_lang") || "en",
+        thumb_url: ($("preview-thumb") && /^https?:/i.test($("preview-thumb").src || "")) ? $("preview-thumb").src : "",
       }),
     });
+    activeDownloadUrl = cleanUrl;
     startPolling(d.id);
+    window.__clipHavenSyncPrimaryBtn && window.__clipHavenSyncPrimaryBtn();
   } catch (err) {
     status("Could not start download", err.message, 0, "Error", "error");
     b.disabled = false;
-    b.textContent = "⬇ Download Now";
+    window.__clipHavenSetBtn && window.__clipHavenSetBtn("ready");
     cb.style.display = "none";
     currentJobId = null;
   }
@@ -1164,4 +1359,769 @@ async function checkForAppUpdates() {
     }
   }
   setTimeout(checkForAppUpdates, 1500);
+})();
+
+
+// ============================================================================
+// ClipHaven v3.3.0 UI Controller
+// ============================================================================
+(function initClipHavenV330UI() {
+  const I18N = {
+    en: {
+      tagline: "Paste a link, pick a format, and save your clip in seconds.",
+      docs_btn: "Docs",
+      docs_full: "Documentation",
+      url_label: "Video or Playlist URL",
+      paste: "Paste",
+      playlist_select: "Select Playlist Videos",
+      select_all: "Select All",
+      single_only: "Single Video",
+      playlist_select_err: "Please select at least 1 video from the playlist to download.",
+      mode_video: "Video",
+      mode_audio: "Audio Only",
+      format_label: "Format",
+      quality_label: "Resolution",
+      save_folder: "Save Folder",
+      browse: "Browse",
+      folder_hint: "Remembered automatically for next time.",
+      extra_dropdown: "Clip Trimmer, Subtitles (CC) & Options",
+      trim_title: "Trim Range",
+      full_video: "Full video",
+      reset: "Reset",
+      start_time: "Start Time",
+      end_time: "End Time",
+      subtitles: "Original Subtitles (CC)",
+      embed_thumb: "Embed Cover Art",
+      entire_playlist: "Entire Playlist",
+      download_now: "Download Now",
+      download_next: "Download Next",
+      downloading: "Downloading...",
+      starting: "Starting...",
+      skip_next: "Skip",
+      cancel: "Cancel",
+      ready: "Ready",
+      ready_detail: "Paste a video link to begin.",
+      open_folder: "Open Folder",
+      up_next: "Up Next",
+      history_title: "Recent Downloads",
+      clear: "Clear",
+      privacy_prefix: "100% local on",
+      privacy_suffix: "Downloads run one by one to keep speed steady.",
+      update_title: "New Update Available",
+      update_desc: "A newer version of ClipHaven is available with latest improvements and extractor fixes.",
+      release_notes: "View Release Notes",
+      update_now: "Update Now",
+      later: "Later",
+      clamped_max: (m) => `Cannot exceed video length (${m}) — adjusted automatically.`,
+      clamped_order: "Start time must be before End time — adjusted automatically.",
+      clip_len: (s) => `Clip: ${s}`,
+      added_next: "Added to Up Next — ready for another link.",
+      copied: "Link copied!",
+      dropped: "Link dropped!",
+      already_running: "This video is already downloading. Paste a new link to download next.",
+    },
+    bn: {
+      tagline: "লিংক পেস্ট করুন, ফরম্যাট বেছে নিন আর কয়েক সেকেন্ডেই সেভ করুন।",
+      docs_btn: "নথি",
+      docs_full: "নির্দেশিকা",
+      url_label: "ভিডিও বা প্লেলিস্ট লিংক",
+      paste: "পেস্ট",
+      playlist_select: "প্লেলিস্টের ভিডিও বেছে নাও",
+      select_all: "সব সিলেক্ট",
+      single_only: "শুধু ১টি ভিডিও",
+      playlist_select_err: "ডাউনলোড করতে প্লেলিস্ট থেকে অন্তত ১টি ভিডিও সিলেক্ট করুন।",
+      mode_video: "ভিডিও",
+      mode_audio: "শুধু অডিও",
+      format_label: "ফরম্যাট",
+      quality_label: "রেজুলেশন",
+      save_folder: "সেভ ফোল্ডার",
+      browse: "ব্রাউজ",
+      folder_hint: "পরবর্তী ডাউনলোডের জন্য অটোমেটিক মনে থাকবে।",
+      extra_dropdown: "ক্লিপ ট্রিমার, সাবটাইটেল (CC) ও অতিরিক্ত অপশন",
+      trim_title: "ক্লিপ রেঞ্জ",
+      full_video: "সম্পূর্ণ ভিডিও",
+      reset: "রিসেট",
+      start_time: "শুরুর সময়",
+      end_time: "শেষের সময়",
+      subtitles: "অরিজিনাল সাবটাইটেল (CC)",
+      embed_thumb: "কভার আর্ট এম্বেড",
+      entire_playlist: "পুরো প্লেলিস্ট",
+      download_now: "ডাউনলোড শুরু",
+      download_next: "পরে ডাউনলোড করুন",
+      downloading: "ডাউনলোড চলছে...",
+      starting: "শুরু হচ্ছে...",
+      skip_next: "পরেরটি",
+      cancel: "বাতিল",
+      ready: "প্রস্তুত",
+      ready_detail: "শুরু করতে একটি ভিডিও লিংক পেস্ট করুন।",
+      open_folder: "ফোল্ডার খোলো",
+      up_next: "পরবর্তী ডাউনলোড",
+      history_title: "সম্প্রতি ডাউনলোড করা",
+      clear: "ক্লিয়ার",
+      privacy_prefix: "১০০% লোকাল ইঞ্জিন",
+      privacy_suffix: "একের পর এক ডাউনলোড হওয়ায় স্পিড একদম স্থির থাকে।",
+      update_title: "নতুন আপডেট পাওয়া গেছে",
+      update_desc: "নতুন উন্নতি ও এক্সট্র্যাক্টর ফিক্সসহ ClipHaven-এর নতুন ভার্সন প্রস্তুত।",
+      release_notes: "রিলিজ নোট দেখুন",
+      update_now: "আপডেট করুন",
+      later: "পরে",
+      clamped_max: (m) => `ভিডিওর মোট সময়ের (${m}) বেশি দেওয়া যাবে না — অটো ঠিক করা হয়েছে।`,
+      clamped_order: "শুরুর সময় শেষের সময়ের আগে হতে হবে — অটো ঠিক করা হয়েছে।",
+      clip_len: (s) => `ক্লিপ: ${s}`,
+      added_next: "পরবর্তী ডাউনলোডে যুক্ত হয়েছে — নতুন লিংক দিতে পারো।",
+      copied: "লিংক কপি হয়েছে!",
+      dropped: "লিংক ড্রপ করা হয়েছে!",
+      already_running: "এই ভিডিওটি এখন ডাউনলোড হচ্ছে। নতুন লিংক পেস্ট করলে পরে ডাউনলোড হবে।",
+    },
+  };
+
+  let lang = localStorage.getItem("cliphaven_lang") || "en";
+  let toastTimer = null;
+  function showToast(msg) {
+    const el = $("toast");
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove("show"), 2600);
+  }
+
+  function applyLang(next) {
+    lang = next === "bn" ? "bn" : "en";
+    localStorage.setItem("cliphaven_lang", lang);
+    if ($("lang-flag")) $("lang-flag").textContent = lang === "en" ? "🇧🇩" : "🇬🇧";
+    if ($("lang-sm")) $("lang-sm").textContent = lang === "en" ? "বাং" : "EN";
+    if ($("lang-md")) $("lang-md").textContent = lang === "en" ? "বাংলা" : "ENG";
+    if ($("lang-lg")) $("lang-lg").textContent = lang === "en" ? "বাংলা" : "English";
+
+    const dict = I18N[lang];
+    document.querySelectorAll("[data-i18n]").forEach((el) => {
+      const k = el.getAttribute("data-i18n");
+      if (dict[k] && typeof dict[k] === "string") el.textContent = dict[k];
+    });
+    applyTheme(document.documentElement.getAttribute("data-theme") || "dark", false);
+    updateClipBadge();
+    syncPrimaryBtn();
+  }
+
+  if ($("lang-btn")) {
+    $("lang-btn").addEventListener("click", () => applyLang(lang === "en" ? "bn" : "en"));
+  }
+
+  const VIDEO_FMTS = [{ v: "mp4", l: "MP4" }, { v: "mkv", l: "MKV" }, { v: "webm", l: "WEBM" }];
+  const AUDIO_FMTS = [{ v: "mp3", l: "MP3" }, { v: "m4a", l: "M4A" }, { v: "wav", l: "WAV" }];
+  let activeMode = "video";
+
+  function renderFormatChips(selectedVal) {
+    const wrap = $("format-chips");
+    if (!wrap) return;
+    const list = activeMode === "video" ? VIDEO_FMTS : AUDIO_FMTS;
+    wrap.innerHTML = "";
+    list.forEach((item, idx) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "chip" + ((selectedVal ? item.v === selectedVal : idx === 0) ? " active" : "");
+      btn.textContent = item.l;
+      btn.addEventListener("click", () => {
+        wrap.querySelectorAll(".chip").forEach((c) => c.classList.remove("active"));
+        btn.classList.add("active");
+        $("format").value = item.v;
+        $("format").dispatchEvent(new Event("change"));
+      });
+      wrap.appendChild(btn);
+    });
+    $("format").value = selectedVal || list[0].v;
+    $("format").dispatchEvent(new Event("change"));
+    if ($("quality-section")) $("quality-section").style.display = activeMode === "video" ? "flex" : "none";
+  }
+
+  if ($("mode-video") && $("mode-audio")) {
+    $("mode-video").addEventListener("click", () => {
+      activeMode = "video";
+      $("mode-tabs").classList.remove("is-audio");
+      $("mode-video").classList.add("active");
+      $("mode-audio").classList.remove("active");
+      renderFormatChips("mp4");
+    });
+    $("mode-audio").addEventListener("click", () => {
+      activeMode = "audio";
+      $("mode-tabs").classList.add("is-audio");
+      $("mode-audio").classList.add("active");
+      $("mode-video").classList.remove("active");
+      renderFormatChips("mp3");
+    });
+    renderFormatChips($("format").value || "mp4");
+  }
+
+  if ($("quality-chips")) {
+    $("quality-chips").querySelectorAll(".chip").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        $("quality-chips").querySelectorAll(".chip").forEach((c) => c.classList.remove("active"));
+        btn.classList.add("active");
+        $("quality").value = btn.dataset.q;
+      });
+    });
+  }
+
+  let knownDurationSec = 0;
+  function secToTime(sec) {
+    sec = Math.max(0, Math.floor(sec));
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    const pad = (n) => String(n).padStart(2, "0");
+    return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+  }
+
+  function parseTimeSec(raw) {
+    const s = String(raw || "").trim();
+    if (!s) return null;
+    if (/^\d+$/.test(s)) return parseInt(s, 10);
+    const parts = s.split(":").map((p) => p.trim());
+    if (parts.length < 2 || parts.length > 3 || parts.some((p) => !/^\d+$/.test(p))) return null;
+    if (parts.length === 2) return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+    return parseInt(parts[0], 10) * 3600 + parseInt(parts[1], 10) * 60 + parseInt(parts[2], 10);
+  }
+
+  let clampTimer = null;
+  function showClampWarn(msg, inputEl) {
+    if (!$("clamp-msg")) return;
+    $("clamp-msg-text").textContent = msg;
+    $("clamp-msg").classList.add("show");
+    if (inputEl) inputEl.classList.add("input-clamped");
+    clearTimeout(clampTimer);
+    clampTimer = setTimeout(() => {
+      $("clamp-msg").classList.remove("show");
+      $("start-time").classList.remove("input-clamped");
+      $("end-time").classList.remove("input-clamped");
+    }, 3000);
+  }
+
+  function updateClipBadge() {
+    const badge = $("clip-len-badge");
+    const resetBtn = $("reset-trim-btn");
+    if (!badge) return;
+    const sVal = $("start-time").value.trim();
+    const eVal = $("end-time").value.trim();
+    if (!sVal && !eVal) {
+      badge.textContent = I18N[lang].full_video;
+      if (resetBtn) resetBtn.style.display = "none";
+      return;
+    }
+    if (resetBtn) resetBtn.style.display = "inline-flex";
+    const sSec = parseTimeSec(sVal) || 0;
+    const eSec = parseTimeSec(eVal) || knownDurationSec || 0;
+    badge.textContent = eSec > sSec ? I18N[lang].clip_len(secToTime(eSec - sSec)) : `${sVal || "00:00"} – ${eVal || "End"}`;
+  }
+
+  function updateSliderVisual() {
+    if (!knownDurationSec || !$("range-start") || !$("range-end")) return;
+    const s = Number($("range-start").value);
+    const e = Number($("range-end").value);
+    $("slider-fill").style.left = `${(s / knownDurationSec) * 100}%`;
+    $("slider-fill").style.width = `${((e - s) / knownDurationSec) * 100}%`;
+    updateClipBadge();
+    updateExtraOptionsBadge();
+  }
+
+  window.__clipHavenSetDuration = function (sec) {
+    knownDurationSec = Math.max(0, Math.floor(sec || 0));
+    const wrap = $("trim-slider-wrap");
+    if (!wrap) return;
+    if (knownDurationSec > 1) {
+      wrap.style.display = "block";
+      wrap.classList.remove("is-disabled");
+      $("range-start").disabled = false;
+      $("range-end").disabled = false;
+      $("range-start").max = knownDurationSec;
+      $("range-end").max = knownDurationSec;
+      $("range-start").value = 0;
+      $("range-end").value = knownDurationSec;
+      if ($("slider-min-label")) $("slider-min-label").textContent = "00:00";
+      $("slider-max-label").textContent = `Max: ${secToTime(knownDurationSec)}`;
+      $("end-time").placeholder = `${secToTime(knownDurationSec)} (Full)`;
+      updateSliderVisual();
+    } else {
+      wrap.style.display = "block";
+      wrap.classList.add("is-disabled");
+      $("range-start").disabled = true;
+      $("range-end").disabled = true;
+      $("range-start").value = 0;
+      $("range-end").value = $("range-end").max || 600;
+      $("slider-fill").style.left = "0%";
+      $("slider-fill").style.width = "0%";
+      if ($("slider-min-label")) $("slider-min-label").textContent = "";
+      $("slider-max-label").textContent = "";
+      $("end-time").placeholder = "End (e.g. 02:30)";
+      updateClipBadge();
+    }
+  };
+  window.__clipHavenSetDuration(0);
+
+  function showTip(which, sec) {
+    if (!knownDurationSec) return;
+    const tip = $(which === "start" ? "tip-start" : "tip-end");
+    if (!tip) return;
+    const pct = (sec / knownDurationSec) * 100;
+    tip.style.left = `${Math.max(6, Math.min(94, pct))}%`;
+    tip.textContent = secToTime(sec);
+    tip.classList.add("show");
+  }
+  function hideTips() {
+    $("tip-start") && $("tip-start").classList.remove("show");
+    $("tip-end") && $("tip-end").classList.remove("show");
+  }
+
+  if ($("range-start") && $("range-end")) {
+    $("range-start").addEventListener("input", () => {
+      let s = Number($("range-start").value);
+      const e = Number($("range-end").value);
+      if (s >= e) { s = Math.max(0, e - 1); $("range-start").value = s; }
+      $("start-time").value = s > 0 ? secToTime(s) : "";
+      updateSliderVisual();
+      showTip("start", s);
+    });
+    $("range-end").addEventListener("input", () => {
+      const s = Number($("range-start").value);
+      let e = Number($("range-end").value);
+      if (e <= s) { e = Math.min(knownDurationSec, s + 1); $("range-end").value = e; }
+      $("end-time").value = e < knownDurationSec ? secToTime(e) : "";
+      updateSliderVisual();
+      showTip("end", e);
+    });
+    ["pointerup", "mouseup", "touchend", "change"].forEach((ev) => {
+      $("range-start").addEventListener(ev, hideTips);
+      $("range-end").addEventListener(ev, hideTips);
+    });
+  }
+
+  function validateManualTime(which) {
+    const sEl = $("start-time");
+    const eEl = $("end-time");
+    let sSec = parseTimeSec(sEl.value);
+    let eSec = parseTimeSec(eEl.value);
+    if (knownDurationSec > 0) {
+      if (which === "start" && sEl.value.trim() !== "" && sSec !== null) {
+        if (sSec > knownDurationSec - 1) {
+          sSec = Math.max(0, knownDurationSec - 1);
+          sEl.value = secToTime(sSec);
+          showClampWarn(I18N[lang].clamped_max(secToTime(knownDurationSec)), sEl);
+        }
+        const curEnd = eSec !== null ? Math.min(eSec, knownDurationSec) : knownDurationSec;
+        if (sSec >= curEnd) {
+          sSec = Math.max(0, curEnd - 1);
+          sEl.value = secToTime(sSec);
+          showClampWarn(I18N[lang].clamped_order, sEl);
+        }
+        $("range-start").value = sSec;
+      } else if (which === "start") {
+        $("range-start").value = 0;
+      }
+
+      if (which === "end" && eEl.value.trim() !== "" && eSec !== null) {
+        if (eSec > knownDurationSec) {
+          eSec = knownDurationSec;
+          eEl.value = secToTime(eSec);
+          showClampWarn(I18N[lang].clamped_max(secToTime(knownDurationSec)), eEl);
+        }
+        const curStart = sSec !== null ? Math.max(0, sSec) : 0;
+        if (eSec <= curStart) {
+          eSec = Math.min(knownDurationSec, curStart + 1);
+          eEl.value = secToTime(eSec);
+          showClampWarn(I18N[lang].clamped_order, eEl);
+        }
+        $("range-end").value = eSec;
+      } else if (which === "end") {
+        $("range-end").value = knownDurationSec;
+      }
+      updateSliderVisual();
+    } else {
+      updateClipBadge();
+    }
+  }
+
+  ["change", "blur"].forEach((ev) => {
+    $("start-time").addEventListener(ev, () => validateManualTime("start"));
+    $("end-time").addEventListener(ev, () => validateManualTime("end"));
+  });
+
+  if ($("reset-trim-btn")) {
+    $("reset-trim-btn").addEventListener("click", () => {
+      $("start-time").value = "";
+      $("end-time").value = "";
+      if (knownDurationSec > 0) {
+        $("range-start").value = 0;
+        $("range-end").value = knownDurationSec;
+        updateSliderVisual();
+      } else {
+        updateClipBadge();
+        updateExtraOptionsBadge();
+      }
+    });
+  }
+
+  window.__clipHavenIsPlaylistZero = function () {
+    const boxes = document.querySelectorAll(".pl-item-checkbox");
+    if (!isCurrentUrlPlaylist || boxes.length === 0) return false;
+    let checked = 0;
+    boxes.forEach((b) => { if (b.checked) checked++; });
+    return checked === 0;
+  };
+
+  window.__clipHavenFlashPlaylistErr = function () {
+    const err = $("playlist-err");
+    if (!err) return;
+    err.classList.add("show");
+    err.classList.remove("shake");
+    void err.offsetWidth;
+    err.classList.add("shake");
+    if ($("playlist-selector")) $("playlist-selector").open = true;
+  };
+
+  function syncPlaylistZeroGuard() {
+    const blocked = window.__clipHavenIsPlaylistZero();
+    const err = $("playlist-err");
+    if (err) err.classList.toggle("show", blocked);
+    syncPrimaryBtn();
+  }
+
+  if ($("playlist-items-list")) {
+    $("playlist-items-list").addEventListener("change", syncPlaylistZeroGuard);
+  }
+  if ($("pl-select-all-btn")) {
+    $("pl-select-all-btn").addEventListener("click", () => {
+      document.querySelectorAll(".pl-item-checkbox").forEach((cb) => { cb.checked = true; });
+      $("allow-playlist").checked = true;
+      updateExtraOptionsBadge();
+      syncPlaylistZeroGuard();
+    });
+  }
+  if ($("pl-clear-all-btn")) {
+    $("pl-clear-all-btn").addEventListener("click", () => {
+      document.querySelectorAll(".pl-item-checkbox").forEach((cb) => { cb.checked = false; });
+      $("allow-playlist").checked = false;
+      updateExtraOptionsBadge();
+      syncPlaylistZeroGuard();
+    });
+  }
+  if ($("allow-playlist")) {
+    $("allow-playlist").addEventListener("change", (e) => {
+      const isChecked = Boolean(e.target.checked);
+      document.querySelectorAll(".pl-item-checkbox").forEach((cb) => { cb.checked = isChecked; });
+      updateExtraOptionsBadge();
+      syncPlaylistZeroGuard();
+    });
+  }
+  if ($("playlist-search")) {
+    $("playlist-search").addEventListener("input", (e) => {
+      const q = e.target.value.trim().toLowerCase();
+      document.querySelectorAll("#playlist-items-list .playlist-item-row").forEach((row) => {
+        row.style.display = !q || row.textContent.toLowerCase().includes(q) ? "flex" : "none";
+      });
+    });
+  }
+
+  const STORAGE_UPNEXT = "cliphaven_upnext_v33";
+  let upNext = [];
+  try { upNext = JSON.parse(localStorage.getItem(STORAGE_UPNEXT) || "[]") || []; } catch (_) { upNext = []; }
+  function saveUpNext() { try { localStorage.setItem(STORAGE_UPNEXT, JSON.stringify(upNext)); } catch (_) {} }
+
+  function setPrimaryVisual(mode) {
+    const btn = $("start");
+    const lbl = $("start-label");
+    const ic = $("start-icon");
+    if (!btn || !lbl || !ic) return;
+    if (mode === "blocked") {
+      btn.classList.add("is-blocked");
+      btn.classList.remove("mode-next");
+      btn.disabled = false;
+      btn.setAttribute("aria-disabled", "true");
+      return;
+    }
+    btn.classList.remove("is-blocked");
+    btn.removeAttribute("aria-disabled");
+
+    if (mode === "next") {
+      const wasNext = btn.classList.contains("mode-next");
+      btn.classList.add("mode-next");
+      btn.disabled = false;
+      lbl.textContent = I18N[lang].download_next;
+      ic.innerHTML = '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>';
+      if (!wasNext) {
+        btn.classList.remove("morph-pop");
+        void btn.offsetWidth;
+        btn.classList.add("morph-pop");
+      }
+    } else if (mode === "downloading" || mode === "starting") {
+      btn.classList.remove("mode-next");
+      btn.disabled = true;
+      lbl.textContent = mode === "starting" ? I18N[lang].starting : I18N[lang].downloading;
+      ic.innerHTML = '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/>';
+    } else {
+      btn.classList.remove("mode-next");
+      btn.disabled = false;
+      lbl.textContent = I18N[lang].download_now;
+      ic.innerHTML = '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>';
+    }
+  }
+
+  function syncPrimaryBtn() {
+    if (window.__clipHavenIsPlaylistZero()) {
+      setPrimaryVisual("blocked");
+      return;
+    }
+    const curUrl = normalizeInputUrl($("url").value);
+    if (!currentJobId) {
+      setPrimaryVisual("ready");
+    } else if (curUrl && curUrl !== activeDownloadUrl) {
+      setPrimaryVisual("next");
+    } else {
+      setPrimaryVisual("downloading");
+    }
+    if ($("skip-btn")) {
+      $("skip-btn").style.display = currentJobId && upNext.length > 0 ? "inline-flex" : "none";
+    }
+  }
+
+  window.__clipHavenSetBtn = setPrimaryVisual;
+  window.__clipHavenSyncPrimaryBtn = syncPrimaryBtn;
+
+  function renderUpNext() {
+    saveUpNext();
+    const sec = $("upnext-section");
+    if (!sec) return;
+    $("upnext-count").textContent = String(upNext.length);
+    if ($("skip-btn")) $("skip-btn").style.display = currentJobId && upNext.length > 0 ? "inline-flex" : "none";
+    if (!upNext.length) {
+      sec.style.display = "none";
+      return;
+    }
+    sec.style.display = "flex";
+    const list = $("upnext-list");
+    list.innerHTML = "";
+    upNext.forEach((item, idx) => {
+      const row = document.createElement("div");
+      row.className = "list-row";
+      const meta = document.createElement("div");
+      meta.className = "list-meta";
+      const t = document.createElement("div");
+      t.className = "list-title";
+      t.textContent = `${idx + 1}. ${item.title || item.url}`;
+      const sub = document.createElement("div");
+      sub.className = "list-sub";
+      const fmtTag = document.createElement("span");
+      fmtTag.className = "fmt-tag";
+      fmtTag.textContent = item.format;
+      sub.appendChild(fmtTag);
+      const qSpan = document.createElement("span");
+      qSpan.textContent = ["mp3", "m4a", "wav"].includes(item.format) ? "Audio" : (item.quality === "best" ? "Best" : `${item.quality}p`);
+      sub.appendChild(qSpan);
+      if (item.start_time || item.end_time) {
+        const cSpan = document.createElement("span");
+        cSpan.textContent = `• ${item.start_time || "00:00"}–${item.end_time || "End"}`;
+        sub.appendChild(cSpan);
+      }
+      if (item.subtitles) {
+        const ccSpan = document.createElement("span");
+        ccSpan.textContent = "• CC";
+        sub.appendChild(ccSpan);
+      }
+      meta.append(t, sub);
+
+      const acts = document.createElement("div");
+      acts.className = "row-actions";
+      if (idx > 0) {
+        const upBtn = document.createElement("button");
+        upBtn.type = "button";
+        upBtn.className = "icon-sq-btn";
+        upBtn.title = "Move up";
+        upBtn.innerHTML = '<svg class="icon" style="width:13px;height:13px" viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>';
+        upBtn.addEventListener("click", () => {
+          const [m] = upNext.splice(idx, 1);
+          upNext.splice(idx - 1, 0, m);
+          renderUpNext();
+        });
+        acts.appendChild(upBtn);
+      }
+      const rmBtn = document.createElement("button");
+      rmBtn.type = "button";
+      rmBtn.className = "icon-sq-btn";
+      rmBtn.title = "Remove";
+      rmBtn.innerHTML = '<svg class="icon" style="width:13px;height:13px" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+      rmBtn.addEventListener("click", () => {
+        upNext.splice(idx, 1);
+        renderUpNext();
+      });
+      acts.appendChild(rmBtn);
+
+      row.append(meta, acts);
+      list.appendChild(row);
+    });
+  }
+
+  window.__clipHavenTryAddUpNext = function () {
+    const cleanUrl = normalizeInputUrl($("url").value);
+    if (!cleanUrl || cleanUrl === activeDownloadUrl) {
+      showToast(I18N[lang].already_running);
+      return true;
+    }
+    const fmt = $("format").value;
+    const isAudio = ["mp3", "m4a", "wav"].includes(fmt);
+    const canThumb = ["mp4", "mkv", "mp3", "m4a"].includes(fmt);
+    upNext.push({
+      url: cleanUrl,
+      title: ($("preview-card").style.display !== "none" && $("preview-title").textContent) || cleanUrl.replace(/^https?:\/\/(www\.)?/, "").slice(0, 44),
+      folder: $("folder").value.trim(),
+      quality: $("quality").value,
+      format: fmt,
+      start_time: $("start-time").value.trim(),
+      end_time: $("end-time").value.trim(),
+      subtitles: !isAudio && $("subtitles").checked,
+      embed_thumbnail: canThumb && $("embed-thumbnail").checked,
+      allow_playlist: $("allow-playlist").checked || Boolean(getPlaylistItemsParam()) || /\/playlist\b/i.test(cleanUrl),
+      playlist_items: getPlaylistItemsParam(),
+      title_hint: currentTitleHint,
+      duration_hint: currentDurationHint,
+      lang: localStorage.getItem("cliphaven_lang") || "en",
+      thumb_url: ($("preview-thumb") && /^https?:/i.test($("preview-thumb").src || "")) ? $("preview-thumb").src : "",
+    });
+    renderUpNext();
+    showToast(I18N[lang].added_next);
+    $("url").value = "";
+    syncClearBtn();
+    hidePreview();
+    updatePlatformIcon("");
+    syncPrimaryBtn();
+    return true;
+  };
+
+  async function launchQueuedItem(item) {
+    activeDownloadUrl = item.url;
+    try {
+      const d = await api("/api/download", {
+        method: "POST",
+        body: JSON.stringify(item),
+      });
+      startPolling(d.id);
+      syncPrimaryBtn();
+    } catch (err) {
+      status("Could not start queued download", err.message, 0, "Error", "error");
+      activeDownloadUrl = "";
+      syncPrimaryBtn();
+    }
+  }
+
+  window.__clipHavenOnTransferEnd = function () {
+    syncPrimaryBtn();
+    if (upNext.length > 0) {
+      const next = upNext.shift();
+      renderUpNext();
+      setTimeout(() => launchQueuedItem(next), 350);
+    }
+  };
+
+  if ($("clear-upnext-btn")) {
+    $("clear-upnext-btn").addEventListener("click", () => { upNext = []; renderUpNext(); });
+  }
+  if ($("skip-btn")) {
+    $("skip-btn").addEventListener("click", async () => {
+      if (!upNext.length) return;
+      if (currentJobId) {
+        try { await api("/api/cancel", { method: "POST", body: JSON.stringify({ id: currentJobId }) }); } catch (_) {}
+      }
+    });
+  }
+
+  let _lastPlatformSig = "";
+  function updatePlatformIcon(raw) {
+    const ic = $("url-platform-icon");
+    if (!ic) return;
+    const u = String(raw || "").toLowerCase();
+    const prevHtml = ic.innerHTML;
+    if (u.includes("youtube.com") || u.includes("youtu.be") || u.includes("youtube-nocookie.com")) {
+      ic.style.color = "#ef4444";
+      ic.innerHTML = '<rect x="2" y="5" width="20" height="14" rx="4"/><polygon points="10 9 15 12 10 15" fill="currentColor" stroke="none"/>';
+    } else if (u.includes("facebook.com") || u.includes("fb.watch") || u.includes("fb.com") || u.includes("fb.gg")) {
+      ic.style.color = "#3b82f6";
+      ic.innerHTML = '<path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>';
+    } else if (u.includes("instagram.com") || u.includes("instagr.am")) {
+      ic.style.color = "#ec4899";
+      ic.innerHTML = '<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/>';
+    } else if (u.includes("threads.net") || u.includes("threads.com")) {
+      ic.style.color = "var(--text)";
+      ic.innerHTML = '<circle cx="12" cy="12" r="9"/><path d="M15.5 11.5c0-2-1.4-3.5-3.5-3.5s-3.5 1.5-3.5 3.5 1.4 3.5 3.5 3.5c1.5 0 2.7-.7 3.2-1.8"/>';
+    } else if (u.includes("tiktok.com")) {
+      ic.style.color = "#14b8a6";
+      ic.innerHTML = '<path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"/>';
+    } else if (u.includes("twitter.com") || u.includes("x.com") || u.includes("t.co/")) {
+      ic.style.color = "var(--text)";
+      ic.innerHTML = '<path d="M4 4l16 16M20 4L4 20"/>';
+    } else if (u.includes("linkedin.com") || u.includes("lnkd.in")) {
+      ic.style.color = "#0a66c2";
+      ic.innerHTML = '<rect x="3" y="3" width="18" height="18" rx="3"/><line x1="8" y1="11" x2="8" y2="16"/><circle cx="8" cy="8" r="0.8" fill="currentColor"/><path d="M12 16v-5m0 2a2 2 0 0 1 4 0v3"/>';
+    } else if (u.includes("reddit.com") || u.includes("redd.it")) {
+      ic.style.color = "#ff4500";
+      ic.innerHTML = '<circle cx="12" cy="14" r="6"/><circle cx="9.8" cy="13.5" r="0.9" fill="currentColor" stroke="none"/><circle cx="14.2" cy="13.5" r="0.9" fill="currentColor" stroke="none"/><path d="M12 8l1.5-4 3 .8"/>';
+    } else if (u.includes("vimeo.com")) {
+      ic.style.color = "#1ab7ea";
+      ic.innerHTML = '<path d="M4 7c1.5-1.5 3.2-1 4 1.2l1.8 6.3c.6 2 1.6 2.5 3.2 1.2 2.4-2 4.8-5.2 5.4-7.2.5-1.6-.4-2.5-2-2.2-1.1.2-2 1-2.5 2"/>';
+    } else if (u.includes("dailymotion.com") || u.includes("dai.ly")) {
+      ic.style.color = "#00aaff";
+      ic.innerHTML = '<circle cx="11" cy="13" r="5"/><line x1="16" y1="5" x2="16" y2="18"/>';
+    } else if (u.includes("twitch.tv")) {
+      ic.style.color = "#9146ff";
+      ic.innerHTML = '<path d="M4 3h16v11l-4 4h-4l-3 3v-3H4z"/><line x1="10" y1="8" x2="10" y2="12"/><line x1="15" y1="8" x2="15" y2="12"/>';
+    } else if (u.includes("pinterest.com") || u.includes("pin.it")) {
+      ic.style.color = "#e60023";
+      ic.innerHTML = '<circle cx="12" cy="12" r="9"/><path d="M10 18l1.5-6.5M9.5 11.5a3 3 0 1 1 5.2 2c-.7 1-1.9 1.3-2.9.8"/>';
+    } else if (u.includes("soundcloud.com") || u.includes("snd.sc")) {
+      ic.style.color = "#ff5500";
+      ic.innerHTML = '<path d="M17.5 17H8a4 4 0 0 1-.5-7.97A5 5 0 0 1 17 10a3.5 3.5 0 0 1 .5 7z"/><line x1="3" y1="13" x2="3" y2="16"/>';
+    } else {
+      ic.style.color = "var(--text-dim)";
+      ic.innerHTML = '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>';
+    }
+    const sig = ic.style.color + "|" + ic.innerHTML;
+    if (_lastPlatformSig && sig !== _lastPlatformSig && prevHtml !== ic.innerHTML) {
+      ic.classList.remove("icon-pop");
+      void ic.offsetWidth;
+      ic.classList.add("icon-pop");
+    }
+    _lastPlatformSig = sig;
+  }
+
+  window.__clipHavenUpdatePlatformIcon = updatePlatformIcon;
+  window.__clipHavenSyncPrimaryBtn = syncPrimaryBtn;
+  updatePlatformIcon($("url").value);
+
+  $("url").addEventListener("input", () => {
+    updatePlatformIcon($("url").value);
+    syncPrimaryBtn();
+  });
+
+  const formCard = $("form");
+  if (formCard) {
+    formCard.addEventListener("dragover", (e) => { e.preventDefault(); formCard.classList.add("drag-over"); });
+    ["dragleave", "dragend"].forEach((ev) => formCard.addEventListener(ev, () => formCard.classList.remove("drag-over")));
+    formCard.addEventListener("drop", (e) => {
+      e.preventDefault();
+      formCard.classList.remove("drag-over");
+      const dropped = (e.dataTransfer?.getData("text/uri-list") || e.dataTransfer?.getData("text/plain") || "").trim();
+      if (dropped && /^https?:\/\//i.test(dropped)) {
+        $("url").value = dropped;
+        syncClearBtn();
+        updatePlatformIcon(dropped);
+        triggerPreview(true);
+        syncPrimaryBtn();
+        showToast(I18N[lang].dropped);
+      }
+    });
+  }
+
+  document.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") $("form").requestSubmit();
+  });
+
+  applyLang(lang);
+  renderUpNext();
 })();
