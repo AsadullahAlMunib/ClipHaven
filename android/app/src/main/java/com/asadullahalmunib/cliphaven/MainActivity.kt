@@ -613,7 +613,7 @@ class MainActivity : AppCompatActivity() {
                                             .replaceFirst(Regex("""^/(?:storage/emulated/\d+|storage/sdcard\d+|sdcard)/?""", RegexOption.IGNORE_CASE), "")
                                             .replaceFirst(Regex("""^Internal Storage/?""", RegexOption.IGNORE_CASE), "")
                                             .replaceFirst(Regex("""^Downloads(?=/|$)""", RegexOption.IGNORE_CASE), "Download")
-                                            .trim('/', '\')
+                                            .trim('/', '\\')
                                         "primary:$rel"
                                     }
                                 }
