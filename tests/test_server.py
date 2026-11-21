@@ -59,9 +59,9 @@ def test_parse_timestamp():
     assert server.validate_playlist_items("") == ""
     assert server.validate_playlist_items("1, 3, 5-8") == "1,3,5-8"
     assert server.validate_playlist_items("1;rm -rf") is None
-    assert server.is_newer_version("3.3.0", "3.2.3") is True
-    assert server.is_newer_version("3.2.3", "3.2.3") is False
-    assert server.is_newer_version("3.2.2", "3.2.3") is False
+    assert server.is_newer_version("3.4.0", "3.3.0") is True
+    assert server.is_newer_version("3.3.0", "3.3.0") is False
+    assert server.is_newer_version("3.2.3", "3.3.0") is False
 
 
 def test_trim_and_shift_subtitle_text_and_file(tmp_path):
@@ -149,7 +149,7 @@ def test_config_logo_and_validation_endpoints(tmp_path):
             assert resp.status == 200
             data = json.loads(resp.read().decode("utf-8"))
             assert data["ok"] is True
-            assert data["version"] == "3.2.3"
+            assert data["version"] == "3.3.0"
             assert "default_folder" in data
             assert "ffmpeg" in data
 
@@ -295,3 +295,121 @@ def test_progressive_playlist_stream_and_cancel():
     assert snap_after["playlist_count"] == 150
     with server.lock:
         server._info_cache.pop(url, None)
+
+
+def test_host_header_dns_rebinding_protection():
+    assert server._is_local_host_header("127.0.0.1:8765") is True
+    assert server._is_local_host_header("localhost:8765") is True
+    assert server._is_local_host_header("[::1]:8765") is True
+    assert server._is_local_host_header("") is True
+    assert server._is_local_host_header("evil.example.com:8765") is False
+    assert server._is_local_host_header("127.0.0.1.evil.com") is False
+
+    httpd = server.ThreadingHTTPServer(("127.0.0.1", 0), server.Handler)
+    port = httpd.server_address[1]
+    t = threading.Thread(target=httpd.serve_forever, daemon=True)
+    t.start()
+    try:
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{port}/api/config",
+            headers={"Host": "evil.attacker.local:8765"},
+        )
+        try:
+            urllib.request.urlopen(req, timeout=5)
+            assert False, "Non-local Host header must be rejected with 403"
+        except urllib.error.HTTPError as e:
+            assert e.code == 403
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def test_powershell_single_quote_escaping():
+    assert server._ps_single_quote(r"C:\Users\O'Brien\$env:PATH") == r"'C:\Users\O''Brien\$env:PATH'"
+    assert server._ps_single_quote("`whoami`") == "'`whoami`'"
+
+
+def test_youtube_playlist_recursive_parser():
+    sample = {
+        "contents": [
+            {
+                "playlistVideoRenderer": {
+                    "videoId": "abc12345678",
+                    "title": {"runs": [{"text": "First Clip"}]},
+                    "lengthText": {"simpleText": "3:45"},
+                }
+            },
+            {
+                "lockupViewModel": {
+                    "contentId": "xyz98765432",
+                    "metadata": {
+                        "lockupMetadataViewModel": {
+                            "title": {"content": "Second Clip"}
+                        }
+                    },
+                    "contentImage": {
+                        "thumbnailViewModel": {
+                            "overlays": [
+                                {
+                                    "thumbnailOverlayBadgeViewModel": {
+                                        "thumbnailBadges": [
+                                            {"thumbnailBadgeViewModel": {"text": "12:05"}}
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                }
+            },
+            {
+                "continuationItemRenderer": {
+                    "continuationEndpoint": {
+                        "continuationCommand": {"token": "NEXT_PAGE_TOKEN_42"}
+                    }
+                }
+            },
+        ]
+    }
+    videos, tokens = [], []
+    server._collect_playlist_videos_and_tokens(sample, videos, tokens)
+    assert len(videos) == 2
+    assert videos[0] == ("abc12345678", "First Clip", "3:45")
+    assert videos[1][0] == "xyz98765432"
+    assert videos[1][1] == "Second Clip"
+    assert "NEXT_PAGE_TOKEN_42" in tokens
+
+
+def test_public_release_tag_filter():
+    assert server.extract_public_release_version("v3.3.4") == "3.3.4"
+    assert server.extract_public_release_version("V3.4.0") == "3.4.0"
+    assert server.extract_public_release_version("v3.3.4-beta") == "3.3.4"
+    assert server.extract_public_release_version("v3.3.4-rc.1") == "3.3.4"
+    assert server.extract_public_release_version("tv.3.3.4") is None
+    assert server.extract_public_release_version("t3.3.4") is None
+    assert server.extract_public_release_version("test-v3.3.4") is None
+    assert server.extract_public_release_version("3.3.4") is None
+
+def test_is_rate_limit_error():
+    assert server._is_rate_limit_error("ERROR: unable to download video data: HTTP Error 429: Too Many Requests") is True
+    assert server._is_rate_limit_error("WARNING: Rate-limit reached, slowing down") is True
+    assert server._is_rate_limit_error("Connection throttled by server") is True
+    assert server._is_rate_limit_error("ERROR: Video unavailable") is False
+    assert server._is_rate_limit_error("") is False
+
+def test_opengraph_meta_parsing_and_login_guard():
+    good_html = '''<html><head>
+        <meta property="og:title" content="Amazing Reel &amp; Clip" />
+        <meta content="https://cdn.example.com/thumb.jpg" property="og:image" />
+        <meta property="og:site_name" content="Instagram" />
+    </head></html>'''
+    title, img, site = server._extract_opengraph_from_html(good_html)
+    assert title == "Amazing Reel & Clip"
+    assert img == "https://cdn.example.com/thumb.jpg"
+    assert site == "Instagram"
+
+    login_html = '''<html><head>
+        <meta property="og:title" content="Log into Facebook" />
+        <meta property="og:image" content="https://static.xx.fbcdn.net/logo.png" />
+    </head></html>'''
+    assert server._extract_opengraph_from_html(login_html) == ("", "", "")
