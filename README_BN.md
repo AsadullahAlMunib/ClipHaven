@@ -198,47 +198,55 @@ ClipHaven একটি ওপেন-সোর্স, আনসাইন্ড �
 ```
 ClipHaven/
 ├── .github/
-│   ├── dependabot.yml                                  # ডিপেন্ডেন্সি আপডেটার কনফিগারেশন
+│   ├── dependabot.yml                                             # সাপ্তাহিক ডিপেন্ডেন্সি আপডেটার কনফিগারেশন
 │   └── workflows/
-│       ├── ci.yml                                      # মাল্টি-প্ল্যাটফর্ম Python টেস্ট, Ruff লিন্ট ও Android Gradle/lint CI
-│       └── release.yml                                 # স্বয়ংক্রিয় ১১-অ্যাসেট বিল্ডার (Windows, macOS, Linux x64/ARM64, Android 64/32-bit ও Source)
-├── android/                                            # স্বয়ংসম্পূর্ণ Android APK প্রজেক্ট (Kotlin WebView + youtubedl-android)
+│       ├── ci.yml                                                 # মাল্টি-OS Python টেস্ট, Ruff লিন্ট ও Android Gradle/lint CI
+│       └── release.yml                                            # স্বয়ংক্রিয় ১১-অ্যাসেট রিলিজ বিল্ডার (Desktop, Android ও Source)
+├── android/                                                       # স্বয়ংসম্পূর্ণ Android APK প্রজেক্ট (Kotlin + youtubedl-android)
+│   ├── build.gradle.kts                                           # রুট Android Gradle প্লাগইন কনফিগারেশন
+│   ├── gradle.properties                                          # Gradle JVM মেমরি ও AndroidX বিল্ড ফ্ল্যাগ
+│   ├── settings.gradle.kts                                        # Gradle রিপোজিটরি ও মডিউল সেটিংস
 │   └── app/
-│       ├── build.gradle.kts                            # অ্যাপ ডিপেন্ডেন্সি ও 64/32-bit ABI স্প্লিট কনফিগ
+│       ├── build.gradle.kts                                       # অ্যাপ ডিপেন্ডেন্সি, 64/32-bit ABI স্প্লিট ও ওয়েব অ্যাসেট সিঙ্ক
+│       ├── proguard-rules.pro                                     # WebView JS ব্রিজের জন্য ProGuard/R8 রুলস
 │       └── src/main/
-│           ├── AndroidManifest.xml                     # পারমিশন, Share মেনু ইন্টেন্ট ও সার্ভিস ডিক্লারেশন
-│           ├── res/drawable/ic_stat_cliphaven.xml      # কাস্টম মনোক্রোম স্ট্যাটাস বার নোটিফিকেশন আইকন
-│           ├── res/layout/notification_download_progress.xml # ৩-লাইনের DecoratedCustomViewStyle নোটিফিকেশন লেআউট
-│           └── java/com/asadullahalmunib/cliphaven/
-│               ├── MainActivity.kt                     # WebViewAssetLoader UI, JS ব্রিজ, SAF পিকার ও yt-dlp ইঞ্জিন
-│               ├── DownloadForegroundService.kt        # ব্যাকগ্রাউন্ড dataSync সার্ভিস, WakeLock ও দ্বিভাষিক রিচ নোটিফিকেশন
-│               ├── FormatUtils.kt                      # URL ভ্যালিডেশন, সেমভার/ট্যাগ ফিল্টারিং ও প্লেলিস্ট রেঞ্জ কমপ্রেশন
-│               ├── SubtitleSyncHelper.kt               # ক্লিপের সাবটাইটেল ট্রিমিং ও টাইমস্ট্যাম্প শিফটিং
-│               └── PlaylistHelper.kt            # সরাসরি YouTube InnerTube প্লেলিস্ট কন্টিনিউয়েশন পেজিনেশন
-├── core/                                     # মডুলার Python ব্যাকএন্ড হেল্পার প্যাকেজ
-│   ├── __init__.py
-│   ├── subtitles.py                                    # ক্লিপের .vtt/.srt সাবটাইটেল ট্রিমিং ও টাইমস্ট্যাম্প শিফটিং
-│   └── playlist.py                             # সরাসরি YouTube InnerTube প্লেলিস্ট কন্টিনিউয়েশন পেজিনেশন
+│           ├── AndroidManifest.xml                                # পারমিশন, singleTask মোড, Share ইন্টেন্ট ও সার্ভিস ডিক্লারেশন
+│           ├── java/com/asadullahalmunib/cliphaven/
+│           │   ├── DownloadForegroundService.kt                   # ব্যাকগ্রাউন্ড dataSync সার্ভিস, WakeLock ও রিচ নোটিফিকেশন
+│           │   ├── FormatUtils.kt                                 # URL ভ্যালিডেশন, সেমভার/ট্যাগ ফিল্টার ও প্লেলিস্ট রেঞ্জ কমপ্রেশন
+│           │   ├── MainActivity.kt                                # WebViewAssetLoader UI, JS ব্রিজ, SAF পিকার ও yt-dlp ইঞ্জিন
+│           │   ├── PlaylistHelper.kt                              # সরাসরি প্লেলিস্ট পেজ-১ ও InnerTube কন্টিনিউয়েশন পেজিনেশন
+│           │   └── SubtitleSyncHelper.kt                          # কাটা ক্লিপের .vtt/.srt সাবটাইটেল ট্রিমিং ও টাইম-শিফটিং
+│           └── res/
+│               ├── drawable/
+│               │   └── ic_stat_cliphaven.xml                      # মনোক্রোম স্ট্যাটাস বার নোটিফিকেশন আইকন
+│               ├── layout/
+│               │   └── notification_download_progress.xml         # ৩-লাইনের DecoratedCustomViewStyle নোটিফিকেশন লেআউট
+│               └── xml/
+│                   └── file_paths.xml                             # নোটিফিকেশন থেকে সরাসরি Play-এর জন্য FileProvider পাথ
+├── core/                                                          # মডুলার Python ব্যাকএন্ড হেল্পার প্যাকেজ
+│   ├── __init__.py                                                # Core Python প্যাকেজ ইনিশিয়ালাইজার
+│   ├── playlist.py                                                # সরাসরি প্লেলিস্ট পেজ-১ ও InnerTube কন্টিনিউয়েশন পেজিনেশন
+│   └── subtitles.py                                               # কাটা ক্লিপের .vtt/.srt সাবটাইটেল ট্রিমিং ও টাইম-শিফটিং
 ├── docs/
-│   ├── index.html                                      # অফিশিয়াল দ্বিভাষিক ইন্টারঅ্যাক্টিভ ডকুমেন্টেশন (GitHub Pages)
-│   ├── ClipHaven_Documentation_Video_Thumbnail_EN.jpeg # ইংরেজি ওয়াকথ্রু ভিডিও থাম্বনেইল
-│   └── ClipHaven_Documentation_Video_Thumbnail_BN.jpeg # বাংলা ওয়াকথ্রু ভিডিও থাম্বনেইল
+│   └── index.html                                                 # অফিশিয়াল দ্বিভাষিক ইন্টারঅ্যাক্টিভ ডকুমেন্টেশন (GitHub Pages)
 ├── scripts/
-│   └── generate_icons.py                               # logo.svg থেকে logo.ico ও Android mipmap আইকন জেনারেটর
+│   └── generate_icons.py                                          # logo.svg থেকে logo.ico ও Android mipmap আইকন জেনারেটর
 ├── tests/
-│   └── test_server.py                                  # ইউনিট ও API ইন্টিগ্রেশন টেস্ট স্যুট
-├── logo.svg                                            # ভেক্টর অ্যাপ্লিকেশন লোগো ও ফ্যাভিকন
-├── index.html                                          # পরিচ্ছন্ন ও রেসপন্সিভ ওয়েব UI
-├── style.css                                           # ডার্ক ও লাইট মোড ডিজাইন টোকেন ও অ্যানিমেশন
-├── app.js                                              # ক্লায়েন্ট স্টেট, প্রোগ্রেসিভ প্লেলিস্ট UI, ফোল্ডার পিকার ও পোলিং
-├── server.py                                           # লোকাল HTTP সার্ভার এবং yt-dlp / FFmpeg ব্যাকএন্ড ব্রিজ
-├── setup-and-run.bat                                   # Windows এক-ক্লিক রানার ও এনভায়রনমেন্ট বিল্ডার
-├── requirements.txt                                    # মূল Python ডিপেন্ডেন্সি (yt-dlp + imageio-ffmpeg + mutagen)
-├── pyproject.toml                                      # প্রজেক্ট কনফিগারেশন ও মেটাডেটা
-├── README.md                                           # ইংরেজি ডকুমেন্টেশন
-├── README_BN.md                                        # বাংলা ডকুমেন্টেশন
-├── CHANGELOG.md                                        # সব আপডেট ও ভার্সন পরিবর্তনের বিস্তারিত রেকর্ড
-└── LICENSE                                             # MIT ওপেন-সোর্স লাইসেন্স
+│   └── test_server.py                                             # স্বয়ংক্রিয় ইউনিট ও API ইন্টিগ্রেশন টেস্ট স্যুট
+├── .gitignore                                                     # ক্যাশ, venv ও বিল্ড ফাইল বাদ দেওয়ার Git কনফিগ
+├── CHANGELOG.md                                                   # সব আপডেট ও ভার্সন পরিবর্তনের বিস্তারিত রেকর্ড
+├── LICENSE                                                        # MIT ওপেন-সোর্স লাইসেন্স
+├── README.md                                                      # ইংরেজি ডকুমেন্টেশন
+├── README_BN.md                                                   # বাংলা ডকুমেন্টেশন
+├── app.js                                                         # ক্লায়েন্ট স্টেট, Up Next কিউ, ক্লিপ স্লাইডার, সাউন্ড/হ্যাপটিক ও পোলিং
+├── index.html                                                     # দ্বিভাষিক EN/বাংলা স্টুডিও UI মার্কআপ
+├── logo.svg                                                       # ভেক্টর অ্যাপ্লিকেশন লোগো ও ফ্যাভিকন
+├── pyproject.toml                                                 # প্রজেক্ট মেটাডেটা ও Ruff/pytest কনফিগারেশন
+├── requirements.txt                                               # মূল Python ডিপেন্ডেন্সি (yt-dlp, imageio-ffmpeg, mutagen)
+├── server.py                                                      # লোকাল HTTP সার্ভার, ফাস্ট প্রিভিউ ও yt-dlp / FFmpeg ব্যাকএন্ড
+├── setup-and-run.bat                                              # Windows এক-ক্লিক এনভায়রনমেন্ট বিল্ডার ও লঞ্চার
+└── style.css                                                      # Deep Slate + Teal থিম টোকেন ও GPU মাইক্রো-অ্যানিমেশন
 ```
 
 <br />

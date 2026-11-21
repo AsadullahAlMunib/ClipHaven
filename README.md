@@ -194,47 +194,55 @@ See more answers in the [**Full Documentation FAQ**](https://asadullahalmunib.gi
 ```
 ClipHaven/
 ├── .github/
-│   ├── dependabot.yml                                  # Dependency updater configuration
+│   ├── dependabot.yml                                             # Weekly dependency update configuration
 │   └── workflows/
-│       ├── ci.yml                                      # Multi-platform Python tests, Ruff lint & Android Gradle/lint CI
-│       └── release.yml                                 # Automated 11-asset builder (Windows, macOS, Linux x64/ARM64, Android 64/32-bit & Source)
-├── android/                                            # Self-contained Android APK project (Kotlin WebView + youtubedl-android)
+│       ├── ci.yml                                                 # Multi-OS Python tests, Ruff lint & Android Gradle/lint CI
+│       └── release.yml                                            # Automated 11-asset release builder (Desktop, Android & Source)
+├── android/                                                       # Self-contained Android APK project (Kotlin + youtubedl-android)
+│   ├── build.gradle.kts                                           # Root Android Gradle plugin configuration
+│   ├── gradle.properties                                          # Gradle JVM memory & AndroidX build flags
+│   ├── settings.gradle.kts                                        # Gradle repositories & module includes
 │   └── app/
-│       ├── build.gradle.kts                            # App dependencies & 64/32-bit ABI split config
+│       ├── build.gradle.kts                                       # App dependencies, 64/32-bit ABI splits & web asset sync
+│       ├── proguard-rules.pro                                     # ProGuard/R8 keep rules for WebView JS bridge
 │       └── src/main/
-│           ├── AndroidManifest.xml                     # Permissions, Share menu intents & service declarations
-│           ├── res/drawable/ic_stat_cliphaven.xml      # Custom monochrome status bar notification icon
-│           ├── res/layout/notification_download_progress.xml # 3-line DecoratedCustomViewStyle progress layout
-│           └── java/com/asadullahalmunib/cliphaven/
-│               ├── MainActivity.kt                     # WebViewAssetLoader UI, JS bridge, SAF picker & yt-dlp engine
-│               ├── DownloadForegroundService.kt        # Background dataSync service, WakeLock & bilingual rich notifications
-│               ├── FormatUtils.kt                      # URL validation, semver/tag filtering & playlist range compression
-│               ├── SubtitleSyncHelper.kt               # Trimmed clip subtitle slicing & timestamp shifting
-│               └── PlaylistHelper.kt            # Direct YouTube InnerTube continuation pagination
-├── core/                                     # Modular Python backend helpers
-│   ├── __init__.py
-│   ├── subtitles.py                                    # Trimmed clip .vtt/.srt cue slicing & timestamp shifting
-│   └── playlist.py                             # Direct YouTube InnerTube playlist continuation pagination
+│           ├── AndroidManifest.xml                                # Permissions, singleTask launchMode, Share intents & services
+│           ├── java/com/asadullahalmunib/cliphaven/
+│           │   ├── DownloadForegroundService.kt                   # Foreground dataSync service, WakeLock & rich notifications
+│           │   ├── FormatUtils.kt                                 # URL validation, semver/tag filter & playlist range compression
+│           │   ├── MainActivity.kt                                # WebViewAssetLoader UI, JS bridge, SAF picker & yt-dlp engine
+│           │   ├── PlaylistHelper.kt                              # Direct playlist Page-1 & InnerTube continuation pagination
+│           │   └── SubtitleSyncHelper.kt                          # Trimmed clip .vtt/.srt subtitle slicing & time-shifting
+│           └── res/
+│               ├── drawable/
+│               │   └── ic_stat_cliphaven.xml                      # Monochrome status bar notification icon
+│               ├── layout/
+│               │   └── notification_download_progress.xml         # 3-line DecoratedCustomViewStyle progress layout
+│               └── xml/
+│                   └── file_paths.xml                             # FileProvider storage paths for direct notification Play
+├── core/                                                          # Modular Python backend helpers
+│   ├── __init__.py                                                # Core Python package initializer
+│   ├── playlist.py                                                # Direct playlist Page-1 & InnerTube continuation pagination
+│   └── subtitles.py                                               # Trimmed clip .vtt/.srt cue slicing & time-shifting
 ├── docs/
-│   ├── index.html                                      # Official bilingual interactive documentation (GitHub Pages)
-│   ├── ClipHaven_Documentation_Video_Thumbnail_EN.jpeg # English walkthrough video thumbnail
-│   └── ClipHaven_Documentation_Video_Thumbnail_BN.jpeg # Bangla walkthrough video thumbnail
+│   └── index.html                                                 # Official bilingual interactive documentation (GitHub Pages)
 ├── scripts/
-│   └── generate_icons.py                               # Pixel-faithful logo.svg -> logo.ico & Android mipmap generator
+│   └── generate_icons.py                                          # Vector logo.svg -> logo.ico & Android mipmap icon generator
 ├── tests/
-│   └── test_server.py                                  # Unit and API integration test suite
-├── logo.svg                                            # Vector application logo and favicon
-├── index.html                                          # Clean, responsive web UI
-├── style.css                                           # Dark and light mode design tokens & animations
-├── app.js                                              # Client state, progressive playlist UI, folder picker & polling
-├── server.py                                           # Local HTTP server and yt-dlp / FFmpeg backend bridge
-├── setup-and-run.bat                                   # Windows one-click runner and environment builder
-├── requirements.txt                                    # Core Python dependencies (yt-dlp + imageio-ffmpeg + mutagen)
-├── pyproject.toml                                      # Project configurations and metadata
-├── README.md                                           # English documentation
-├── README_BN.md                                        # Bangla documentation
-├── CHANGELOG.md                                        # Detailed record of updates and version changes
-└── LICENSE                                             # MIT Open Source License
+│   └── test_server.py                                             # Automated unit & API integration test suite
+├── .gitignore                                                     # Git ignore rules for caches, venvs & build artifacts
+├── CHANGELOG.md                                                   # Detailed record of updates and version history
+├── LICENSE                                                        # MIT Open Source License
+├── README.md                                                      # English documentation
+├── README_BN.md                                                   # Bangla documentation
+├── app.js                                                         # Client state, Up Next queue, clip slider, sound/haptics & polling
+├── index.html                                                     # Bilingual EN/বাংলা Studio UI markup
+├── logo.svg                                                       # Vector application logo and favicon
+├── pyproject.toml                                                 # Project metadata & Ruff/pytest configuration
+├── requirements.txt                                               # Core Python dependencies (yt-dlp, imageio-ffmpeg, mutagen)
+├── server.py                                                      # Local HTTP server, fast previews & yt-dlp / FFmpeg backend
+├── setup-and-run.bat                                              # Windows one-click environment builder & launcher
+└── style.css                                                      # Deep Slate + Teal theme tokens & GPU micro-animations
 ```
 
 <br />
