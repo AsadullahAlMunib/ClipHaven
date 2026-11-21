@@ -10,6 +10,11 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.LinearGradient
+import android.graphics.Paint
+import android.graphics.RectF
+import android.graphics.Shader
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
@@ -27,6 +32,8 @@ class DownloadForegroundService : Service() {
         const val COMPLETE_CHANNEL_ID = "cliphaven_complete_channel"
         const val NOTIFICATION_ID = 8765
         const val COMPLETE_NOTIFICATION_ID = 8766
+        private const val COMPLETED_GROUP_KEY = "cliphaven_completed_group"
+        private val completedNotifSeq = java.util.concurrent.atomic.AtomicInteger(9000)
 
         const val ACTION_START = "com.asadullahalmunib.cliphaven.action.START"
         const val ACTION_STOP = "com.asadullahalmunib.cliphaven.action.STOP"
@@ -65,8 +72,6 @@ class DownloadForegroundService : Service() {
                 lastStageSubText = ""
                 hasPendingUpdate = false
                 pendingJobId = jobId
-                val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
-                nm?.cancel(COMPLETE_NOTIFICATION_ID)
                 val intent = Intent(context, DownloadForegroundService::class.java).apply {
                     action = ACTION_START
                     putExtra(EXTRA_JOB_ID, jobId)
@@ -181,6 +186,7 @@ class DownloadForegroundService : Service() {
         fun showCompleted(context: Context, videoTitle: String, detailText: String, filePath: String = "", folderPath: String = "") {
             try {
                 val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
+                val notifId = completedNotifSeq.incrementAndGet()
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     val channel = NotificationChannel(
                         COMPLETE_CHANNEL_ID,
@@ -242,7 +248,7 @@ class DownloadForegroundService : Service() {
                                 setDataAndType(fileUri, mime)
                                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
                             }
-                            val playPending = PendingIntent.getActivity(context, 101, playIntent, pendingFlags)
+                            val playPending = PendingIntent.getActivity(context, notifId * 2, playIntent, pendingFlags)
                             notifBuilder.addAction(0, if (isBangla) "▶ চালান" else "▶ Play", playPending)
                         } catch (_: Throwable) {
                         }
@@ -253,12 +259,13 @@ class DownloadForegroundService : Service() {
                 try {
                     val targetFolder = folderPath.ifEmpty { filePath }
                     val folderIntent = buildOpenFolderIntent(context, targetFolder)
-                    val folderPending = PendingIntent.getActivity(context, 102, folderIntent, pendingFlags)
+                    val folderPending = PendingIntent.getActivity(context, notifId * 2 + 1, folderIntent, pendingFlags)
                     notifBuilder.addAction(0, if (isBangla) "ফোল্ডার খুলুন" else "Open Folder", folderPending)
                 } catch (_: Throwable) {
                 }
 
-                nm.notify(COMPLETE_NOTIFICATION_ID, notifBuilder.build())
+                notifBuilder.setGroup(COMPLETED_GROUP_KEY)
+                nm.notify(notifId, notifBuilder.build())
             } catch (_: Throwable) {
             }
         }
@@ -419,6 +426,38 @@ class DownloadForegroundService : Service() {
         }
     }
 
+    @Volatile
+    private var gradPhase: Float = 0f
+
+    private fun renderAnimatedProgressBarBitmap(percent: Int): Bitmap {
+        val w = 360
+        val h = 16
+        val r = h / 2f
+        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x3394A3B8 }
+        canvas.drawRoundRect(RectF(0f, 0f, w.toFloat(), h.toFloat()), r, r, trackPaint)
+
+        val fillW = ((percent.coerceIn(0, 100) / 100f) * w).coerceAtLeast(if (percent > 0) h.toFloat() else 0f)
+        if (fillW > 0f) {
+            gradPhase = (gradPhase + 0.16f) % 2f
+            val shift = gradPhase * w
+            val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                shader = LinearGradient(
+                    -shift,
+                    0f,
+                    w.toFloat() * 1.6f - shift,
+                    0f,
+                    intArrayOf(0xFF14B8A6.toInt(), 0xFF10B981.toInt(), 0xFFF59E0B.toInt(), 0xFF14B8A6.toInt()),
+                    floatArrayOf(0f, 0.36f, 0.72f, 1f),
+                    Shader.TileMode.MIRROR
+                )
+            }
+            canvas.drawRoundRect(RectF(0f, 0f, fillW, h.toFloat()), r, r, fillPaint)
+        }
+        return bmp
+    }
+
     private fun buildNotification(
         jobId: String,
         title: String,
@@ -463,7 +502,15 @@ class DownloadForegroundService : Service() {
         try {
             val customViews = RemoteViews(packageName, R.layout.notification_download_progress).apply {
                 setTextViewText(R.id.notif_title, safeTitle)
-                setProgressBar(R.id.notif_progress, 100, if (indeterminate) 0 else safePct, indeterminate)
+                if (indeterminate) {
+                    setViewVisibility(R.id.notif_progress_img, android.view.View.GONE)
+                    setViewVisibility(R.id.notif_progress, android.view.View.VISIBLE)
+                    setProgressBar(R.id.notif_progress, 100, 0, true)
+                } else {
+                    setViewVisibility(R.id.notif_progress, android.view.View.GONE)
+                    setViewVisibility(R.id.notif_progress_img, android.view.View.VISIBLE)
+                    setImageViewBitmap(R.id.notif_progress_img, renderAnimatedProgressBarBitmap(safePct))
+                }
                 setTextViewText(R.id.notif_detail, detail)
                 if (thumbBmp != null) {
                     setImageViewBitmap(R.id.notif_thumb, thumbBmp)
