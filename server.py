@@ -517,6 +517,63 @@ def _extract_opengraph_from_html(html_text: str) -> tuple[str, str, str]:
     return (title[:200], image, site[:80])
 
 
+
+def _parse_iso8601_duration(raw: str) -> int:
+    """Parse ISO-8601 duration (e.g. PT1H2M3S, PT4M20S, PT45S) or integer seconds."""
+    val = (raw or "").strip().upper()
+    if not val:
+        return 0
+    if val.isdigit():
+        return int(val)
+    m = re.match(r"^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?$", val)
+    if not m:
+        return 0
+    h = int(m.group(1) or 0)
+    mn = int(m.group(2) or 0)
+    sec = int(float(m.group(3) or 0))
+    return h * 3600 + mn * 60 + sec
+
+
+def _extract_duration_from_html(html_text: str) -> int:
+    """Extract video duration in seconds from OpenGraph/Schema.org meta tags or JSON-LD (zero extra requests)."""
+    if not html_text:
+        return 0
+    for pat in (
+        r"""<meta[^>]+(?:property|name|itemprop)=["'](?:video:duration|duration)["'][^>]+content=["']([^"']+)["']""",
+        r"""<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name|itemprop)=["'](?:video:duration|duration)["']""",
+        r'"duration"\s*:\s*"(PT[0-9HMS.]+)"',
+        r'"lengthSeconds"\s*:\s*"(\d+)"',
+    ):
+        m = re.search(pat, html_text, re.I)
+        if m:
+            sec = _parse_iso8601_duration(m.group(1))
+            if 0 < sec < 86400 * 7:
+                return sec
+    return 0
+
+
+def _fetch_fast_youtube_duration(clean_url: str) -> int:
+    """Fast (~0.3-0.6s) YouTube single-video duration lookup from lightweight HTML head before yt-dlp verifies."""
+    yt_id = _extract_yt_id(clean_url)
+    if not yt_id:
+        return 0
+    try:
+        req = urllib.request.Request(
+            f"https://www.youtube.com/watch?v={yt_id}&hl=en&gl=US",
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Cookie": "CONSENT=YES+cb.20210328-17-p0.en+FX+410",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=2.5) as resp:
+            if resp.status != 200:
+                return 0
+            chunk = resp.read(163840).decode("utf-8", errors="replace")
+        return _extract_duration_from_html(chunk)
+    except Exception:
+        return 0
+
 def _fetch_fast_opengraph_info(clean_url: str, parsed, has_video_and_list: bool) -> dict | None:
     """Fast (~0.3-0.8s) OpenGraph preview for Facebook, Instagram, Threads, LinkedIn, Pinterest & Twitch."""
     host = (parsed.hostname or "").lower().rstrip(".")
@@ -546,11 +603,13 @@ def _fetch_fast_opengraph_info(clean_url: str, parsed, has_video_and_list: bool)
         title, thumb, site = _extract_opengraph_from_html(chunk)
         if not title or not thumb:
             return None
+        dur_sec = _extract_duration_from_html(chunk)
         return {
             "title": title,
             "uploader": site or host.removeprefix("www.").split(".")[0].capitalize(),
-            "duration": "",
-            "duration_seconds": 0,
+            "duration": format_seconds(dur_sec) if dur_sec > 0 else "",
+            "duration_seconds": dur_sec,
+            "duration_approx": bool(dur_sec > 0),
             "thumbnail": thumb,
             "is_playlist": has_video_and_list,
             "playlist_count": 2 if has_video_and_list else 1,
@@ -625,7 +684,7 @@ def _fetch_playlist_page_dict(clean_url: str, has_list_param: bool, start_idx: i
             if end_idx > 0:
                 ydl_opts["playlistend"] = end_idx
         else:
-            ydl_opts["extractor_args"] = {"youtube": {"player_client": ["android", "web", "default"], "player_skip": ["configs"]}}
+            ydl_opts["extractor_args"] = {"youtube": {"player_client": ["android"], "player_skip": ["webpage", "configs"]}}
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             data = ydl.extract_info(clean_url, download=False)
     except Exception:
@@ -643,7 +702,7 @@ def _fetch_playlist_page_dict(clean_url: str, has_list_param: bool, start_idx: i
         extractor_flags: list[str] = []
     else:
         playlist_flags = ["--no-playlist"]
-        extractor_flags = ["--extractor-args", "youtube:player_client=android,web,default;player_skip=configs"]
+        extractor_flags = ["--extractor-args", "youtube:player_client=android;player_skip=webpage,configs"]
 
     cmd = get_ytdlp_cmd() + [
         "--dump-single-json",
@@ -672,15 +731,18 @@ def _fetch_playlist_page_dict(clean_url: str, has_list_param: bool, start_idx: i
         return json.loads(json_line)
 
 
-def fetch_video_info(url: str, full: bool = False) -> dict:
+def fetch_video_info(url: str, full: bool = False, verify: bool = False) -> dict:
     global _preview_stop_event, _preview_url
     clean_url = extract_url(url)
     if not valid_url(clean_url):
         raise ValueError("Enter a valid HTTPS video URL (YouTube, Facebook, Instagram, LinkedIn, TikTok, X, etc.).")
 
     with lock:
-        if clean_url in _info_cache and (not full or _info_cache[clean_url].get("duration") or _info_cache[clean_url].get("is_playlist")):
-            return _snapshot_cached_info(_info_cache[clean_url])
+        if clean_url in _info_cache:
+            c = _info_cache[clean_url]
+            has_verified_dur = bool(c.get("duration")) and not bool(c.get("duration_approx"))
+            if not full or (has_verified_dur and not verify) or c.get("is_playlist"):
+                return _snapshot_cached_info(c)
 
     parsed = urlparse(clean_url)
     qs = parse_qs(parsed.query)
@@ -782,6 +844,7 @@ def fetch_video_info(url: str, full: bool = False) -> dict:
         "uploader": data.get("uploader") or data.get("channel") or data.get("creator") or data.get("extractor_key") or "Video",
         "duration": format_seconds(int(dur)) if isinstance(dur, (int, float)) and dur > 0 else "",
         "duration_seconds": int(dur) if isinstance(dur, (int, float)) else 0,
+        "duration_approx": False,
         "thumbnail": thumb,
         "is_playlist": is_playlist,
         "playlist_count": max(len(playlist_entries), reported_count) if (playlist_entries or reported_count) else (2 if is_playlist else 1),
@@ -908,6 +971,23 @@ def validate_playlist_items(raw: str) -> str | None:
     return cleaned
 
 
+def _is_youtube_client_error(msg: str) -> bool:
+    """Detect YouTube client/format blocks so desktop downloads can fall back to web+default clients."""
+    low = (msg or "").lower()
+    return any(
+        tok in low
+        for tok in (
+            "precondition check failed",
+            "please sign in",
+            "sign in to confirm",
+            "http error 400",
+            "http error 403",
+            "requested format is not available",
+            "nsig extraction failed",
+        )
+    )
+
+
 def _is_rate_limit_error(msg: str) -> bool:
     """Detect HTTP 429 / throttling / rate-limit errors so downloads can retry safely with 4 fragments."""
     low = (msg or "").lower()
@@ -976,8 +1056,13 @@ def download(
 
         expect_srt_subs = bool(subtitles and has_ffmpeg and fmt_choice in {"mp4", "mkv"})
 
-        def _build_cmd(concurrent_fragments: int = 6, allow_aria2c: bool = True) -> list[str]:
+        def _build_cmd(concurrent_fragments: int = 6, allow_aria2c: bool = True, use_fallback_client: bool = False) -> list[str]:
             use_aria2c = bool(allow_aria2c and has_aria2c and not is_clip_job)
+            yt_client_arg = (
+                "youtube:player_client=android,web,default;skip=translated_subs"
+                if use_fallback_client
+                else "youtube:player_client=android;skip=translated_subs"
+            )
             c = get_ytdlp_cmd() + [
                 "--yes-playlist" if allow_playlist else "--no-playlist",
                 "--force-ipv4",
@@ -996,7 +1081,7 @@ def download(
                 "--no-mtime",
                 "--windows-filenames",
                 "--extractor-args",
-                "youtube:player_client=android,web,default;skip=translated_subs",
+                yt_client_arg,
             ]
             if not is_clip_job:
                 if use_aria2c:
@@ -1307,19 +1392,33 @@ def download(
         with lock:
             _cancelled_after_first = jobs.get(jid, {}).get("state") == "Cancelled"
         _has_saved_after_first = bool(saved_file and Path(saved_file).is_file() and Path(saved_file).stat().st_size > 0)
-        if rc != 0 and not _cancelled_after_first and not _has_saved_after_first and _is_rate_limit_error("\n".join(recent)):
-            logging.warning("Rate limit detected on [%s]; retrying safely with 4 concurrent fragments.", jid)
-            update(
-                jid,
-                title="Rate limited — retrying safely…",
-                detail="Server rate-limited 6 threads; automatically switching to 4 parallel fragments…",
-                indeterminate=True,
-                speed="",
-                eta="",
-                stage="Retrying",
-            )
-            time.sleep(1.5)
-            rc = _run_attempt(_build_cmd(concurrent_fragments=4, allow_aria2c=False))
+        if rc != 0 and not _cancelled_after_first and not _has_saved_after_first:
+            recent_joined = "\n".join(recent)
+            if _is_rate_limit_error(recent_joined):
+                logging.warning("Rate limit detected on [%s]; retrying safely with 4 concurrent fragments.", jid)
+                update(
+                    jid,
+                    title="Rate limited — retrying safely…",
+                    detail="Server rate-limited 6 threads; automatically switching to 4 parallel fragments…",
+                    indeterminate=True,
+                    speed="",
+                    eta="",
+                    stage="Retrying",
+                )
+                time.sleep(1.5)
+                rc = _run_attempt(_build_cmd(concurrent_fragments=4, allow_aria2c=False))
+            elif _is_youtube_client_error(recent_joined):
+                logging.warning("YouTube fast client rejected [%s]; retrying with web+default fallback.", jid)
+                update(
+                    jid,
+                    title="Retrying with full extractor…",
+                    detail="Switching to fallback YouTube client…",
+                    indeterminate=True,
+                    speed="",
+                    eta="",
+                    stage="Retrying",
+                )
+                rc = _run_attempt(_build_cmd(concurrent_fragments=4, allow_aria2c=False, use_fallback_client=True))
         sub_watcher_stop.set()
         with lock:
             procs.pop(jid, None)
@@ -1542,8 +1641,15 @@ class Handler(SimpleHTTPRequestHandler):
             url = extract_url(str(body.get("url", "")))
             if not valid_url(url):
                 return self.json(400, {"ok": False, "error": "Enter a valid HTTPS link (YouTube, Facebook, Instagram, LinkedIn, TikTok, X, etc.)."})
+            if body.get("fast_duration"):
+                dur_sec = _fetch_fast_youtube_duration(url)
+                return self.json(200, {"ok": True, "info": {
+                    "duration": format_seconds(dur_sec) if dur_sec > 0 else "",
+                    "duration_seconds": dur_sec,
+                    "duration_approx": True,
+                }})
             try:
-                return self.json(200, {"ok": True, "info": fetch_video_info(url, full=bool(body.get("full", False)))})
+                return self.json(200, {"ok": True, "info": fetch_video_info(url, full=bool(body.get("full", False)), verify=bool(body.get("verify", False)))})
             except Exception as e:
                 return self.json(400, {"ok": False, "error": str(e)})
 

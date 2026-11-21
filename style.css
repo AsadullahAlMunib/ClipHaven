@@ -686,23 +686,34 @@
 
       .preview-thumb { width: 100%; height: 100%; object-fit: cover; display: block; }
 
-      .thumb-dur {
-        position: absolute;
-        right: 4px;
-        bottom: 4px;
+      .preview-dur-row {
+        display: flex;
+        align-items: center;
+        margin-top: 5px;
+      }
+      .preview-dur-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
         font-family: var(--font-mono);
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-muted);
+        background: var(--surface);
+        border: 1px solid var(--border);
+        padding: 2px 8px;
+        border-radius: 6px;
+        line-height: 1.3;
+      }
+      .preview-dur-badge::before {
+        content: "⏱";
         font-size: 10px;
-        font-weight: 700;
-        background: rgba(0, 0, 0, 0.8);
-        color: #fff;
-        padding: 1px 5px;
-        border-radius: 4px;
+        opacity: 0.85;
       }
 
       .preview-info { min-width: 0; flex: 1; }
       .preview-title { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .preview-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 3px; font-size: 11.5px; color: var(--text-muted); }
-      .preview-actions { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
 
       /* Mode Tabs with Sliding Spring Indicator */
       .mode-tabs {
@@ -775,7 +786,7 @@
       .chip:active { transform: scale(0.95); }
       .chip.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 
-      .sr-select { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+      .sr-select { display: none !important; }
 
       /* Collapsible Panels */
       details.panel {
@@ -836,7 +847,7 @@
       .trim-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
       .dual-slider { position: relative; height: 28px; display: flex; align-items: center; }
       .slider-track { position: absolute; left: 0; right: 0; height: 6px; border-radius: 999px; background: rgba(148, 163, 184, 0.22); }
-      .slider-fill { position: absolute; height: 6px; border-radius: 999px; background: var(--grad-accent); background-size: 200% 200%; left: 0%; width: 100%; }
+      .slider-fill { position: absolute; height: 6px; border-radius: 999px; background: var(--grad-accent); background-size: 240% 240%; animation: gradShift 4.5s ease-in-out infinite; left: 0%; width: 100%; }
 
       .dual-slider input[type="range"] {
         position: absolute; left: 0; width: 100%; margin: 0; background: none;
@@ -910,7 +921,15 @@
       }
 
       .progress-fill.is-active {
-        animation: gradShift 3.5s linear infinite;
+        animation: gradShift 2.8s linear infinite;
+      }
+      .progress-fill.is-indeterminate {
+        width: 42% !important;
+        animation: gradShift 2.8s linear infinite, indetSweep 1.25s ease-in-out infinite;
+      }
+      @keyframes indetSweep {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(260%); }
       }
 
       .progress-fill.is-active::after {
@@ -1095,6 +1114,7 @@ progress#progress::-webkit-progress-value,
 progress#update-progress-bar::-webkit-progress-value {
   background: var(--grad-accent);
   background-size: 240% 240%;
+  animation: gradShift 3s linear infinite;
   border-radius: 999px;
   transition: width 0.2s ease;
 }
@@ -1102,6 +1122,8 @@ progress#update-progress-bar::-webkit-progress-value {
 progress#progress::-moz-progress-bar,
 progress#update-progress-bar::-moz-progress-bar {
   background: var(--grad-accent);
+  background-size: 240% 240%;
+  animation: gradShift 3s linear infinite;
   border-radius: 999px;
 }
 
@@ -1212,4 +1234,74 @@ progress#progress.indeterminate {
 .update-modal-actions {
   display: flex;
   gap: 8px;
+}
+
+/* Subtle GPU-Composited Micro-Animations (v3.3.0) */
+@keyframes iconPop {
+  0% { transform: translateY(-50%) scale(0.62); opacity: 0.45; }
+  60% { transform: translateY(-50%) scale(1.14); opacity: 1; }
+  100% { transform: translateY(-50%) scale(1); opacity: 1; }
+}
+@keyframes checkPop {
+  0% { transform: scale(0.84); }
+  60% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+@keyframes softGlow {
+  0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.42); }
+  100% { box-shadow: 0 0 0 8px rgba(34, 197, 94, 0); }
+}
+.lead-icon.icon-pop {
+  animation: iconPop 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.preview-dur-badge {
+  animation: fadeSlideIn 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.icon-btn svg,
+.lang-toggle svg {
+  transition: transform 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.icon-btn:active,
+.lang-toggle:active {
+  transform: scale(0.92);
+}
+.icon-btn.spin-pop svg {
+  transform: rotate(180deg) scale(1.12);
+}
+.pill.done-pop {
+  animation: donePop 0.32s cubic-bezier(0.22, 1, 0.36, 1), softGlow 0.65s ease-out;
+}
+#open-folder-btn {
+  animation: fadeSlideIn 0.22s ease;
+}
+.dual-slider input[type="range"]:active::-webkit-slider-thumb {
+  transform: scale(1.16);
+}
+.dual-slider input[type="range"]:active::-moz-range-thumb {
+  transform: scale(1.16);
+}
+input[type="checkbox"]:checked {
+  animation: checkPop 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Subtle UX Polish: Focus Highlight & Animated Complete Checkmark */
+.input-wrap:focus-within .lead-icon:not([style*="color:"]) {
+  color: var(--accent);
+}
+@keyframes drawCheck {
+  from { stroke-dashoffset: 24; opacity: 0.4; }
+  to { stroke-dashoffset: 0; opacity: 1; }
+}
+.status-check-svg {
+  width: 15px;
+  height: 15px;
+  vertical-align: -2px;
+  margin-right: 5px;
+  color: var(--ok);
+  flex-shrink: 0;
+}
+.status-check-svg path {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 0;
+  animation: drawCheck 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }

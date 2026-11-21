@@ -37,7 +37,7 @@ ClipHaven is a modern, high-speed, 100% local video and audio downloader develop
 - **🎬 Video Formats:** MP4, MKV, WEBM
 - **🎵 Audio Formats:** MP3, M4A, WAV
 - **💻📱 Supported OS:** Windows, macOS, Linux (`x64` & `ARM64`), Android (`64-bit` & `32-bit`)
-- **🎨 Bilingual Studio UI (`EN / বাংলা`):** Clean, 100% offline Deep Slate + Teal interface with instant English/Bangla switching, Light/Dark modes, sliding `Video / Audio` tabs, quick format & resolution chips, drag-and-drop URL paste, one-click Save Thumbnail, and auto-detected icons for all 13 platforms
+- **🎨 Bilingual Studio UI (`EN / বাংলা`):** Clean, 100% offline Deep Slate + Teal interface with instant English/Bangla switching, Light/Dark modes, sliding `Video / Audio` tabs, quick format & resolution chips, drag-and-drop URL paste, and auto-detected icons for all 13 platforms
 - **📋 Sequential Download Queue (`Download Next` / `Up Next`):** Queue additional videos while one is downloading; queued links run sequentially 1-at-a-time automatically
 - **✂️ Visual Clip Trimmer & Cutter:** Interactive dual-handle timeline slider with floating time bubbles, `Reset`, max-duration clamping guard, manual `Start`/`End` inputs, live FFmpeg progress, and exact container duration
 - **⚡ High-Speed Adaptive Engine:** `--http-chunk-size 10M` anti-throttling, `--concurrent-fragments 6` parallel DASH/HLS downloads with automatic 4-thread fallback on HTTP 429 rate limits, tuned `--buffer-size`, and automatic Desktop `aria2c` acceleration when installed
@@ -109,7 +109,7 @@ Cleanly extracts video and audio from popular media platforms:
 * **Others:** LinkedIn (`linkedin.com` & `lnkd.in`), TikTok, X / Twitter (including `t.co` share links), Reddit (`redd.it`), Vimeo, Dailymotion (`dai.ly`), Twitch, Pinterest (`pin.it`), and SoundCloud (`snd.sc`)
 
 ### 🎯 Precision Tools & Media Options
-* **🎨 Bilingual Studio UI (`EN / বাংলা`) & Smart Queue:** Switch between English and Bangla instantly, toggle Light/Dark themes, drag-and-drop video URLs, save high-res thumbnails, and queue extra videos using **`Download Next`** (`Up Next` runs sequentially 1-at-a-time).
+* **🎨 Bilingual Studio UI (`EN / বাংলা`) & Smart Queue:** Switch between English and Bangla instantly, toggle Light/Dark themes, drag-and-drop video URLs, and queue extra videos using **`Download Next`** (`Up Next` runs sequentially 1-at-a-time).
 * **⚡ Adaptive Speed Engine:** Uses `--http-chunk-size 10M` to bypass YouTube stream throttling, `--concurrent-fragments 6` with automatic safe fallback to 4 threads on HTTP 429 rate limits, tuned `--buffer-size`, and automatic `aria2c` acceleration on Desktop when available in `PATH`.
 * **📁 Native Folder Picker (`Browse`):** Pick your download folder using your OS's native folder selection dialog (or Android's direct SAF picker, including SD cards) or type any path directly.
 * **🔍 Instant ~0.2s Link Preview & Auto-Stop:** Displays thumbnail, title, and channel almost instantaneously via lightweight `oEmbed` + 64-entry LRU cache, resolves exact duration asynchronously in the background, and automatically cancels running background playlist previews the moment a download starts.
@@ -204,6 +204,7 @@ ClipHaven/
 │       └── src/main/
 │           ├── AndroidManifest.xml                     # Permissions, Share menu intents & service declarations
 │           ├── res/drawable/ic_stat_cliphaven.xml      # Custom monochrome status bar notification icon
+│           ├── res/layout/notification_download_progress.xml # 3-line DecoratedCustomViewStyle progress layout
 │           └── java/com/asadullahalmunib/cliphaven/
 │               ├── MainActivity.kt                     # WebViewAssetLoader UI, JS bridge, SAF picker & yt-dlp engine
 │               ├── DownloadForegroundService.kt        # Background dataSync service, WakeLock & bilingual rich notifications

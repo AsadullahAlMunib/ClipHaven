@@ -59,6 +59,54 @@ function normalizeInputUrl(raw) {
   return s;
 }
 
+
+// 0-KB Offline Subtle Sound FX (Web Audio API) & Haptic Feedback
+let _uiAudioCtx = null;
+function playUiTone(kind) {
+  try {
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    // Avoid double-ding on Android where system completion notification already plays sound
+    if (kind === "complete" && typeof window.ClipHavenAndroid !== "undefined") return;
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    if (!_uiAudioCtx) _uiAudioCtx = new Ctx();
+    if (_uiAudioCtx.state === "suspended") _uiAudioCtx.resume().catch(() => {});
+    const now = _uiAudioCtx.currentTime;
+    const playNote = (freq, startOffset, dur, peakGain, endFreq) => {
+      const osc = _uiAudioCtx.createOscillator();
+      const gain = _uiAudioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, now + startOffset);
+      if (endFreq) osc.frequency.exponentialRampToValueAtTime(endFreq, now + startOffset + dur);
+      gain.gain.setValueAtTime(0.0001, now + startOffset);
+      gain.gain.exponentialRampToValueAtTime(peakGain, now + startOffset + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + startOffset + dur);
+      osc.connect(gain);
+      gain.connect(_uiAudioCtx.destination);
+      osc.start(now + startOffset);
+      osc.stop(now + startOffset + dur + 0.01);
+    };
+    if (kind === "complete") {
+      playNote(523.25, 0, 0.14, 0.055);
+      playNote(659.25, 0.09, 0.18, 0.055);
+    } else if (kind === "pop") {
+      playNote(620, 0, 0.06, 0.032, 780);
+    } else if (kind === "error") {
+      playNote(240, 0, 0.16, 0.04, 180);
+    }
+  } catch (_) {}
+}
+
+function triggerHaptic(kind) {
+  try {
+    if (!navigator.vibrate) return;
+    if (kind === "complete") navigator.vibrate([14, 40, 22]);
+    else if (kind === "error") navigator.vibrate([28, 30, 28]);
+    else navigator.vibrate(10);
+  } catch (_) {}
+}
+let _lastStatusFeedbackKey = "";
+
 function status(
   title,
   detail,
@@ -72,19 +120,62 @@ function status(
   playlistInfo = null,
 ) {
   $("status").classList.add("show");
-  $("title").textContent = title;
-  $("title").className = "status-title " + cls;
+  const titleEl = $("title");
+  titleEl.className = "status-title " + cls;
+  if (cls === "ok") {
+    titleEl.textContent = "";
+    const svgNS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(svgNS, "svg");
+    svg.setAttribute("class", "status-check-svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "2.6");
+    svg.setAttribute("stroke-linecap", "round");
+    svg.setAttribute("stroke-linejoin", "round");
+    const p = document.createElementNS(svgNS, "path");
+    p.setAttribute("d", "M20 6L9 17l-5-5");
+    svg.appendChild(p);
+    titleEl.appendChild(svg);
+    titleEl.appendChild(document.createTextNode(title));
+  } else {
+    titleEl.textContent = title;
+  }
+  const fbKey = `${cls}|${pill}|${title}`;
+  if (fbKey !== _lastStatusFeedbackKey) {
+    _lastStatusFeedbackKey = fbKey;
+    if (cls === "ok") {
+      playUiTone("complete");
+      triggerHaptic("complete");
+    } else if (cls === "err" || cls === "error") {
+      playUiTone("error");
+      triggerHaptic("error");
+    }
+  }
   $("detail").textContent = String(detail || "").replace(/([KMGTP])iB/g, "$1B");
 
   const progEl = $("progress");
+  const fillEl = $("progress-fill");
+  const clampedPct = Math.max(0, Math.min(100, pct));
+  const isDoneOrErr = cls === "ok" || cls === "err" || pill === "Cancelled";
   if (indeterminate) {
     progEl.removeAttribute("value");
     progEl.classList.add("indeterminate");
+    if (fillEl) {
+      fillEl.classList.add("is-active", "is-indeterminate");
+      fillEl.style.width = "42%";
+    }
   } else {
     progEl.classList.remove("indeterminate");
-    progEl.value = Math.max(0, Math.min(100, pct));
+    progEl.value = clampedPct;
+    if (fillEl) {
+      fillEl.classList.remove("is-indeterminate");
+      fillEl.style.width = `${clampedPct}%`;
+      fillEl.classList.toggle("is-active", !isDoneOrErr && clampedPct > 0 && clampedPct < 100);
+    }
   }
   $("pill").textContent = pill;
+  $("pill").classList.toggle("done-pop", cls === "ok");
 
   const plEl = $("playlist-pill");
   if (playlistInfo && playlistInfo.total > 1) {
@@ -242,19 +333,19 @@ function getSelectedPlaylistIndices() {
 function getPlaylistItemsParam() {
   const totalKnown = Math.max(currentPlaylistEntries.length, currentPlaylistCount);
   if (!totalKnown) return "";
-  if (!$("allow-playlist").checked) {
-    return /\/playlist\b/i.test($("url").value) ? "1" : "";
-  }
   const boxes = document.querySelectorAll(".pl-item-checkbox");
+  if (!boxes.length) {
+    if (!$("allow-playlist").checked) {
+      return /\/playlist\b/i.test($("url").value) ? "1" : "";
+    }
+    return "";
+  }
   const selected = getSelectedPlaylistIndices();
   const allDomChecked =
     boxes.length > 0 &&
     Array.from(boxes).every((b) => b.checked) &&
     playlistSelectAllMode;
-  if (
-    !selected.length ||
-    (allDomChecked && selected.length >= totalKnown)
-  ) {
+  if (!selected.length || (allDomChecked && selected.length >= totalKnown)) {
     return "";
   }
   return compressPlaylistIndices(selected);
@@ -306,8 +397,10 @@ function createPlaylistRowElement(item, i, shouldCheck = true) {
   cb.value = String(idx);
   cb.checked = shouldCheck;
   cb.onchange = () => {
-    const sel = getSelectedPlaylistIndices();
-    $("allow-playlist").checked = sel.length > 0;
+    const boxes = document.querySelectorAll(".pl-item-checkbox");
+    const allChecked = boxes.length > 0 && Array.from(boxes).every((b) => b.checked);
+    playlistSelectAllMode = allChecked;
+    $("allow-playlist").checked = allChecked;
     updateExtraOptionsBadge();
   };
 
@@ -469,13 +562,17 @@ function syncPlaylistBadgeText() {
   const isAll = $("allow-playlist").checked;
   const hasCustomUncheck = boxes.length > 0 && checkedDomCount < boxes.length && checkedDomCount > 0;
 
-  if (!isAll || (boxes.length > 0 && checkedDomCount === 0)) {
+  if (boxes.length > 0 && checkedDomCount === 0) {
     const countStr = shownCount > 1 ? ` (${shownCount}${stillWorking ? "…" : ""} videos)` : "";
-    badge.textContent = `📑 Playlist${countStr} • Single`;
-    if (selBadge) selBadge.textContent = "Single Video Only";
+    badge.textContent = `📑 Playlist${countStr} • 0 Selected`;
+    if (selBadge) selBadge.textContent = "0 Selected";
   } else if (hasCustomUncheck) {
     badge.textContent = `✅ ${checkedDomCount}/${shownCount}${stillWorking ? "…" : ""} Videos Selected ▾`;
     if (selBadge) selBadge.textContent = `${checkedDomCount} of ${shownCount}${stillWorking ? "…" : ""} Selected ▾`;
+  } else if (!isAll && boxes.length === 0) {
+    const countStr = shownCount > 1 ? ` (${shownCount}${stillWorking ? "…" : ""} videos)` : "";
+    badge.textContent = `📑 Playlist${countStr} • Single`;
+    if (selBadge) selBadge.textContent = "Single Video Only";
   } else if (stillWorking) {
     const targetStr = total > shownCount ? `/${total}` : "";
     badge.textContent = `⏳ Playlist (${shownCount}${targetStr} loaded…) ▾`;
@@ -585,17 +682,9 @@ $("preview-playlist").onclick = () => {
 $("allow-playlist").addEventListener("change", () => {
   const checked = $("allow-playlist").checked;
   const boxes = document.querySelectorAll(".pl-item-checkbox");
+  playlistSelectAllMode = checked;
   if (boxes.length) {
-    const sel = getSelectedPlaylistIndices();
-    if (checked && sel.length === 0) {
-      playlistSelectAllMode = true;
-      boxes.forEach((b) => (b.checked = true));
-    } else if (!checked) {
-      playlistSelectAllMode = false;
-      boxes.forEach((b) => (b.checked = false));
-    }
-  } else {
-    playlistSelectAllMode = checked;
+    boxes.forEach((b) => (b.checked = checked));
   }
   updateExtraOptionsBadge();
 });
@@ -643,6 +732,10 @@ $("paste-btn").onclick = async () => {
     if (text && text.trim()) {
       $("url").value = normalizeInputUrl(text.trim());
       syncClearBtn();
+      if (window.__clipHavenUpdatePlatformIcon) window.__clipHavenUpdatePlatformIcon($("url").value);
+      if (window.__clipHavenSyncPrimaryBtn) window.__clipHavenSyncPrimaryBtn();
+      playUiTone("pop");
+      triggerHaptic("tap");
       triggerPreview(true);
     }
   } catch {
@@ -652,6 +745,7 @@ $("paste-btn").onclick = async () => {
 
 // Auto Video Info Preview with sequence guard against race conditions
 function hidePreview() {
+  if (window.__clipHavenUpdatePlatformIcon && !$("url").value.trim()) window.__clipHavenUpdatePlatformIcon("");
   previewSeq++;
   lastPreviewUrl = "";
   stopPlaylistStream(true);
@@ -730,14 +824,31 @@ async function fetchPreview(rawUrl) {
       $("preview-thumb").src = info.thumbnail;
       $("preview-thumb").style.display = "block";
     }
+    let durationVerifiedByEngine = Boolean(info.duration && !info.duration_approx);
     if (info.duration) {
-      $("preview-dot").style.display = "inline";
       $("preview-duration").textContent = info.duration;
-      $("preview-duration").style.display = "inline-block";
-    } else if (!isCurrentUrlPlaylist && !currentJobId) {
+      $("preview-duration").style.display = "inline-flex";
+    }
+    if (!isCurrentUrlPlaylist && !currentJobId && (!info.duration || info.duration_approx)) {
+      // 1. Instant (~0.3-0.6s) lightweight duration fetch for YouTube single videos
+      if (!info.duration && ytId) {
+        api("/api/info", {
+          method: "POST",
+          body: JSON.stringify({ url: clean, fast_duration: true }),
+        })
+          .then((fastRes) => {
+            if (seq !== previewSeq || durationVerifiedByEngine || !fastRes || !fastRes.info || !fastRes.info.duration) return;
+            currentDurationHint = fastRes.info.duration_seconds || 0;
+            if (window.__clipHavenSetDuration && currentDurationHint > 0) window.__clipHavenSetDuration(currentDurationHint);
+            $("preview-duration").textContent = fastRes.info.duration;
+            $("preview-duration").style.display = "inline-flex";
+          })
+          .catch(() => {});
+      }
+      // 2. Non-blocking background yt-dlp verification/reconciliation & fallback
       api("/api/info", {
         method: "POST",
-        body: JSON.stringify({ url: clean, full: true }),
+        body: JSON.stringify({ url: clean, full: true, verify: true }),
       })
         .then((res) => {
           if (seq !== previewSeq || !res || !res.info) return;
@@ -746,11 +857,14 @@ async function fetchPreview(rawUrl) {
             $("preview-thumb").style.display = "block";
           }
           if (!res.info.duration) return;
-          currentDurationHint = res.info.duration_seconds || 0;
-          if (window.__clipHavenSetDuration && currentDurationHint > 0) window.__clipHavenSetDuration(currentDurationHint);
-          $("preview-dot").style.display = "inline";
-          $("preview-duration").textContent = res.info.duration;
-          $("preview-duration").style.display = "inline-block";
+          durationVerifiedByEngine = true;
+          const exactSec = res.info.duration_seconds || 0;
+          if (exactSec !== currentDurationHint || $("preview-duration").style.display === "none") {
+            currentDurationHint = exactSec;
+            if (window.__clipHavenSetDuration && currentDurationHint > 0) window.__clipHavenSetDuration(currentDurationHint);
+            $("preview-duration").textContent = res.info.duration;
+            $("preview-duration").style.display = "inline-flex";
+          }
         })
         .catch(() => {});
     }
@@ -771,6 +885,8 @@ async function fetchPreview(rawUrl) {
 
 function triggerPreview(immediate = false) {
   syncClearBtn();
+  if (window.__clipHavenUpdatePlatformIcon) window.__clipHavenUpdatePlatformIcon($("url").value);
+  if (window.__clipHavenSyncPrimaryBtn) window.__clipHavenSyncPrimaryBtn();
   if (previewTimer) clearTimeout(previewTimer);
   if (immediate) {
     fetchPreview($("url").value);
@@ -786,6 +902,8 @@ $("url").addEventListener("paste", () =>
     if (cleaned && cleaned !== $("url").value) {
       $("url").value = cleaned;
     }
+    if (window.__clipHavenUpdatePlatformIcon) window.__clipHavenUpdatePlatformIcon($("url").value);
+    if (window.__clipHavenSyncPrimaryBtn) window.__clipHavenSyncPrimaryBtn();
     triggerPreview(true);
   }, 20),
 );
@@ -845,25 +963,33 @@ function renderHistory() {
   container.innerHTML = "";
   list.forEach((item) => {
     const row = document.createElement("div");
-    row.className = "history-item";
+    row.className = "list-row history-item";
 
     const meta = document.createElement("div");
-    meta.className = "history-meta";
+    meta.className = "list-meta history-meta";
 
     const title = document.createElement("div");
-    title.className = "history-title";
+    title.className = "list-title history-title";
     title.textContent = item.title;
+    title.title = item.title;
 
     const sub = document.createElement("div");
-    sub.className = "history-sub";
-    sub.textContent = `${item.format} • ${item.quality} • ${item.time}`;
+    sub.className = "list-sub history-sub";
+    const fmtTag = document.createElement("span");
+    fmtTag.className = "fmt-tag";
+    fmtTag.textContent = item.format || "MP4";
+    const subInfo = document.createElement("span");
+    subInfo.textContent = `${item.quality} • ${item.time}`;
+    sub.appendChild(fmtTag);
+    sub.appendChild(subInfo);
 
     meta.appendChild(title);
     meta.appendChild(sub);
 
     const openBtn = document.createElement("button");
     openBtn.type = "button";
-    openBtn.className = "btn secondary small-btn";
+    openBtn.className = "btn secondary sm";
+    openBtn.style.flexShrink = "0";
     openBtn.textContent = "📂 Show";
     openBtn.onclick = () => openFolder({ path: item.file_path });
 
@@ -1029,7 +1155,7 @@ $("form").onsubmit = async (e) => {
         end_time: $("end-time").value.trim(),
         subtitles: !isAudio && $("subtitles").checked,
         embed_thumbnail: canThumb && $("embed-thumbnail").checked,
-        allow_playlist: $("allow-playlist").checked || /\/playlist\b/i.test(cleanUrl),
+        allow_playlist: $("allow-playlist").checked || Boolean(getPlaylistItemsParam()) || /\/playlist\b/i.test(cleanUrl),
         playlist_items: getPlaylistItemsParam(),
         title_hint: currentTitleHint,
         duration_hint: currentDurationHint,
@@ -1218,7 +1344,6 @@ async function checkForAppUpdates() {
       docs_full: "Documentation",
       url_label: "Video or Playlist URL",
       paste: "Paste",
-      save_thumb: "Save Thumbnail",
       playlist_select: "Select Playlist Videos",
       select_all: "Select All",
       single_only: "Single Video",
@@ -1272,7 +1397,6 @@ async function checkForAppUpdates() {
       docs_full: "নির্দেশিকা",
       url_label: "ভিডিও বা প্লেলিস্ট লিংক",
       paste: "পেস্ট",
-      save_thumb: "থাম্বনেইল সেভ",
       playlist_select: "প্লেলিস্টের ভিডিও বেছে নাও",
       select_all: "সব সিলেক্ট",
       single_only: "শুধু ১টি ভিডিও",
@@ -1637,9 +1761,8 @@ async function checkForAppUpdates() {
   }
   if ($("allow-playlist")) {
     $("allow-playlist").addEventListener("change", (e) => {
-      if (e.target.checked) {
-        document.querySelectorAll(".pl-item-checkbox").forEach((cb) => { cb.checked = true; });
-      }
+      const isChecked = Boolean(e.target.checked);
+      document.querySelectorAll(".pl-item-checkbox").forEach((cb) => { cb.checked = isChecked; });
       updateExtraOptionsBadge();
       syncPlaylistZeroGuard();
     });
@@ -1810,7 +1933,7 @@ async function checkForAppUpdates() {
       end_time: $("end-time").value.trim(),
       subtitles: !isAudio && $("subtitles").checked,
       embed_thumbnail: canThumb && $("embed-thumbnail").checked,
-      allow_playlist: $("allow-playlist").checked || /\/playlist\b/i.test(cleanUrl),
+      allow_playlist: $("allow-playlist").checked || Boolean(getPlaylistItemsParam()) || /\/playlist\b/i.test(cleanUrl),
       playlist_items: getPlaylistItemsParam(),
       title_hint: currentTitleHint,
       duration_hint: currentDurationHint,
@@ -1864,10 +1987,12 @@ async function checkForAppUpdates() {
     });
   }
 
+  let _lastPlatformSig = "";
   function updatePlatformIcon(raw) {
     const ic = $("url-platform-icon");
     if (!ic) return;
     const u = String(raw || "").toLowerCase();
+    const prevHtml = ic.innerHTML;
     if (u.includes("youtube.com") || u.includes("youtu.be") || u.includes("youtube-nocookie.com")) {
       ic.style.color = "#ef4444";
       ic.innerHTML = '<rect x="2" y="5" width="20" height="14" rx="4"/><polygon points="10 9 15 12 10 15" fill="currentColor" stroke="none"/>';
@@ -1911,7 +2036,18 @@ async function checkForAppUpdates() {
       ic.style.color = "var(--text-dim)";
       ic.innerHTML = '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>';
     }
+    const sig = ic.style.color + "|" + ic.innerHTML;
+    if (_lastPlatformSig && sig !== _lastPlatformSig && prevHtml !== ic.innerHTML) {
+      ic.classList.remove("icon-pop");
+      void ic.offsetWidth;
+      ic.classList.add("icon-pop");
+    }
+    _lastPlatformSig = sig;
   }
+
+  window.__clipHavenUpdatePlatformIcon = updatePlatformIcon;
+  window.__clipHavenSyncPrimaryBtn = syncPrimaryBtn;
+  updatePlatformIcon($("url").value);
 
   $("url").addEventListener("input", () => {
     updatePlatformIcon($("url").value);
@@ -1934,19 +2070,6 @@ async function checkForAppUpdates() {
         syncPrimaryBtn();
         showToast(I18N[lang].dropped);
       }
-    });
-  }
-
-  if ($("save-thumb-btn")) {
-    $("save-thumb-btn").addEventListener("click", () => {
-      const src = $("preview-thumb")?.src;
-      if (!src) return;
-      const a = document.createElement("a");
-      a.href = src;
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
-      a.download = "cliphaven-thumbnail.jpg";
-      a.click();
     });
   }
 

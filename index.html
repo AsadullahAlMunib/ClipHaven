@@ -126,7 +126,6 @@
         <div class="preview-card" id="preview-card" style="display: none">
           <div class="preview-thumb-wrap">
             <img id="preview-thumb" class="preview-thumb" alt="Video thumbnail" referrerpolicy="no-referrer" />
-            <span class="thumb-dur" id="preview-duration"></span>
           </div>
           <div class="preview-info">
             <div class="preview-title" id="preview-title">Loading video info...</div>
@@ -137,11 +136,8 @@
                 Playlist
               </button>
             </div>
-            <div class="preview-actions">
-              <button type="button" class="btn secondary sm" id="save-thumb-btn">
-                <svg class="icon" style="width:13px;height:13px" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                <span data-i18n="save_thumb">Save Thumbnail</span>
-              </button>
+            <div class="preview-dur-row">
+              <span class="preview-dur-badge" id="preview-duration" style="display: none"></span>
             </div>
           </div>
         </div>
@@ -331,7 +327,8 @@
             <span class="pill" id="pill">Idle</span>
           </div>
         </div>
-        <progress id="progress" max="100" value="0"></progress>
+        <progress id="progress" max="100" value="0" style="display:none"></progress>
+          <div class="progress-track" aria-hidden="true"><div class="progress-fill" id="progress-fill"></div></div>
         <div class="row status-footer" style="align-items:center;justify-content:space-between">
           <div class="detail" id="detail" data-i18n="ready_detail">Paste a video link to begin.</div>
           <button class="btn secondary sm" id="open-folder-btn" type="button" style="display: none" data-i18n="open_folder">Open Folder</button>
