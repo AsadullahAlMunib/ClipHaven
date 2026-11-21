@@ -413,3 +413,13 @@ def test_opengraph_meta_parsing_and_login_guard():
         <meta property="og:image" content="https://static.xx.fbcdn.net/logo.png" />
     </head></html>'''
     assert server._extract_opengraph_from_html(login_html) == ("", "", "")
+
+def test_fast_duration_parsing():
+    assert server._parse_iso8601_duration("PT1H2M3S") == 3723
+    assert server._parse_iso8601_duration("PT4M20S") == 260
+    assert server._parse_iso8601_duration("PT45S") == 45
+    assert server._parse_iso8601_duration("125") == 125
+    assert server._extract_duration_from_html('<meta property="video:duration" content="185" />') == 185
+    assert server._extract_duration_from_html('<meta itemprop="duration" content="PT3M12S" />') == 192
+    assert server._extract_duration_from_html('{"lengthSeconds":"754"}') == 754
+    assert server._extract_duration_from_html("<html><body>No duration</body></html>") == 0
