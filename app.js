@@ -62,37 +62,57 @@ function normalizeInputUrl(raw) {
 
 // 0-KB Offline Subtle Sound FX (Web Audio API) & Haptic Feedback
 let _uiAudioCtx = null;
+function _ensureAudioCtx() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return null;
+    if (!_uiAudioCtx) _uiAudioCtx = new Ctx();
+    if (_uiAudioCtx.state === "suspended") _uiAudioCtx.resume().catch(() => {});
+    return _uiAudioCtx;
+  } catch (_) {
+    return null;
+  }
+}
+["pointerdown", "keydown"].forEach((ev) => {
+  window.addEventListener(ev, () => { _ensureAudioCtx(); }, { once: true, passive: true });
+});
+
 function playUiTone(kind) {
   try {
     if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    // Avoid double-ding on Android where system completion notification already plays sound
-    if (kind === "complete" && typeof window.ClipHavenAndroid !== "undefined") return;
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return;
-    if (!_uiAudioCtx) _uiAudioCtx = new Ctx();
-    if (_uiAudioCtx.state === "suspended") _uiAudioCtx.resume().catch(() => {});
-    const now = _uiAudioCtx.currentTime;
-    const playNote = (freq, startOffset, dur, peakGain, endFreq) => {
-      const osc = _uiAudioCtx.createOscillator();
-      const gain = _uiAudioCtx.createGain();
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(freq, now + startOffset);
-      if (endFreq) osc.frequency.exponentialRampToValueAtTime(endFreq, now + startOffset + dur);
-      gain.gain.setValueAtTime(0.0001, now + startOffset);
-      gain.gain.exponentialRampToValueAtTime(peakGain, now + startOffset + 0.015);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + startOffset + dur);
-      osc.connect(gain);
-      gain.connect(_uiAudioCtx.destination);
-      osc.start(now + startOffset);
-      osc.stop(now + startOffset + dur + 0.01);
+    const ctx = _ensureAudioCtx();
+    if (!ctx) return;
+    const run = () => {
+      try {
+        const now = ctx.currentTime + 0.005;
+        const playNote = (freq, startOffset, dur, peakGain, endFreq) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(freq, now + startOffset);
+          if (endFreq) osc.frequency.exponentialRampToValueAtTime(endFreq, now + startOffset + dur);
+          gain.gain.setValueAtTime(0.0001, now + startOffset);
+          gain.gain.exponentialRampToValueAtTime(peakGain, now + startOffset + 0.012);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + startOffset + dur);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now + startOffset);
+          osc.stop(now + startOffset + dur + 0.02);
+        };
+        if (kind === "complete") {
+          playNote(523.25, 0, 0.15, 0.18);
+          playNote(659.25, 0.09, 0.22, 0.18);
+        } else if (kind === "pop") {
+          playNote(620, 0, 0.075, 0.14, 820);
+        } else if (kind === "error") {
+          playNote(240, 0, 0.18, 0.16, 175);
+        }
+      } catch (_) {}
     };
-    if (kind === "complete") {
-      playNote(523.25, 0, 0.14, 0.055);
-      playNote(659.25, 0.09, 0.18, 0.055);
-    } else if (kind === "pop") {
-      playNote(620, 0, 0.06, 0.032, 780);
-    } else if (kind === "error") {
-      playNote(240, 0, 0.16, 0.04, 180);
+    if (ctx.state === "suspended") {
+      ctx.resume().then(run).catch(() => {});
+    } else {
+      run();
     }
   } catch (_) {}
 }
@@ -728,7 +748,12 @@ function extractYouTubeId(url) {
 // One-click Clipboard Paste button (triggers instant 0ms preview)
 $("paste-btn").onclick = async () => {
   try {
-    const text = await navigator.clipboard.readText();
+    let text = "";
+    if (typeof window.ClipHavenAndroid !== "undefined" && typeof window.ClipHavenAndroid.readClipboard === "function") {
+      text = String(window.ClipHavenAndroid.readClipboard() || "");
+    } else if (navigator.clipboard && navigator.clipboard.readText) {
+      text = await navigator.clipboard.readText();
+    }
     if (text && text.trim()) {
       $("url").value = normalizeInputUrl(text.trim());
       syncClearBtn();
@@ -737,6 +762,8 @@ $("paste-btn").onclick = async () => {
       playUiTone("pop");
       triggerHaptic("tap");
       triggerPreview(true);
+    } else {
+      $("url").focus();
     }
   } catch {
     $("url").focus();
@@ -754,6 +781,7 @@ function hidePreview() {
   $("playlist-items-list").innerHTML = "";
   currentTitleHint = "";
   currentDurationHint = 0;
+  if (window.__clipHavenSetDuration) window.__clipHavenSetDuration(0);
   currentPlaylistCount = 0;
   currentPlaylistEntries = [];
   renderedPlaylistCount = 0;
@@ -777,6 +805,7 @@ async function fetchPreview(rawUrl) {
   stopPlaylistStream(false);
   currentTitleHint = "";
   currentDurationHint = 0;
+  if (window.__clipHavenSetDuration) window.__clipHavenSetDuration(0);
   currentPlaylistCount = 0;
   currentPlaylistEntries = [];
   renderedPlaylistCount = 0;
@@ -1601,17 +1630,33 @@ async function checkForAppUpdates() {
     if (!wrap) return;
     if (knownDurationSec > 1) {
       wrap.style.display = "block";
+      wrap.classList.remove("is-disabled");
+      $("range-start").disabled = false;
+      $("range-end").disabled = false;
       $("range-start").max = knownDurationSec;
       $("range-end").max = knownDurationSec;
       $("range-start").value = 0;
       $("range-end").value = knownDurationSec;
+      if ($("slider-min-label")) $("slider-min-label").textContent = "00:00";
       $("slider-max-label").textContent = `Max: ${secToTime(knownDurationSec)}`;
       $("end-time").placeholder = `${secToTime(knownDurationSec)} (Full)`;
       updateSliderVisual();
     } else {
-      wrap.style.display = "none";
+      wrap.style.display = "block";
+      wrap.classList.add("is-disabled");
+      $("range-start").disabled = true;
+      $("range-end").disabled = true;
+      $("range-start").value = 0;
+      $("range-end").value = $("range-end").max || 600;
+      $("slider-fill").style.left = "0%";
+      $("slider-fill").style.width = "0%";
+      if ($("slider-min-label")) $("slider-min-label").textContent = "";
+      $("slider-max-label").textContent = "";
+      $("end-time").placeholder = "End (e.g. 02:30)";
+      updateClipBadge();
     }
   };
+  window.__clipHavenSetDuration(0);
 
   function showTip(which, sec) {
     if (!knownDurationSec) return;

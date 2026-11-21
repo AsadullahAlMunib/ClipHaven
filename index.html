@@ -257,17 +257,17 @@
               </div>
             </div>
 
-            <div id="trim-slider-wrap" style="display: none">
+            <div id="trim-slider-wrap" class="is-disabled">
               <div class="dual-slider">
                 <span class="slider-tip" id="tip-start">00:00</span>
                 <span class="slider-tip" id="tip-end">00:00</span>
                 <div class="slider-track"></div>
-                <div class="slider-fill" id="slider-fill"></div>
-                <input type="range" id="range-start" min="0" max="600" value="0" step="1" aria-label="Clip start" />
-                <input type="range" id="range-end" min="0" max="600" value="600" step="1" aria-label="Clip end" />
+                <div class="slider-fill" id="slider-fill" style="width: 0%"></div>
+                <input type="range" id="range-start" min="0" max="600" value="0" step="1" disabled aria-label="Clip start" />
+                <input type="range" id="range-end" min="0" max="600" value="600" step="1" disabled aria-label="Clip end" />
               </div>
               <div class="slider-labels">
-                <span>00:00</span>
+                <span id="slider-min-label"></span>
                 <span id="slider-max-label"></span>
               </div>
             </div>

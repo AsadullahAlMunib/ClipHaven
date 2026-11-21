@@ -219,7 +219,8 @@ ClipHaven/
 │           │   └── SubtitleSyncHelper.kt                          # কাটা ক্লিপের .vtt/.srt সাবটাইটেল ট্রিমিং ও টাইম-শিফটিং
 │           └── res/
 │               ├── drawable/
-│               │   └── ic_stat_cliphaven.xml                      # মনোক্রোম স্ট্যাটাস বার নোটিফিকেশন আইকন
+│               │   ├── ic_stat_cliphaven.xml                      # মনোক্রোম স্ট্যাটাস বার নোটিফিকেশন আইকন
+│               │   └── notif_progress_drawable.xml                  # মোটা রাউন্ডেড গ্রাডিয়েন্ট নোটিফিকেশন প্রগ্রেস বার
 │               ├── layout/
 │               │   └── notification_download_progress.xml         # ৩-লাইনের DecoratedCustomViewStyle নোটিফিকেশন লেআউট
 │               └── xml/
