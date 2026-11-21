@@ -936,16 +936,22 @@ pytest -v</pre>
 │       └── release.yml       # Automated 11-asset builder
 ├── android/                  # Android APK (WebViewAssetLoader + youtubedl-android)
 │   └── app/src/main/
-│       ├── res/drawable/ic_stat_cliphaven.xml
-
-│       ├── res/layout/notification_download_progress.xml
-│       └── java/com/asadullahalmunib/cliphaven/
-│           ├── MainActivity.kt
-│           ├── DownloadForegroundService.kt
-│           ├── FormatUtils.kt
-│           ├── PlaylistHelper.kt
-│           └── SubtitleSyncHelper.kt
+│       ├── java/com/asadullahalmunib/cliphaven/
+│       │   ├── MainActivity.kt
+│       │   ├── DownloadForegroundService.kt
+│       │   ├── FormatUtils.kt
+│       │   ├── PlaylistHelper.kt
+│       │   └── SubtitleSyncHelper.kt
+│       └── res/
+│           ├── drawable/
+│           │   └── ic_stat_cliphaven.xml
+│           └── layout/
+│               └── notification_download_progress.xml
 ├── core/                     # Modular Python backend helpers
+│   ├── __init__.py
+│   ├── playlist.py           # Direct playlist continuation & fast Page-1
+│   └── subtitles.py          # Clipped .vtt/.srt sync & time-shifting
+├── docs/                  # Modular Python backend helpers
 │   ├── __init__.py
 │   ├── playlist.py           # Direct playlist continuation &amp; fast Page-1
 │   └── subtitles.py          # Clipped .vtt/.srt sync &amp; time-shifting
