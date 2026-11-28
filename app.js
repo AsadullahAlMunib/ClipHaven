@@ -977,6 +977,22 @@ function addToHistory(item) {
   });
   localStorage.setItem("cliphaven_history", JSON.stringify(list.slice(0, 8)));
   renderHistory();
+  try {
+    const qUrl = new URLSearchParams(window.location.search).get("url");
+    if (qUrl && /^https?:\/\//i.test(qUrl.trim())) {
+      const cleaned = normalizeInputUrl(qUrl.trim());
+      if (cleaned) {
+        $("url").value = cleaned;
+        syncClearBtn();
+        if (window.__clipHavenUpdatePlatformIcon) window.__clipHavenUpdatePlatformIcon(cleaned);
+        if (window.__clipHavenSyncPrimaryBtn) window.__clipHavenSyncPrimaryBtn();
+        triggerPreview(true);
+        if (window.history && window.history.replaceState) {
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      }
+    }
+  } catch (_) {}
   setTimeout(checkForAppUpdates, 700);
 }
 

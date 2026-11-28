@@ -1,0 +1,56 @@
+{
+  "name": "@asadullahalmunib/cliphaven",
+  "version": "3.3.1",
+  "description": "Cross-platform, local-only video and audio downloader for Windows, macOS, Linux, and Android",
+  "license": "MIT",
+  "author": "Md Asadullah Al Munib",
+  "homepage": "https://asadullahalmunib.github.io/ClipHaven/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AsadullahAlMunib/ClipHaven.git"
+  },
+  "bugs": {
+    "url": "https://github.com/AsadullahAlMunib/ClipHaven/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "bin": {
+    "cliphaven": "bin/cliphaven.js"
+  },
+  "files": [
+    "bin/cliphaven.js",
+    "core/",
+    "server.py",
+    "index.html",
+    "style.css",
+    "app.js",
+    "logo.svg",
+    "requirements.txt",
+    "README.md",
+    "README_BN.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "cliphaven",
+    "video-downloader",
+    "audio-downloader",
+    "youtube",
+    "facebook",
+    "instagram",
+    "yt-dlp",
+    "clip-trimmer",
+    "cli"
+  ],
+  "scripts": {
+    "start": "node bin/cliphaven.js",
+    "start:no-browser": "node bin/cliphaven.js --no-browser",
+    "check": "node --check bin/cliphaven.js && node --check app.js",
+    "test": "pytest -v",
+    "pack:check": "npm pack --dry-run",
+    "android:debug": "gradle -p android assembleDebug lintDebug"
+  }
+}

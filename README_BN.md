@@ -5,7 +5,9 @@
 **আপনার ক্লিপ কেটে নিন, সংরক্ষণ করুন আর উপভোগ করুন — লোকালি, নিরাপদে ও অনায়াসে।**
 
 ![CI Status](https://img.shields.io/badge/CI-passing-brightgreen)
-[![Release](https://img.shields.io/badge/version-v3.3.0-blue)](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.3.0)
+[![Release](https://img.shields.io/badge/version-v3.3.1-blue)](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.3.1)
+[![npm](https://img.shields.io/npm/v/%40asadullahalmunib%2Fcliphaven?logo=npm&logoColor=white&color=cb3837)](https://www.npmjs.com/package/@asadullahalmunib/cliphaven)
+[![PyPI](https://img.shields.io/pypi/v/cliphaven?logo=pypi&logoColor=white&color=3776AB)](https://pypi.org/project/cliphaven/)
 ![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-lightgrey)
 [![Developer](https://img.shields.io/badge/developer-Md%20Asadullah%20Al%20Munib-8b5cf6)](https://github.com/AsadullahAlMunib)
@@ -37,6 +39,7 @@ ClipHaven একটি আধুনিক, দ্রুতগতির ও ১�
 - **🎬 ভিডিও ফরম্যাট:** MP4, MKV, WEBM
 - **🎵 অডিও ফরম্যাট:** MP3, M4A, WAV
 - **💻📱 সমর্থিত OS:** Windows, macOS, Linux (`x64` ও `ARM64`), Android (`64-bit` ও `32-bit`)
+- **📦 অফিশিয়াল npm ও PyPI CLI:** যেকোনো টার্মিনাল থেকে `npx @asadullahalmunib/cliphaven` (হাইব্রিড Python `.venv` → ক্যাশড রিলিজ বাইনারি ফলব্যাক) বা `pipx run cliphaven` দিয়ে চালান — সাথে `<URL>` ডাইরেক্ট লঞ্চ, `--port`, `--no-browser`, `--doctor`, `--update` এবং ইন্টারঅ্যাক্টিভ `Y/Yes/Yas` ও `N/No` আপডেট প্রম্পট
 - **🎨 দ্বিভাষিক স্টুডিও UI (`EN / বাংলা`):** ১০০% অফলাইন Deep Slate + Teal ইন্টারফেস, তাৎক্ষণিক ইংরেজি/বাংলা সুইচিং, লাইট/ডার্ক মোড, স্লাইডিং `Video / Audio` ট্যাব, কুইক ফরম্যাট ও রেজোলিউশন চিপস, ড্র্যাগ-অ্যান্ড-ড্রপ URL পেস্ট এবং ১৩টি প্ল্যাটফর্মের অটো আইকন
 - **📋 ধারাবাহিক ডাউনলোড কিউ (`পরে ডাউনলোড করুন` / `পরবর্তী ডাউনলোড`):** একটি ভিডিও ডাউনলোড চলাকালীন নতুন লিংক যুক্ত করে রাখুন; সেগুলো একে একে স্বয়ংক্রিয়ভাবে ডাউনলোড হবে
 - **✂️ ভিজ্যুয়াল ক্লিপ ট্রিমার ও কাটার:** ফ্লোটিং টাইম বাবলসহ ডুয়াল-হ্যান্ডেল টাইমলাইন স্লাইডার, `Reset` বাটন, ম্যাক্স-ডিউরেশন গার্ড, ম্যানুয়াল `Start`/`End` ইনপুট, লাইভ FFmpeg প্রগ্রেস এবং নির্ভুল ডিউরেশন
@@ -58,41 +61,43 @@ ClipHaven একটি আধুনিক, দ্রুতগতির ও ১�
 <a id="quick-downloads"></a>
 ## ⚡ দ্রুত ডাউনলোড
 
-> 💡 **লেটেস্ট রিলিজ: [`v3.3.0`](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.3.0)** — ইন্টারঅ্যাক্টিভ ডাউনলোড কার্ড, লাইভ রিলিজ নোট এবং ভিডিও গাইড দেখতে ভিজিট করুন [**অফিশিয়াল ডকুমেন্টেশন**](https://asadullahalmunib.github.io/ClipHaven/#downloads)।
+> 💡 **লেটেস্ট রিলিজ: [`v3.3.1`](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.3.1)** — ইন্টারঅ্যাক্টিভ ডাউনলোড কার্ড, লাইভ রিলিজ নোট এবং ভিডিও গাইড দেখতে ভিজিট করুন [**অফিশিয়াল ডকুমেন্টেশন**](https://asadullahalmunib.github.io/ClipHaven/#downloads)।
 
 <details open>
-  <summary><strong>📥 আপনার ডিভাইসের জন্য ClipHaven <code>v3.3.0</code> বেছে নিতে ও ডাউনলোড করতে এখানে ক্লিক করুন (ড্রপডাউন মেনু)</strong></summary>
+  <summary><strong>📥 আপনার ডিভাইসের জন্য ClipHaven <code>v3.3.1</code> বেছে নিতে ও ডাউনলোড করতে এখানে ক্লিক করুন (ড্রপডাউন মেনু)</strong></summary>
   <br />
 
 - **🪟 Windows:**
-  - ⭐ [**`ClipHaven-Windows-All.zip`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.0/ClipHaven-Windows-All.zip) — *`FFmpeg` ও সব ডিপেন্ডেন্সিসহ সম্পূর্ণ Windows বান্ডেল (প্রস্তাবিত)*
-  - 📦 [**`ClipHaven-Windows.exe`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.0/ClipHaven-Windows.exe) — *স্ট্যান্ডঅ্যালোন সিঙ্গেল-ফাইল পোর্টেবল Windows অ্যাপ*
+  - ⭐ [**`ClipHaven-Windows-All.zip`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.1/ClipHaven-Windows-All.zip) — *`FFmpeg` ও সব ডিপেন্ডেন্সিসহ সম্পূর্ণ Windows বান্ডেল (প্রস্তাবিত)*
+  - 📦 [**`ClipHaven-Windows.exe`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.1/ClipHaven-Windows.exe) — *স্ট্যান্ডঅ্যালোন সিঙ্গেল-ফাইল পোর্টেবল Windows অ্যাপ*
 - **🐧 Linux (x64 ও ARM64):**
-  - ⭐ [**`ClipHaven-Linux-x64-All.zip`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.0/ClipHaven-Linux-x64-All.zip) — *`FFmpeg` ও সব ডিপেন্ডেন্সিসহ সম্পূর্ণ Linux x64 বান্ডেল*
-  - 📦 [**`ClipHaven-Linux-x64`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.0/ClipHaven-Linux-x64) — *স্ট্যান্ডঅ্যালোন সিঙ্গেল-ফাইল Linux x64 বাইনারি*
-  - ⭐ [**`ClipHaven-Linux-ARM64-All.zip`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.0/ClipHaven-Linux-ARM64-All.zip) — *`FFmpeg` ও সব ডিপেন্ডেন্সিসহ সম্পূর্ণ Linux ARM64 বান্ডেল*
-  - 📦 [**`ClipHaven-Linux-ARM64`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.0/ClipHaven-Linux-ARM64) — *স্ট্যান্ডঅ্যালোন সিঙ্গেল-ফাইল Linux ARM64 বাইনারি*
+  - ⭐ [**`ClipHaven-Linux-x64-All.zip`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.1/ClipHaven-Linux-x64-All.zip) — *`FFmpeg` ও সব ডিপেন্ডেন্সিসহ সম্পূর্ণ Linux x64 বান্ডেল*
+  - 📦 [**`ClipHaven-Linux-x64`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.1/ClipHaven-Linux-x64) — *স্ট্যান্ডঅ্যালোন সিঙ্গেল-ফাইল Linux x64 বাইনারি*
+  - ⭐ [**`ClipHaven-Linux-ARM64-All.zip`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.1/ClipHaven-Linux-ARM64-All.zip) — *`FFmpeg` ও সব ডিপেন্ডেন্সিসহ সম্পূর্ণ Linux ARM64 বান্ডেল*
+  - 📦 [**`ClipHaven-Linux-ARM64`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.1/ClipHaven-Linux-ARM64) — *স্ট্যান্ডঅ্যালোন সিঙ্গেল-ফাইল Linux ARM64 বাইনারি*
 - **🍎 macOS:**
-  - ⭐ [**`ClipHaven-macOS-All.zip`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.0/ClipHaven-macOS-All.zip) — *`FFmpeg` ও সব ডিপেন্ডেন্সিসহ সম্পূর্ণ macOS বান্ডেল*
-  - 📦 [**`ClipHaven-macOS`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.0/ClipHaven-macOS) — *স্ট্যান্ডঅ্যালোন সিঙ্গেল-ফাইল macOS বাইনারি*
+  - ⭐ [**`ClipHaven-macOS-All.zip`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.1/ClipHaven-macOS-All.zip) — *`FFmpeg` ও সব ডিপেন্ডেন্সিসহ সম্পূর্ণ macOS বান্ডেল*
+  - 📦 [**`ClipHaven-macOS`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.1/ClipHaven-macOS) — *স্ট্যান্ডঅ্যালোন সিঙ্গেল-ফাইল macOS বাইনারি*
 - **🤖 Android (64-bit ও 32-bit):**
-  - ⭐ [**`ClipHaven-Android-64bit.apk`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.0/ClipHaven-Android-64bit.apk) — *আধুনিক ৬৪-বিট Android ফোনের জন্য (`arm64-v8a`, প্রস্তাবিত)*
-  - 📱 [**`ClipHaven-Android-32bit.apk`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.0/ClipHaven-Android-32bit.apk) — *পুরনো ৩২-বিট Android ফোন ও টিভি বক্সের জন্য (`armeabi-v7a`)*
+  - ⭐ [**`ClipHaven-Android-64bit.apk`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.1/ClipHaven-Android-64bit.apk) — *আধুনিক ৬৪-বিট Android ফোনের জন্য (`arm64-v8a`, প্রস্তাবিত)*
+  - 📱 [**`ClipHaven-Android-32bit.apk`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.1/ClipHaven-Android-32bit.apk) — *পুরনো ৩২-বিট Android ফোন ও টিভি বক্সের জন্য (`armeabi-v7a`)*
 - **⚡ সোর্স কোড + লঞ্চার (`.bat`):**
-  - 🛠️ [**`ClipHaven-Source-Bat.zip`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.0/ClipHaven-Source-Bat.zip) — *এক-ক্লিকের `setup-and-run.bat` সহ হালকা সোর্স বান্ডেল*
+  - 🛠️ [**`ClipHaven-Source-Bat.zip`**](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.1/ClipHaven-Source-Bat.zip) — *এক-ক্লিকের `setup-and-run.bat` সহ হালকা সোর্স বান্ডেল*
 </details>
 
 <br />
 
 | প্ল্যাটফর্ম | অল-ইন-ওয়ান বান্ডেল (`-All.zip`) ⭐ | স্ট্যান্ডঅ্যালোন সিঙ্গেল অ্যাপ |
 | :--- | :--- | :--- |
-| **🪟 Windows** | [⬇️ `ClipHaven-Windows-All.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.0/ClipHaven-Windows-All.zip) | [⬇️ `ClipHaven-Windows.exe`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.0/ClipHaven-Windows.exe) |
-| **🍎 macOS** | [⬇️ `ClipHaven-macOS-All.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.0/ClipHaven-macOS-All.zip) | [⬇️ `ClipHaven-macOS`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.0/ClipHaven-macOS) |
-| **🐧 Linux (x64)** | [⬇️ `ClipHaven-Linux-x64-All.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.0/ClipHaven-Linux-x64-All.zip) | [⬇️ `ClipHaven-Linux-x64`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.0/ClipHaven-Linux-x64) |
-| **🐧 Linux (ARM64)** | [⬇️ `ClipHaven-Linux-ARM64-All.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.0/ClipHaven-Linux-ARM64-All.zip) | [⬇️ `ClipHaven-Linux-ARM64`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.0/ClipHaven-Linux-ARM64) |
-| **🤖 Android (64-bit)** | *(সম্পূর্ণ `.apk`-এর ভেতরেই যুক্ত)* | [⬇️ `ClipHaven-Android-64bit.apk`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.0/ClipHaven-Android-64bit.apk) |
-| **🤖 Android (32-bit)** | *(সম্পূর্ণ `.apk`-এর ভেতরেই যুক্ত)* | [⬇️ `ClipHaven-Android-32bit.apk`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.0/ClipHaven-Android-32bit.apk) |
-| **⚡ সোর্স + `.bat`** | [⬇️ `ClipHaven-Source-Bat.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.0/ClipHaven-Source-Bat.zip) | [📦 সব রিলিজ](https://github.com/AsadullahAlMunib/ClipHaven/releases/latest) |
+| **🪟 Windows** | [⬇️ `ClipHaven-Windows-All.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.1/ClipHaven-Windows-All.zip) | [⬇️ `ClipHaven-Windows.exe`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.1/ClipHaven-Windows.exe) |
+| **🍎 macOS** | [⬇️ `ClipHaven-macOS-All.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.1/ClipHaven-macOS-All.zip) | [⬇️ `ClipHaven-macOS`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.1/ClipHaven-macOS) |
+| **🐧 Linux (x64)** | [⬇️ `ClipHaven-Linux-x64-All.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.1/ClipHaven-Linux-x64-All.zip) | [⬇️ `ClipHaven-Linux-x64`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.1/ClipHaven-Linux-x64) |
+| **🐧 Linux (ARM64)** | [⬇️ `ClipHaven-Linux-ARM64-All.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.1/ClipHaven-Linux-ARM64-All.zip) | [⬇️ `ClipHaven-Linux-ARM64`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.1/ClipHaven-Linux-ARM64) |
+| **🤖 Android (64-bit)** | *(সম্পূর্ণ `.apk`-এর ভেতরেই যুক্ত)* | [⬇️ `ClipHaven-Android-64bit.apk`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.1/ClipHaven-Android-64bit.apk) |
+| **🤖 Android (32-bit)** | *(সম্পূর্ণ `.apk`-এর ভেতরেই যুক্ত)* | [⬇️ `ClipHaven-Android-32bit.apk`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.1/ClipHaven-Android-32bit.apk) |
+| **⚡ সোর্স + `.bat`** | [⬇️ `ClipHaven-Source-Bat.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.1/ClipHaven-Source-Bat.zip) | [📦 সব রিলিজ](https://github.com/AsadullahAlMunib/ClipHaven/releases/latest) |
+| **📦 npm CLI** | `npx @asadullahalmunib/cliphaven` | [🌐 npm প্যাকেজ](https://www.npmjs.com/package/@asadullahalmunib/cliphaven) |
+| **🐍 PyPI CLI** | `pipx run cliphaven` | [🌐 PyPI প্যাকেজ](https://pypi.org/project/cliphaven/) |
 
 <br />
 
@@ -133,23 +138,58 @@ ClipHaven একটি আধুনিক, দ্রুতগতির ও ১�
 > 📖 ইন্টারঅ্যাক্টিভ ভিজ্যুয়াল গাইড দেখতে চান? ঘুরে আসুন [**অফিশিয়াল সেটআপ গাইড**](https://asadullahalmunib.github.io/ClipHaven/#install) থেকে।
 
 ### পদ্ধতি ১: অল-ইন-ওয়ান বান্ডেল (`-All.zip` — ⭐ ডেস্কটপের জন্য প্রস্তাবিত)
-1. [Release `v3.3.0`](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.3.0) থেকে `ClipHaven-Windows-All.zip`, `ClipHaven-macOS-All.zip`, `ClipHaven-Linux-x64-All.zip`, অথবা `ClipHaven-Linux-ARM64-All.zip` ডাউনলোড করুন।
+1. [Release `v3.3.1`](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.3.1) থেকে `ClipHaven-Windows-All.zip`, `ClipHaven-macOS-All.zip`, `ClipHaven-Linux-x64-All.zip`, অথবা `ClipHaven-Linux-ARM64-All.zip` ডাউনলোড করুন।
 2. আর্কাইভটি এক্সট্র্যাক্ট করে **`ClipHaven`** (Windows-এ `ClipHaven.exe`) চালু করুন। আপনার ব্রাউজারে স্বয়ংক্রিয়ভাবে `http://127.0.0.1:8765/` খুলে যাবে।
 
+
+
 ### পদ্ধতি ২: Android অ্যাপ (`ClipHaven-Android-64bit.apk` / `ClipHaven-Android-32bit.apk`)
-1. আধুনিক ৬৪-বিট ফোনের জন্য [`ClipHaven-Android-64bit.apk`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.0/ClipHaven-Android-64bit.apk) অথবা পুরনো ৩২-বিট ডিভাইসের জন্য [`ClipHaven-Android-32bit.apk`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.0/ClipHaven-Android-32bit.apk) ডাউনলোড করে ইনস্টল করুন।
+1. আধুনিক ৬৪-বিট ফোনের জন্য [`ClipHaven-Android-64bit.apk`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.1/ClipHaven-Android-64bit.apk) অথবা পুরনো ৩২-বিট ডিভাইসের জন্য [`ClipHaven-Android-32bit.apk`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.1/ClipHaven-Android-32bit.apk) ডাউনলোড করে ইনস্টল করুন।
 2. **ClipHaven** ওপেন করুন (অথবা YouTube, Facebook, Instagram, LinkedIn বা TikTok থেকে যেকোনো ভিডিও লিংক সরাসরি ClipHaven-এ Share করুন)।
 
-### পদ্ধতি ৩: এক-ক্লিক স্ক্রিপ্ট (`setup-and-run.bat`)
+
+
+### পদ্ধতি ৩: npm (`npx`) বা PyPI (`pipx`) দিয়ে চালান
+#### গ্লোবাল ইনস্টল ছাড়াই সরাসরি চালান (Node.js 18+ প্রয়োজন)
+```bash
+npx @asadullahalmunib/cliphaven
+```
+*অথবা গ্লোবালি ইনস্টল করে যেকোনো জায়গা থেকে চালান*
+```bash
+npm install -g @asadullahalmunib/cliphaven
+```
+*সরাসরি ভিডিও লিংকসহ চালু করুন*
+```bash
+cliphaven https://www.youtube.com/watch?v=cW4ZbT-JCPI
+```
+*yt-dlp / ক্যাশড বাইনারি আপডেট করুন*
+```bash
+cliphaven --update
+```
+
+#### অথবা Python PyPI / pipx দিয়ে সরাসরি চালান (Python 3.10+)
+```bash
+pipx run cliphaven
+```
+*অথবা pip এর মাধ্যমে ইনস্টল করুন*
+```bash
+pip install cliphaven && cliphaven
+```
+
+*npm ও PyPI উভয় CLI-তেই `<URL>` ডাইরেক্ট লঞ্চ, `--port`, `--no-browser`, `--doctor`, `--update` এবং ৪-ঘণ্টা ক্যাশড `Y/Yes/Yas` ও `N/No` আপডেট নোটিফায়ার (`--no-update-check` দিয়ে বন্ধ করা যাবে) কাজ করে। npm CLI-তে Python 3.10+ না থাকলেও অটোমেটিক GitHub Release বাইনারি ক্যাশ হয়ে চলে।*
+
+
+
+### পদ্ধতি ৪: এক-ক্লিক স্ক্রিপ্ট (`setup-and-run.bat`)
 1. আপনার পিসিতে **"Add Python to PATH"** অপশনসহ **Python 3.10+** ইনস্টল করা আছে কি না নিশ্চিত করুন।
-2. [`ClipHaven-Source-Bat.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.0/ClipHaven-Source-Bat.zip) ডাউনলোড ও এক্সট্র্যাক্ট করুন (অথবা রিপোজিটরি ক্লোন করুন):
+2. [`ClipHaven-Source-Bat.zip`](https://github.com/AsadullahAlMunib/ClipHaven/releases/download/v3.3.1/ClipHaven-Source-Bat.zip) ডাউনলোড ও এক্সট্র্যাক্ট করুন (অথবা রিপোজিটরি ক্লোন করুন):
    ```bash
    git clone https://github.com/AsadullahAlMunib/ClipHaven.git
    cd ClipHaven
    ```
 3. **`setup-and-run.bat`** ফাইলে ডাবল-ক্লিক করুন। স্ক্রিপ্টটি নিজেই ভার্চুয়াল এনভায়রনমেন্ট তৈরি করবে, `yt-dlp`, পোর্টেবল `FFmpeg` (`imageio-ffmpeg`) ও `mutagen` ইনস্টল করবে এবং স্বয়ংক্রিয়ভাবে ড্যাশবোর্ড খুলে দেবে।
 
-### পদ্ধতি ৪: ডেভেলপার সেটআপ (macOS / Linux / Windows)
+### পদ্ধতি ৫: ডেভেলপার সেটআপ (macOS / Linux / Windows)
 ```bash
 # ১. ভার্চুয়াল এনভায়রনমেন্ট তৈরি ও অ্যাক্টিভেট করুন
 python3 -m venv .venv
@@ -200,7 +240,9 @@ ClipHaven/
 ├── .github/
 │   ├── dependabot.yml                                             # সাপ্তাহিক ডিপেন্ডেন্সি আপডেটার কনফিগারেশন
 │   └── workflows/
-│       ├── ci.yml                                                 # মাল্টি-OS Python টেস্ট, Ruff লিন্ট ও Android Gradle/lint CI
+│       ├── ci.yml                                                 # মাল্টি-OS Python টেস্ট, Ruff লিন্ট, npm CLI ও Android CI
+│       ├── npm-publish.yml                                        # GitHub Release প্রকাশিত হলে অটো npm পাবলিশ ওয়ার্কফ্লো
+│       ├── pypi-publish.yml                                       # GitHub Release প্রকাশিত হলে অটো PyPI পাবলিশ ওয়ার্কফ্লো
 │       └── release.yml                                            # স্বয়ংক্রিয় ১১-অ্যাসেট রিলিজ বিল্ডার (Desktop, Android ও Source)
 ├── android/                                                       # স্বয়ংসম্পূর্ণ Android APK প্রজেক্ট (Kotlin + youtubedl-android)
 │   ├── build.gradle.kts                                           # রুট Android Gradle প্লাগইন কনফিগারেশন
@@ -225,6 +267,8 @@ ClipHaven/
 │               │   └── notification_download_progress.xml         # ৩-লাইনের DecoratedCustomViewStyle নোটিফিকেশন লেআউট
 │               └── xml/
 │                   └── file_paths.xml                             # নোটিফিকেশন থেকে সরাসরি Play-এর জন্য FileProvider পাথ
+├── bin/
+│   └── cliphaven.js                                               # হাইব্রিড npm/npx CLI লাঞ্চার (Python .venv -> রিলিজ বাইনারি)
 ├── core/                                                          # মডুলার Python ব্যাকএন্ড হেল্পার প্যাকেজ
 │   ├── __init__.py                                                # Core Python প্যাকেজ ইনিশিয়ালাইজার
 │   ├── playlist.py                                                # সরাসরি প্লেলিস্ট পেজ-১ ও InnerTube কন্টিনিউয়েশন পেজিনেশন
@@ -238,11 +282,13 @@ ClipHaven/
 ├── .gitignore                                                     # ক্যাশ, venv ও বিল্ড ফাইল বাদ দেওয়ার Git কনফিগ
 ├── CHANGELOG.md                                                   # সব আপডেট ও ভার্সন পরিবর্তনের বিস্তারিত রেকর্ড
 ├── LICENSE                                                        # MIT ওপেন-সোর্স লাইসেন্স
+├── MANIFEST.in                                                    # PyPI সোর্স ডিস্ট্রিবিউশন অ্যাসেট কনফিগ
 ├── README.md                                                      # ইংরেজি ডকুমেন্টেশন
 ├── README_BN.md                                                   # বাংলা ডকুমেন্টেশন
 ├── app.js                                                         # ক্লায়েন্ট স্টেট, Up Next কিউ, ক্লিপ স্লাইডার, সাউন্ড/হ্যাপটিক ও পোলিং
 ├── index.html                                                     # দ্বিভাষিক EN/বাংলা স্টুডিও UI মার্কআপ
 ├── logo.svg                                                       # ভেক্টর অ্যাপ্লিকেশন লোগো ও ফ্যাভিকন
+├── package.json                                                   # npm প্যাকেজ (@asadullahalmunib/cliphaven), bin ও ডেভ স্ক্রিপ্ট
 ├── pyproject.toml                                                 # প্রজেক্ট মেটাডেটা ও Ruff/pytest কনফিগারেশন
 ├── requirements.txt                                               # মূল Python ডিপেন্ডেন্সি (yt-dlp, imageio-ffmpeg, mutagen)
 ├── server.py                                                      # লোকাল HTTP সার্ভার, ফাস্ট প্রিভিউ ও yt-dlp / FFmpeg ব্যাকএন্ড

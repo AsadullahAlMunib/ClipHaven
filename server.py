@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local-only backend for ClipHaven Video & Audio Downloader (v3.3.0).
+"""Local-only backend for ClipHaven Video & Audio Downloader (v3.3.1).
 Developed by Md Asadullah Al Munib (https://github.com/AsadullahAlMunib/ClipHaven/)."""
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, quote
@@ -19,11 +19,32 @@ import webbrowser
 import logging
 import html as _html_mod
 
-VERSION = "3.3.0"
+VERSION = "3.3.1"
 AUTHOR = "Md Asadullah Al Munib"
 REPO_URL = "https://github.com/AsadullahAlMunib/ClipHaven/"
 IS_FROZEN = getattr(sys, "frozen", False)
-BUNDLE_DIR = Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent)) if IS_FROZEN else Path(__file__).resolve().parent
+
+
+def _resolve_bundle_dir(base_dir: Path | None = None, prefixes: tuple[Path, ...] | None = None) -> Path:
+    """Locate UI assets (index.html, style.css, app.js, logo.svg) across repo, PyInstaller, npm, and PyPI wheel installs."""
+    if IS_FROZEN:
+        return Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent))
+    local = base_dir if base_dir is not None else Path(__file__).resolve().parent
+    if (local / "index.html").exists():
+        return local
+    search_prefixes = prefixes if prefixes is not None else (
+        Path(sys.prefix),
+        Path(sys.base_prefix),
+        Path.home() / ".local",
+    )
+    for pref in search_prefixes:
+        cand = pref / "share" / "cliphaven"
+        if (cand / "index.html").exists():
+            return cand
+    return local
+
+
+BUNDLE_DIR = _resolve_bundle_dir()
 APP_DIR = Path(sys.executable).resolve().parent if IS_FROZEN else Path(__file__).resolve().parent
 HTML_FILE = BUNDLE_DIR / "index.html"
 DEFAULT_FOLDER = (Path.home() / "Downloads" / "ClipHaven") if (Path.home() / "Downloads").exists() else (APP_DIR / "downloads")
@@ -1753,6 +1774,177 @@ class Handler(SimpleHTTPRequestHandler):
         return self.json(404, {"ok": False, "error": "Not found."})
 
 
+def _resolve_cli_options(argv: list[str], env: dict | None = None) -> tuple[int | None, bool, str]:
+    """Parse optional --port / -p, --no-browser, and positional URL (or CLIPHAVEN_* env vars)."""
+    env_map = env if env is not None else os.environ
+    port_raw = str(env_map.get("CLIPHAVEN_PORT", "") or "").strip()
+    no_browser = str(env_map.get("CLIPHAVEN_NO_BROWSER", "") or "").strip().lower() in {"1", "true", "yes"}
+    initial_url = str(env_map.get("CLIPHAVEN_INITIAL_URL", "") or "").strip()
+    i = 0
+    while i < len(argv):
+        arg = argv[i]
+        if arg == "--no-browser":
+            no_browser = True
+        elif arg in {"-p", "--port"} and i + 1 < len(argv):
+            port_raw = argv[i + 1].strip()
+            i += 1
+        elif arg.startswith("--port="):
+            port_raw = arg.split("=", 1)[1].strip()
+        elif not arg.startswith("-") and arg.lower().startswith(("http://", "https://")) and not initial_url:
+            initial_url = arg.strip()
+        i += 1
+    custom_port = int(port_raw) if port_raw.isdigit() and 1024 <= int(port_raw) <= 65535 else None
+    return custom_port, no_browser, initial_url
+
+
+def _print_cli_help() -> None:
+    print(
+        f"""ClipHaven v{VERSION} — Local-only Video & Audio Downloader
+Usage:
+  cliphaven [url] [options]
+  python server.py [url] [options]
+
+Options:
+  -p, --port <port>     Bind local server to a specific port (default: 8765)
+      --no-browser      Start server without opening the browser automatically
+  -u, --update          Upgrade yt-dlp, imageio-ffmpeg & mutagen dependencies
+      --doctor          Check Python, UI assets, yt-dlp, FFmpeg & aria2c status
+      --no-update-check Skip checking for new ClipHaven CLI releases
+  -v, --version         Show ClipHaven version
+  -h, --help            Show this help message"""
+    )
+
+
+def _run_cli_update_engine() -> int:
+    if IS_FROZEN:
+        print("[ClipHaven] Standalone binary cannot self-update pip packages. Download the latest release from GitHub.")
+        return 0
+    print("[ClipHaven] Upgrading yt-dlp, imageio-ffmpeg, and mutagen…")
+    res = subprocess.run(
+        [sys.executable, "-m", "pip", "install", "--upgrade", "--disable-pip-version-check", "yt-dlp", "imageio-ffmpeg", "mutagen"]
+    )
+    if res.returncode == 0:
+        print("[ClipHaven] Engine updated successfully.")
+    return res.returncode
+
+
+def _parse_yes_no_input(raw: str) -> bool | None:
+    v = (raw or "").strip().lower()
+    if v in {"", "y", "yes", "yas"}:
+        return True
+    if v in {"n", "no"}:
+        return False
+    return None
+
+
+def _check_and_prompt_pypi_cli_update() -> bool:
+    """Check GitHub latest stable release (4h cache, 1.8s timeout) and prompt Y/Yes/Yas or N/No."""
+    cache_dir = Path.home() / ".cliphaven"
+    cache_file = cache_dir / "cli_update_cache.json"
+    info = None
+    try:
+        if cache_file.exists():
+            cached = json.loads(cache_file.read_text(encoding="utf-8"))
+            if isinstance(cached, dict) and (time.time() * 1000 - float(cached.get("checkedAt", 0))) < 4 * 3600 * 1000:
+                info = cached
+    except Exception:
+        info = None
+
+    if info is None:
+        try:
+            req = urllib.request.Request(
+                "https://api.github.com/repos/AsadullahAlMunib/ClipHaven/releases/latest",
+                headers={"User-Agent": f"ClipHaven-PyPI/{VERSION}", "Accept": "application/vnd.github+json"},
+            )
+            with urllib.request.urlopen(req, timeout=1.8) as resp:
+                if resp.status == 200:
+                    data = json.loads(resp.read().decode("utf-8", errors="replace"))
+                    if not data.get("draft") and not data.get("prerelease"):
+                        tag = str(data.get("tag_name") or "").strip()
+                        m = re.match(r"^[vV](\d+\.\d+\.\d+)$", tag)
+                        if m:
+                            info = {
+                                "checkedAt": int(time.time() * 1000),
+                                "latestVersion": m.group(1),
+                                "releaseUrl": data.get("html_url") or f"https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/{tag}",
+                            }
+                            try:
+                                cache_dir.mkdir(parents=True, exist_ok=True)
+                                cache_file.write_text(json.dumps(info), encoding="utf-8")
+                            except Exception:
+                                pass
+        except Exception:
+            return False
+
+    if not info or not is_newer_version(info.get("latestVersion", ""), VERSION):
+        return False
+
+    latest = info["latestVersion"]
+    rel_url = info.get("releaseUrl", REPO_URL + "releases/latest")
+    line1 = f"  Update available: v{VERSION} -> v{latest}"
+    line2 = f"  Release: {rel_url}"
+    width = max(len(line1), len(line2)) + 2
+    bar = "─" * width
+    print(f"\n╭{bar}╮")
+    print(f"│{line1.ljust(width)}│")
+    print(f"│{line2.ljust(width)}│")
+    print(f"╰{bar}╯")
+
+    if not (sys.stdin and sys.stdout and sys.stdin.isatty() and sys.stdout.isatty()):
+        print("Run: pip install --upgrade cliphaven (or pipx upgrade cliphaven)\n")
+        return False
+
+    prompt = "Do you want to update cliphaven now? (Y/n): "
+    while True:
+        try:
+            ans = input(prompt)
+        except (EOFError, KeyboardInterrupt):
+            return False
+        parsed = _parse_yes_no_input(ans)
+        if parsed is not None:
+            break
+        prompt = "Please type Y / Yes / Yas or N / No: "
+
+    if not parsed:
+        print("[ClipHaven] Skipping update. Starting ClipHaven…\n")
+        return False
+
+    try:
+        cache_file.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+    is_pipx = "pipx" in sys.executable.lower()
+    if is_pipx and shutil.which("pipx"):
+        print(f"\n[ClipHaven] Updating cliphaven to v{latest} via pipx…")
+        res = subprocess.run(["pipx", "upgrade", "cliphaven"])
+    else:
+        print(f"\n[ClipHaven] Updating cliphaven to v{latest} via pip…")
+        res = subprocess.run([sys.executable, "-m", "pip", "install", "--upgrade", "cliphaven"])
+    if res.returncode == 0:
+        print(f"\n[ClipHaven] Updated to v{latest}! Please run 'cliphaven' again to use the new version.")
+        return True
+    print("\n[ClipHaven] Automatic update failed. Update manually with: pip install --upgrade cliphaven\n")
+    return False
+
+
+def _run_cli_doctor() -> None:
+    try:
+        import yt_dlp  # type: ignore
+        ytdlp_ver = getattr(getattr(yt_dlp, "version", None), "__version__", "installed")
+    except Exception:
+        ytdlp_ver = "Not installed"
+    ff = get_ffmpeg_path()
+    aria = shutil.which("aria2c")
+    print(f"ClipHaven Doctor (v{VERSION})")
+    print(f"  Python          : {sys.version.split()[0]} ({sys.executable})")
+    print(f"  UI Bundle Dir   : {BUNDLE_DIR} ({'OK' if HTML_FILE.exists() else 'MISSING index.html'})")
+    print(f"  Default Folder  : {DEFAULT_FOLDER}")
+    print(f"  yt-dlp          : {ytdlp_ver}")
+    print(f"  FFmpeg          : {ff or 'Not found'}")
+    print(f"  aria2c          : {aria or 'Not installed (optional)'}")
+
+
 def main():
     if len(sys.argv) > 1 and sys.argv[1] == "--run-ytdlp":
         import yt_dlp
@@ -1760,11 +1952,31 @@ def main():
         yt_dlp.main()
         return
 
+    args = sys.argv[1:]
+    if any(a in {"-h", "--help"} for a in args):
+        _print_cli_help()
+        return
+    if any(a in {"-v", "--version"} for a in args):
+        print(f"ClipHaven v{VERSION}")
+        return
+    if "--doctor" in args:
+        _run_cli_doctor()
+        return
+    if any(a in {"-u", "--update"} for a in args):
+        sys.exit(_run_cli_update_engine())
+
+    if not IS_FROZEN and "--no-update-check" not in args and os.environ.get("CLIPHAVEN_FROM_NPM") != "1":
+        if _check_and_prompt_pypi_cli_update():
+            return
+
     if not HTML_FILE.exists():
         raise SystemExit(f"Missing HTML file: {HTML_FILE}")
 
+    custom_port, no_browser, initial_url = _resolve_cli_options(sys.argv[1:])
+    candidate_ports = [custom_port] if custom_port else list(range(8765, 8776))
+
     server, bound_port = None, None
-    for port in range(8765, 8776):
+    for port in candidate_ports:
         try:
             server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
             bound_port = port
@@ -1773,13 +1985,17 @@ def main():
             continue
 
     if not server or not bound_port:
+        if custom_port:
+            sys.exit(f"Error: Could not bind to requested port {custom_port}.")
         sys.exit("Error: Could not bind to any port between 8765 and 8775.")
 
     url = f"http://127.0.0.1:{bound_port}/"
+    launch_url = f"{url}?url={quote(initial_url, safe='')}" if initial_url else url
     print(f"ClipHaven v{VERSION} — Developed by {AUTHOR} ({REPO_URL})")
     print(f"Catch, keep, and enjoy your clips. Running at {url}")
     print("Keep this window open while downloading. Press Ctrl+C to stop the app.")
-    threading.Timer(0.6, lambda: webbrowser.open(url)).start()
+    if not no_browser:
+        threading.Timer(0.6, lambda: webbrowser.open(launch_url)).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:

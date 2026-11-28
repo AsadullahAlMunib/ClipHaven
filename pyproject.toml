@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cliphaven"
-version = "3.3.0"
+version = "3.3.1"
 description = "Cross-platform, local-only video and audio downloader for Windows, macOS, Linux, and Android"
 readme = "README.md"
 license = { text = "MIT" }
@@ -39,3 +39,13 @@ Repository = "https://github.com/AsadullahAlMunib/ClipHaven/"
 Releases = "https://github.com/AsadullahAlMunib/ClipHaven/releases"
 Issues = "https://github.com/AsadullahAlMunib/ClipHaven/issues"
 Developer = "https://github.com/AsadullahAlMunib"
+
+[project.scripts]
+cliphaven = "server:main"
+
+[tool.setuptools]
+py-modules = ["server"]
+packages = ["core"]
+
+[tool.setuptools.data-files]
+"share/cliphaven" = ["index.html", "style.css", "app.js", "logo.svg"]

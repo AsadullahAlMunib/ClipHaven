@@ -32,3 +32,8 @@ Thumbs.db
 *.jks
 *.keystore
 *.p12
+
+# Node / npm
+node_modules/
+.npm/
+*.tgz

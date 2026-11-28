@@ -3,6 +3,16 @@
 All notable changes to **ClipHaven** are documented in this file.
 
 
+## [[3.3.1](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.3.1)] - 2026-11-28
+
+### Added
+- **Official PyPI Package & Release-Only Auto-Publish (`pyproject.toml`, `MANIFEST.in`, `.github/workflows/pypi-publish.yml`)**: Configured `[project.scripts]` (`cliphaven = "server:main"`), `share/cliphaven` UI asset packaging with automatic `_resolve_bundle_dir()` lookup in `server.py` for `pipx run cliphaven` / `pip install cliphaven` (with full CLI parity: `--version`, `--help`, `--doctor`, `--update`, `<URL>`, and 4-hour cached `Y/Yes/Yas` & `N/No` update prompt), CI wheel verification, and automated PyPI publishing on stable GitHub Releases (Trusted Publisher OIDC with `PYPI_API_TOKEN` fallback).
+- **Official npm / npx CLI Package (`@asadullahalmunib/cliphaven`, `package.json`, `bin/cliphaven.js`)**: Added zero-dependency Node.js CLI (`npx @asadullahalmunib/cliphaven` / `npm install -g @asadullahalmunib/cliphaven` → `cliphaven`) with direct `<URL>` launch (`cliphaven https://...`), one-command `--update` / `-u` engine refresher, `--port`, `--no-browser`, `--force-binary`, `--version`, `--doctor`, `--no-update-check`, and `--help` flags, a 4-hour cached CLI update notifier with interactive `Y/Yes/Yas` & `N/No` auto-update prompt (with smart `npx` vs global detection), automatic old cached binary cleanup, plus developer scripts (`npm start`, `npm run check`, `npm test`, `npm run pack:check`).
+- **Hybrid Runtime Launcher (`bin/cliphaven.js`)**: Automatically checks for Python 3.10+ first (Option A: runs `server.py` inside a cached isolated `~/.cliphaven/venv`), and seamlessly falls back to downloading & caching the OS/architecture-matched GitHub Release binary (`~/.cliphaven/bin/v<version>/`) if Python is unavailable (Option B).
+- **Server CLI & Env Configuration (`server.py`)**: Added `--port` / `-p`, `--no-browser`, `CLIPHAVEN_PORT`, and `CLIPHAVEN_NO_BROWSER` support in `server.py` with unit test coverage (`test_resolve_cli_options`).
+- **Automated npm CI & Release-Only Publishing (`.github/workflows/ci.yml`, `.github/workflows/npm-publish.yml`)**: Added `npm-cli` verification job in CI (`npm run check`, CLI flags, `npm pack --dry-run`) and a dedicated `npm-publish.yml` workflow triggered exclusively when a stable GitHub Release is published (`release: types: [published]`, skipping drafts and pre-releases) with `--provenance` supply-chain attestation.
+
+
 ## [[3.3.0](https://github.com/AsadullahAlMunib/ClipHaven/releases/tag/v3.3.0)] - 2026-11-21
 
 ### Added

@@ -1,0 +1,2 @@
+include index.html style.css app.js logo.svg requirements.txt README.md README_BN.md LICENSE
+recursive-include core *.py
