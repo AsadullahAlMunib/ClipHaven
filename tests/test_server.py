@@ -59,9 +59,9 @@ def test_parse_timestamp():
     assert server.validate_playlist_items("") == ""
     assert server.validate_playlist_items("1, 3, 5-8") == "1,3,5-8"
     assert server.validate_playlist_items("1;rm -rf") is None
-    assert server.is_newer_version("3.4.0", "3.3.0") is True
-    assert server.is_newer_version("3.3.0", "3.3.0") is False
-    assert server.is_newer_version("3.2.3", "3.3.0") is False
+    assert server.is_newer_version("3.4.0", "3.3.1") is True
+    assert server.is_newer_version("3.3.1", "3.3.1") is False
+    assert server.is_newer_version("3.2.3", "3.3.1") is False
 
 
 def test_trim_and_shift_subtitle_text_and_file(tmp_path):
@@ -149,7 +149,7 @@ def test_config_logo_and_validation_endpoints(tmp_path):
             assert resp.status == 200
             data = json.loads(resp.read().decode("utf-8"))
             assert data["ok"] is True
-            assert data["version"] == "3.3.0"
+            assert data["version"] == "3.3.1"
             assert "default_folder" in data
             assert "ffmpeg" in data
 
@@ -423,3 +423,29 @@ def test_fast_duration_parsing():
     assert server._extract_duration_from_html('<meta itemprop="duration" content="PT3M12S" />') == 192
     assert server._extract_duration_from_html('{"lengthSeconds":"754"}') == 754
     assert server._extract_duration_from_html("<html><body>No duration</body></html>") == 0
+
+def test_resolve_cli_options():
+    assert server._resolve_cli_options([], {}) == (None, False, "")
+    assert server._resolve_cli_options(["--port", "9090", "--no-browser"], {}) == (9090, True, "")
+    assert server._resolve_cli_options(["-p", "8888", "https://youtu.be/dQw4w9WgXcQ"], {}) == (8888, False, "https://youtu.be/dQw4w9WgXcQ")
+    assert server._resolve_cli_options(["--port=9123"], {}) == (9123, False, "")
+    assert server._resolve_cli_options([], {"CLIPHAVEN_PORT": "8900", "CLIPHAVEN_NO_BROWSER": "1", "CLIPHAVEN_INITIAL_URL": "https://youtu.be/abc12345678"}) == (8900, True, "https://youtu.be/abc12345678")
+    assert server._resolve_cli_options(["--port", "80"], {}) == (None, False, "")
+
+def test_resolve_bundle_dir_wheel_fallback(tmp_path):
+    empty_mod_dir = tmp_path / "site-packages"
+    empty_mod_dir.mkdir()
+    fake_prefix = tmp_path / "venv"
+    share_dir = fake_prefix / "share" / "cliphaven"
+    share_dir.mkdir(parents=True)
+    (share_dir / "index.html").write_text("<html></html>", encoding="utf-8")
+
+    found = server._resolve_bundle_dir(base_dir=empty_mod_dir, prefixes=(fake_prefix,))
+    assert found == share_dir
+
+def test_parse_yes_no_input():
+    for yes_val in ("", "y", "Y", "yes", "Yes", "YES", "yas", "Yas", "YAs", "YAS", "yaS", "yAS"):
+        assert server._parse_yes_no_input(yes_val) is True
+    for no_val in ("n", "N", "no", "No", "nO", "NO"):
+        assert server._parse_yes_no_input(no_val) is False
+    assert server._parse_yes_no_input("maybe") is None
