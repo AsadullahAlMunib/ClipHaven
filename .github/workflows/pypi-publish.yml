@@ -1,0 +1,81 @@
+name: Publish to PyPI (cliphaven)
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish-pypi:
+    name: Build & Publish Stable Release to PyPI
+    if: github.event.release.draft == false && github.event.release.prerelease == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate Stable Release Tag
+        id: gate
+        env:
+          REL_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          if [[ "$REL_TAG" =~ ^[vV]([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+            echo "pkg_version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping PyPI publish for non-stable tag '$REL_TAG'."
+          fi
+
+      - name: Set up Python 3.12
+        if: steps.gate.outputs.should_publish == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build & Validate Wheel + Source Distribution
+        if: steps.gate.outputs.should_publish == 'true'
+        env:
+          TAG_VER: ${{ steps.gate.outputs.pkg_version }}
+        run: |
+          python -m pip install --upgrade pip build twine
+          python - <<'PY'
+          import os, re
+          from pathlib import Path
+
+          # 1. Sync pyproject.toml version with the published tag
+          p = Path("pyproject.toml")
+          t = p.read_text(encoding="utf-8")
+          ver = os.environ["TAG_VER"]
+          t = re.sub(r'(?m)^version\s*=\s*"[^"]+"', f'version = "{ver}"', t, count=1)
+          p.write_text(t, encoding="utf-8")
+
+          # 2. Rewrite relative image & doc links in README.md to absolute GitHub URLs for PyPI rendering
+          rp = Path("README.md")
+          rt = rp.read_text(encoding="utf-8")
+          replacements = [
+              ('src="logo.svg"', 'src="https://raw.githubusercontent.com/AsadullahAlMunib/ClipHaven/01500b38644252dd074a47951638ef0edfe8271d/logo.svg"'),
+              ('src="docs/ClipHaven_Documentation_Video_Thumbnail_EN.jpeg"', 'src="https://raw.githubusercontent.com/AsadullahAlMunib/ClipHaven/refs/heads/main/docs/ClipHaven_Documentation_Video_Thumbnail_EN.jpeg"'),
+              ('src="docs/ClipHaven_Documentation_Video_Thumbnail_BN.jpeg"', 'src="https://raw.githubusercontent.com/AsadullahAlMunib/ClipHaven/refs/heads/main/docs/ClipHaven_Documentation_Video_Thumbnail_BN.jpeg"'),
+              ('(README_BN.md)', '(https://github.com/AsadullahAlMunib/ClipHaven/blob/main/README_BN.md)'),
+              ('(CHANGELOG.md)', '(https://github.com/AsadullahAlMunib/ClipHaven/blob/main/CHANGELOG.md)'),
+              ('(LICENSE)', '(https://github.com/AsadullahAlMunib/ClipHaven/blob/main/LICENSE)'),
+          ]
+          for old, new in replacements:
+              rt = rt.replace(old, new)
+          rp.write_text(rt, encoding="utf-8")
+          PY
+          python -m build
+          twine check dist/*
+
+      - name: Publish to PyPI (Trusted Publisher OIDC)
+        if: steps.gate.outputs.should_publish == 'true' && secrets.PYPI_API_TOKEN == ''
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+      - name: Publish to PyPI (API Token Fallback)
+        if: steps.gate.outputs.should_publish == 'true' && secrets.PYPI_API_TOKEN != ''
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}

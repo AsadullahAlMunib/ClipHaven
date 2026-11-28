@@ -1,0 +1,70 @@
+name: Publish to npm (@asadullahalmunib/cliphaven)
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish-npm:
+    name: Publish Stable GitHub Release to npm
+    if: github.event.release.draft == false && github.event.release.prerelease == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate Stable Release Tag & NPM_TOKEN
+        id: gate
+        env:
+          REL_TAG: ${{ github.event.release.tag_name }}
+          HAS_TOKEN: ${{ secrets.NPM_TOKEN != '' }}
+        run: |
+          if [[ "$REL_TAG" =~ ^[vV]([0-9]+\.[0-9]+\.[0-9]+)$ ]] && [[ "$HAS_TOKEN" == "true" ]]; then
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+            echo "pkg_version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping npm publish (non-stable tag '$REL_TAG' or NPM_TOKEN secret missing)."
+          fi
+
+      - name: Set up Node.js 20
+        if: steps.gate.outputs.should_publish == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Verify CLI & Publish Package to npm
+        if: steps.gate.outputs.should_publish == 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          TAG_VER: ${{ steps.gate.outputs.pkg_version }}
+        run: |
+          npm run check
+          node - <<'JS'
+          const fs = require("fs");
+          const p = JSON.parse(fs.readFileSync("package.json", "utf8"));
+          if (p.version !== process.env.TAG_VER) {
+            p.version = process.env.TAG_VER;
+            fs.writeFileSync("package.json", JSON.stringify(p, null, 2) + "\n");
+          }
+          const replacements = [
+            ['src="logo.svg"', 'src="https://raw.githubusercontent.com/AsadullahAlMunib/ClipHaven/01500b38644252dd074a47951638ef0edfe8271d/logo.svg"'],
+            ['src="docs/ClipHaven_Documentation_Video_Thumbnail_EN.jpeg"', 'src="https://raw.githubusercontent.com/AsadullahAlMunib/ClipHaven/refs/heads/main/docs/ClipHaven_Documentation_Video_Thumbnail_EN.jpeg"'],
+            ['src="docs/ClipHaven_Documentation_Video_Thumbnail_BN.jpeg"', 'src="https://raw.githubusercontent.com/AsadullahAlMunib/ClipHaven/refs/heads/main/docs/ClipHaven_Documentation_Video_Thumbnail_BN.jpeg"'],
+            ['(README_BN.md)', '(https://github.com/AsadullahAlMunib/ClipHaven/blob/main/README_BN.md)'],
+            ['(README.md)', '(https://github.com/AsadullahAlMunib/ClipHaven/blob/main/README.md)'],
+            ['(CHANGELOG.md)', '(https://github.com/AsadullahAlMunib/ClipHaven/blob/main/CHANGELOG.md)'],
+            ['(LICENSE)', '(https://github.com/AsadullahAlMunib/ClipHaven/blob/main/LICENSE)'],
+          ];
+          for (const f of ["README.md", "README_BN.md"]) {
+            if (!fs.existsSync(f)) continue;
+            let t = fs.readFileSync(f, "utf8");
+            for (const [o, n] of replacements) t = t.split(o).join(n);
+            fs.writeFileSync(f, t, "utf8");
+          }
+          JS
+          npm publish --provenance --access public

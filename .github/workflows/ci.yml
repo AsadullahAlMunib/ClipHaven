@@ -20,6 +20,12 @@ jobs:
         run: pip install ruff
       - name: Run Ruff Check
         run: ruff check server.py core/ scripts/ tests/ --select E,F --ignore E501,E402,E731
+      - name: Verify PyPI Wheel & sdist Build
+        run: |
+          pip install build twine
+          python -m build
+          twine check dist/*
+
 
   test:
     name: Automated Tests (${{ matrix.os }}, Python ${{ matrix.python-version }})
@@ -58,3 +64,19 @@ jobs:
           gradle-version: "8.5"
       - name: Assemble Debug APKs & Run Lint
         run: gradle -p android assembleDebug lintDebug
+
+  npm-cli:
+    name: Verify npm CLI Package (@asadullahalmunib/cliphaven)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Check JS Syntax & CLI Flags
+        run: |
+          npm run check
+          node bin/cliphaven.js --version
+          node bin/cliphaven.js --help
+      - name: Verify npm Pack Contents
+        run: npm pack --dry-run
