@@ -822,6 +822,14 @@
               <i class="fa-brands fa-linux"></i>
               <span data-i18n="tabM3">macOS / Linux</span>
             </button>
+            <button type="button" data-tab="npm" class="os-tab inline-flex items-center gap-1.5 rounded-xl bg-slate-100 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">
+              <i class="fa-brands fa-npm text-sm"></i>
+              <span>npm / npx</span>
+            </button>
+            <button type="button" data-tab="pypi" class="os-tab inline-flex items-center gap-1.5 rounded-xl bg-slate-100 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">
+              <i class="fa-brands fa-python"></i>
+              <span>PyPI / pipx</span>
+            </button>
             <button type="button" data-tab="dev" class="os-tab inline-flex items-center gap-1.5 rounded-xl bg-slate-100 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">
               <i class="fa-solid fa-terminal"></i>
               <span data-i18n="tabM4">Run from Source</span>
@@ -858,6 +866,130 @@
             <div class="flex items-center justify-between gap-2 rounded-xl bg-slate-950 px-4 py-3 font-mono text-xs text-slate-100 overflow-x-auto">
               <span>chmod +x ClipHaven-* &amp;&amp; ./ClipHaven-*</span>
               <button type="button" data-copy="chmod +x ClipHaven-* && ./ClipHaven-*" class="copy-btn shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-slate-800 px-2.5 py-1 text-[11px] font-sans font-semibold text-slate-200 hover:bg-brand-600">
+                <i class="fa-regular fa-copy"></i>
+                <span>Copy</span>
+              </button>
+            </div>
+          </div>
+
+          <div id="tab-npm" class="os-panel mt-4 hidden space-y-3.5 text-xs sm:text-sm text-slate-600 dark:text-slate-300">
+            <p data-i18n="npmDesc">Run ClipHaven directly from any terminal with Node.js 18+. Automatically uses your local Python 3.10+ environment when installed, or falls back to the cached GitHub Release binary if Python is unavailable.</p>
+
+            <div class="space-y-1.5">
+              <div class="text-xs font-semibold text-slate-700 dark:text-slate-200" data-i18n="npmCmd1Label">1. Run instantly without installing globally:</div>
+              <div class="flex items-center justify-between gap-2 rounded-xl bg-slate-950 px-4 py-2.5 font-mono text-xs text-slate-100 overflow-x-auto">
+                <span>npx @asadullahalmunib/cliphaven</span>
+                <button type="button" data-copy="npx @asadullahalmunib/cliphaven" class="copy-btn shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-slate-800 px-2.5 py-1 text-[11px] font-sans font-semibold text-slate-200 hover:bg-brand-600">
+                  <i class="fa-regular fa-copy"></i><span>Copy</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="space-y-1.5">
+              <div class="text-xs font-semibold text-slate-700 dark:text-slate-200" data-i18n="npmCmd2Label">2. Install globally so you can run cliphaven from anywhere:</div>
+              <div class="flex items-center justify-between gap-2 rounded-xl bg-slate-950 px-4 py-2.5 font-mono text-xs text-slate-100 overflow-x-auto">
+                <span>npm install -g @asadullahalmunib/cliphaven</span>
+                <button type="button" data-copy="npm install -g @asadullahalmunib/cliphaven" class="copy-btn shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-slate-800 px-2.5 py-1 text-[11px] font-sans font-semibold text-slate-200 hover:bg-brand-600">
+                  <i class="fa-regular fa-copy"></i><span>Copy</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="space-y-1.5">
+              <div class="text-xs font-semibold text-slate-700 dark:text-slate-200" data-i18n="npmCmd3Label">3. Open directly with a video link (auto-fills URL &amp; starts preview):</div>
+              <div class="flex items-center justify-between gap-2 rounded-xl bg-slate-950 px-4 py-2.5 font-mono text-xs text-slate-100 overflow-x-auto">
+                <span>cliphaven https://youtu.be/dQw4w9WgXcQ</span>
+                <button type="button" data-copy="cliphaven https://youtu.be/dQw4w9WgXcQ" class="copy-btn shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-slate-800 px-2.5 py-1 text-[11px] font-sans font-semibold text-slate-200 hover:bg-brand-600">
+                  <i class="fa-regular fa-copy"></i><span>Copy</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="space-y-1.5">
+              <div class="text-xs font-semibold text-slate-700 dark:text-slate-200" data-i18n="npmCmd4Label">4. Useful CLI commands (run individually):</div>
+              <div class="space-y-2">
+                <div class="flex items-center justify-between gap-2 rounded-xl bg-slate-950 px-4 py-2.5 font-mono text-xs text-slate-100 overflow-x-auto">
+                  <span>cliphaven --doctor <span class="text-slate-400" data-i18n="cliDoctorHint"># Check Node, Python, FFmpeg &amp; aria2c</span></span>
+                  <button type="button" data-copy="cliphaven --doctor" class="copy-btn shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-slate-800 px-2.5 py-1 text-[11px] font-sans font-semibold text-slate-200 hover:bg-brand-600">
+                    <i class="fa-regular fa-copy"></i><span>Copy</span>
+                  </button>
+                </div>
+                <div class="flex items-center justify-between gap-2 rounded-xl bg-slate-950 px-4 py-2.5 font-mono text-xs text-slate-100 overflow-x-auto">
+                  <span>cliphaven --update <span class="text-slate-400" data-i18n="cliUpdateHint"># Upgrade yt-dlp / cached binary</span></span>
+                  <button type="button" data-copy="cliphaven --update" class="copy-btn shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-slate-800 px-2.5 py-1 text-[11px] font-sans font-semibold text-slate-200 hover:bg-brand-600">
+                    <i class="fa-regular fa-copy"></i><span>Copy</span>
+                  </button>
+                </div>
+                <div class="flex items-center justify-between gap-2 rounded-xl bg-slate-950 px-4 py-2.5 font-mono text-xs text-slate-100 overflow-x-auto">
+                  <span>cliphaven --port 9000 --no-browser <span class="text-slate-400" data-i18n="cliPortHint"># Custom port without auto-opening browser</span></span>
+                  <button type="button" data-copy="cliphaven --port 9000 --no-browser" class="copy-btn shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-slate-800 px-2.5 py-1 text-[11px] font-sans font-semibold text-slate-200 hover:bg-brand-600">
+                    <i class="fa-regular fa-copy"></i><span>Copy</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="tab-pypi" class="os-panel mt-4 hidden space-y-3.5 text-xs sm:text-sm text-slate-600 dark:text-slate-300">
+            <p data-i18n="pypiDesc">Run ClipHaven directly from PyPI with Python 3.10+ using pipx or pip. Includes the exact same CLI flags, direct URL launch, and interactive Y/n update prompts.</p>
+
+            <div class="space-y-1.5">
+              <div class="text-xs font-semibold text-slate-700 dark:text-slate-200" data-i18n="pypiCmd1Label">1. Run directly in an isolated environment via pipx (Recommended):</div>
+              <div class="flex items-center justify-between gap-2 rounded-xl bg-slate-950 px-4 py-2.5 font-mono text-xs text-slate-100 overflow-x-auto">
+                <span>pipx run cliphaven</span>
+                <button type="button" data-copy="pipx run cliphaven" class="copy-btn shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-slate-800 px-2.5 py-1 text-[11px] font-sans font-semibold text-slate-200 hover:bg-brand-600">
+                  <i class="fa-regular fa-copy"></i><span>Copy</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="space-y-1.5">
+              <div class="text-xs font-semibold text-slate-700 dark:text-slate-200" data-i18n="pypiCmd2Label">2. Install with pip and launch from any terminal:</div>
+              <div class="flex items-center justify-between gap-2 rounded-xl bg-slate-950 px-4 py-2.5 font-mono text-xs text-slate-100 overflow-x-auto">
+                <span>pip install cliphaven &amp;&amp; cliphaven</span>
+                <button type="button" data-copy="pip install cliphaven &amp;&amp; cliphaven" class="copy-btn shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-slate-800 px-2.5 py-1 text-[11px] font-sans font-semibold text-slate-200 hover:bg-brand-600">
+                  <i class="fa-regular fa-copy"></i><span>Copy</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="space-y-1.5">
+              <div class="text-xs font-semibold text-slate-700 dark:text-slate-200" data-i18n="pypiCmd3Label">3. Open directly with a video link (auto-fills URL &amp; starts preview):</div>
+              <div class="flex items-center justify-between gap-2 rounded-xl bg-slate-950 px-4 py-2.5 font-mono text-xs text-slate-100 overflow-x-auto">
+                <span>cliphaven https://youtu.be/dQw4w9WgXcQ</span>
+                <button type="button" data-copy="cliphaven https://youtu.be/dQw4w9WgXcQ" class="copy-btn shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-slate-800 px-2.5 py-1 text-[11px] font-sans font-semibold text-slate-200 hover:bg-brand-600">
+                  <i class="fa-regular fa-copy"></i><span>Copy</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="space-y-1.5">
+              <div class="text-xs font-semibold text-slate-700 dark:text-slate-200" data-i18n="pypiCmd4Label">4. Useful CLI commands (run individually):</div>
+              <div class="space-y-2">
+                <div class="flex items-center justify-between gap-2 rounded-xl bg-slate-950 px-4 py-2.5 font-mono text-xs text-slate-100 overflow-x-auto">
+                  <span>cliphaven --doctor <span class="text-slate-400" data-i18n="cliDoctorHint"># Check Node, Python, FFmpeg &amp; aria2c</span></span>
+                  <button type="button" data-copy="cliphaven --doctor" class="copy-btn shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-slate-800 px-2.5 py-1 text-[11px] font-sans font-semibold text-slate-200 hover:bg-brand-600">
+                    <i class="fa-regular fa-copy"></i><span>Copy</span>
+                  </button>
+                </div>
+                <div class="flex items-center justify-between gap-2 rounded-xl bg-slate-950 px-4 py-2.5 font-mono text-xs text-slate-100 overflow-x-auto">
+                  <span>cliphaven --update <span class="text-slate-400" data-i18n="cliUpdateHint"># Upgrade yt-dlp / cached binary</span></span>
+                  <button type="button" data-copy="cliphaven --update" class="copy-btn shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-slate-800 px-2.5 py-1 text-[11px] font-sans font-semibold text-slate-200 hover:bg-brand-600">
+                    <i class="fa-regular fa-copy"></i><span>Copy</span>
+                  </button>
+                </div>
+                <div class="flex items-center justify-between gap-2 rounded-xl bg-slate-950 px-4 py-2.5 font-mono text-xs text-slate-100 overflow-x-auto">
+                  <span>cliphaven --port 9000 --no-browser <span class="text-slate-400" data-i18n="cliPortHint"># Custom port without auto-opening browser</span></span>
+                  <button type="button" data-copy="cliphaven --port 9000 --no-browser" class="copy-btn shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-slate-800 px-2.5 py-1 text-[11px] font-sans font-semibold text-slate-200 hover:bg-brand-600">
+                    <i class="fa-regular fa-copy"></i><span>Copy</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+            <div class="flex items-center justify-between gap-2 rounded-xl bg-slate-950 px-4 py-3 font-mono text-xs text-slate-100 overflow-x-auto">
+              <span>pip install cliphaven &amp;&amp; cliphaven --doctor</span>
+              <button type="button" data-copy="pip install cliphaven &amp;&amp; cliphaven --doctor" class="copy-btn shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-slate-800 px-2.5 py-1 text-[11px] font-sans font-semibold text-slate-200 hover:bg-brand-600">
                 <i class="fa-regular fa-copy"></i>
                 <span>Copy</span>
               </button>
@@ -932,7 +1064,9 @@ pytest -v</pre>
 ├── .github/
 │   ├── dependabot.yml                                             # Weekly dependency update configuration
 │   └── workflows/
-│       ├── ci.yml                                                 # Multi-OS Python tests, Ruff lint &amp; Android Gradle/lint CI
+│       ├── ci.yml                                                 # Multi-OS Python tests, Ruff lint, npm CLI &amp; Android CI
+│       ├── npm-publish.yml                                        # Auto-publish @asadullahalmunib/cliphaven on GitHub Release
+│       ├── pypi-publish.yml                                       # Auto-publish cliphaven to PyPI on GitHub Release
 │       └── release.yml                                            # Automated 11-asset release builder (Desktop, Android &amp; Source)
 ├── android/                                                       # Self-contained Android APK project (Kotlin + youtubedl-android)
 │   ├── build.gradle.kts                                           # Root Android Gradle plugin configuration
@@ -957,6 +1091,8 @@ pytest -v</pre>
 │               │   └── notification_download_progress.xml         # 3-line DecoratedCustomViewStyle progress layout
 │               └── xml/
 │                   └── file_paths.xml                             # FileProvider storage paths for direct notification Play
+├── bin/
+│   └── cliphaven.js                                               # Hybrid npm/npx CLI launcher (Python .venv -> Release binary)
 ├── core/                                                          # Modular Python backend helpers
 │   ├── __init__.py                                                # Core Python package initializer
 │   ├── playlist.py                                                # Direct playlist Page-1 &amp; InnerTube continuation pagination
@@ -970,11 +1106,13 @@ pytest -v</pre>
 ├── .gitignore                                                     # Git ignore rules for caches, venvs &amp; build artifacts
 ├── CHANGELOG.md                                                   # Detailed record of updates and version history
 ├── LICENSE                                                        # MIT Open Source License
+├── MANIFEST.in                                                    # PyPI source distribution asset include rules
 ├── README.md                                                      # English documentation
 ├── README_BN.md                                                   # Bangla documentation
 ├── app.js                                                         # Client state, Up Next queue, clip slider, sound/haptics &amp; polling
 ├── index.html                                                     # Bilingual EN/বাংলা Studio UI markup
 ├── logo.svg                                                       # Vector application logo and favicon
+├── package.json                                                   # npm package (@asadullahalmunib/cliphaven), bin &amp; dev scripts
 ├── pyproject.toml                                                 # Project metadata &amp; Ruff/pytest configuration
 ├── requirements.txt                                               # Core Python dependencies (yt-dlp, imageio-ffmpeg, mutagen)
 ├── server.py                                                      # Local HTTP server, fast previews &amp; yt-dlp / FFmpeg backend
@@ -1272,6 +1410,19 @@ pytest -v</pre>
         tabM2: "Android (APK)",
         tabM3: "macOS / Linux",
         tabM4: "Run from Source",
+        npmDesc: "Run ClipHaven directly from any terminal with Node.js 18+. Automatically uses your local Python 3.10+ environment when installed, or falls back to the cached GitHub Release binary if Python is unavailable.",
+        npmCmd1Label: "1. Run instantly without installing globally:",
+        npmCmd2Label: "2. Install globally so you can run cliphaven from anywhere:",
+        npmCmd3Label: "3. Open directly with a video link (auto-fills URL & starts preview):",
+        npmCmd4Label: "4. Useful CLI commands (run individually):",
+        cliDoctorHint: "# Check Node, Python, FFmpeg & aria2c",
+        cliUpdateHint: "# Upgrade yt-dlp / cached binary",
+        cliPortHint: "# Custom port without auto-opening browser",
+        pypiDesc: "Run ClipHaven directly from PyPI with Python 3.10+ using pipx or pip. Includes the exact same CLI flags, direct URL launch, and interactive Y/n update prompts.",
+        pypiCmd1Label: "1. Run directly in an isolated environment via pipx (Recommended):",
+        pypiCmd2Label: "2. Install with pip and launch from any terminal:",
+        pypiCmd3Label: "3. Open directly with a video link (auto-fills URL & starts preview):",
+        pypiCmd4Label: "4. Useful CLI commands (run individually):",
         m1Step1: "Download ClipHaven-Windows-All.zip (Recommended) or ClipHaven-Windows.exe from the Quick Downloads cards above.",
         m1Step2: "Extract the archive and run ClipHaven.exe, or double-click setup-and-run.bat in the source folder. Your browser opens http://127.0.0.1:8765/ automatically.",
         m2Step1: "Download and install ClipHaven-Android-64bit.apk (arm64-v8a for modern phones) or ClipHaven-Android-32bit.apk (armeabi-v7a for older 32-bit devices).",
@@ -1403,6 +1554,19 @@ pytest -v</pre>
         tabM2: "Android (APK)",
         tabM3: "macOS / Linux",
         tabM4: "সোর্স থেকে রান",
+        npmDesc: "Node.js 18+ দিয়ে যেকোনো টার্মিনাল থেকে সরাসরি ClipHaven চালান। পিসিতে Python 3.10+ থাকলে স্বয়ংক্রিয়ভাবে ~/.cliphaven/venv ব্যবহার করে, আর Python না থাকলে অটোমেটিক GitHub Release থেকে প্রিবিল্ট বাইনারি ক্যাশ করে চালায়।",
+        npmCmd1Label: "১. গ্লোবাল ইনস্টল ছাড়াই সরাসরি চালান:",
+        npmCmd2Label: "২. গ্লোবালি ইনস্টল করুন যাতে যেকোনো জায়গা থেকে cliphaven কমান্ড চালানো যায়:",
+        npmCmd3Label: "৩. সরাসরি ভিডিও লিংকসহ চালু করুন (URL অটো-ফিল ও প্রিভিউ শুরু হবে):",
+        npmCmd4Label: "৪. প্রয়োজনীয় CLI কমান্ডসমূহ (আলাদাভাবে চালান):",
+        cliDoctorHint: "# সিস্টেম, Python, FFmpeg ও aria2c চেক করুন",
+        cliUpdateHint: "# yt-dlp / ক্যাশড বাইনারি আপডেট করুন",
+        cliPortHint: "# কাস্টম পোর্টে ও ব্রাউজার না খুলেই চালান",
+        pypiDesc: "Python 3.10+ এ pipx বা pip ব্যবহার করে PyPI থেকে সরাসরি ClipHaven চালান। এতে npm CLI-এর মতোই সব ফ্ল্যাগ, সরাসরি লিংক লঞ্চ এবং ইন্টারঅ্যাক্টিভ Y/n আপডেট প্রম্পট রয়েছে।",
+        pypiCmd1Label: "১. pipx দিয়ে আলাদা আইসোলেটেড এনভায়রনমেন্টে সরাসরি চালান (প্রস্তাবিত):",
+        pypiCmd2Label: "২. pip দিয়ে ইনস্টল করে যেকোনো টার্মিনাল থেকে চালু করুন:",
+        pypiCmd3Label: "৩. সরাসরি ভিডিও লিংকসহ চালু করুন (URL অটো-ফিল ও প্রিভিউ শুরু হবে):",
+        pypiCmd4Label: "৪. প্রয়োজনীয় CLI কমান্ডসমূহ (আলাদাভাবে চালান):",
         m1Step1: "উপরের ডাউনলোড কার্ড থেকে ClipHaven-Windows-All.zip (প্রস্তাবিত) অথবা ClipHaven-Windows.exe ডাউনলোড করুন।",
         m1Step2: "জিপ ফাইলটি আনজিপ করে ClipHaven.exe চালু করুন, অথবা সোর্স ফোল্ডারে setup-and-run.bat ফাইলে ডাবল-ক্লিক করুন। স্বয়ংক্রিয়ভাবে ব্রাউজারে http://127.0.0.1:8765/ খুলে যাবে।",
         m2Step1: "আধুনিক ৬৪-বিট ফোনের জন্য ClipHaven-Android-64bit.apk (arm64-v8a) অথবা পুরনো ৩২-বিট ফোনের জন্য ClipHaven-Android-32bit.apk (armeabi-v7a) ডাউনলোড ও ইনস্টল করুন।",
